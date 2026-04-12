@@ -51,7 +51,7 @@ begin
     perform core.assert_member(v_obligation.workspace_id, p_actor_id);
 
     v_input_hash := encode(
-        public.digest(
+        extensions.digest(
             convert_to(
                 coalesce(p_resolution_type, '') ||
                 coalesce(p_reason, '') ||
@@ -61,7 +61,7 @@ begin
                 coalesce(p_proof_status, ''),
                 'UTF8'
             ),
-            'sha256'::text
+            'sha256'
         ),
         'hex'
     );
