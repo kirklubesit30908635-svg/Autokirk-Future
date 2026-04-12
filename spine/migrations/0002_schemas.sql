@@ -1,0 +1,10 @@
+create schema if not exists core;
+create schema if not exists registry;
+create schema if not exists ledger;
+create schema if not exists ingest;
+create schema if not exists api;
+create schema if not exists governance;
+create schema if not exists receipts;
+create schema if not exists signals;
+create schema if not exists knowledge;
+create schema if not exists kernel;
