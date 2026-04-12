@@ -22,14 +22,25 @@ declare
     v_existing record;
 begin
     -- =========================================================
-    -- IDEMPOTENCY PRE-CHECK
+    -- IDEMPOTENCY PRE-CHECK (KERNEL GATE)
     -- =========================================================
+    if p_idempotency_key is null then
+        raise exception 'IDEMPOTENCY_KEY_REQUIRED';
+    end if;
+
     select *
       into v_existing
       from ledger.idempotency_keys
      where idempotency_key = p_idempotency_key;
 
     if found then
+        -- =====================================================
+        -- IDEMPOTENCY MISMATCH GUARD
+        -- =====================================================
+        if v_existing.obligation_id <> p_obligation_id then
+            raise exception 'IDEMPOTENCY_KEY_REUSE_WITH_DIFFERENT_OBLIGATION';
+        end if;
+
         return jsonb_build_object(
             'ok', true,
             'event_id', v_existing.event_id,
@@ -40,7 +51,7 @@ begin
     end if;
 
     -- =========================================================
-    -- LOAD OBLIGATION
+    -- LOAD OBLIGATION (AUTHORITATIVE STATE)
     -- =========================================================
     select o.workspace_id, o.status
       into v_workspace_id, v_status
@@ -54,12 +65,8 @@ begin
     perform core.assert_member(v_workspace_id);
 
     -- =========================================================
-    -- VALIDATION
+    -- VALIDATION (CONSTRUCTION CONSTRAINTS)
     -- =========================================================
-    if p_idempotency_key is null then
-        raise exception 'IDEMPOTENCY_KEY_REQUIRED';
-    end if;
-
     if p_reason is null or length(trim(p_reason)) = 0 then
         raise exception 'REASON_REQUIRED';
     end if;
@@ -81,7 +88,7 @@ begin
     end if;
 
     -- =========================================================
-    -- EVENT
+    -- EVENT (FACT EMISSION)
     -- =========================================================
     insert into ledger.events (
         id,
@@ -109,7 +116,7 @@ begin
     );
 
     -- =========================================================
-    -- OBLIGATION UPDATE
+    -- OBLIGATION (STATE TRANSITION)
     -- =========================================================
     update core.obligations
        set status = 'resolved',
@@ -120,7 +127,7 @@ begin
      where id = p_obligation_id;
 
     -- =========================================================
-    -- RECEIPT
+    -- RECEIPT (IMMUTABLE PROOF)
     -- =========================================================
     insert into receipts.receipts (
         id,
@@ -150,7 +157,7 @@ begin
     );
 
     -- =========================================================
-    -- IDEMPOTENCY SEAL (CRITICAL)
+    -- IDEMPOTENCY SEAL (RECEIPT OF EXECUTION)
     -- =========================================================
     insert into ledger.idempotency_keys (
         idempotency_key,
@@ -168,7 +175,7 @@ begin
     );
 
     -- =========================================================
-    -- RETURN
+    -- RETURN (CANONICAL RESPONSE)
     -- =========================================================
     return jsonb_build_object(
         'ok', true,
