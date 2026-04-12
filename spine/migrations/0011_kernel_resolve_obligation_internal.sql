@@ -22,6 +22,7 @@ declare
     v_event_id uuid := gen_random_uuid();
 
     v_existing record;
+    v_input_hash text;
 begin
     -- =========================================================
     -- IDEMPOTENCY GATE
@@ -29,41 +30,6 @@ begin
     if p_idempotency_key is null or length(trim(p_idempotency_key)) = 0 then
         raise exception 'IDEMPOTENCY_KEY_REQUIRED';
     end if;
-
-    select *
-      into v_existing
-      from ledger.idempotency_keys
-     where idempotency_key = p_idempotency_key;
-
-    if found then
-        if v_existing.obligation_id <> p_obligation_id then
-            raise exception 'IDEMPOTENCY_KEY_REUSE_WITH_DIFFERENT_OBLIGATION';
-        end if;
-
-        return jsonb_build_object(
-            'ok', true,
-            'event_id', v_existing.event_id,
-            'obligation_id', v_existing.obligation_id,
-            'receipt_id', v_existing.receipt_id,
-            'resolution_type', p_resolution_type,
-            'proof_status', p_proof_status,
-            'replayed', true
-        );
-    end if;
-
-    -- =========================================================
-    -- AUTHORITATIVE STATE LOAD
-    -- =========================================================
-    select o.workspace_id, o.status
-      into v_workspace_id, v_status
-      from core.obligations o
-     where o.id = p_obligation_id;
-
-    if v_workspace_id is null then
-        raise exception 'OBLIGATION_NOT_FOUND';
-    end if;
-
-    perform core.assert_member(v_workspace_id);
 
     -- =========================================================
     -- CONSTRUCTION CONSTRAINTS
@@ -91,6 +57,60 @@ begin
     if p_proof_status is null or length(trim(p_proof_status)) = 0 then
         raise exception 'PROOF_STATUS_REQUIRED';
     end if;
+
+    v_input_hash := encode(
+        digest(
+            (
+                coalesce(p_resolution_type, '') ||
+                coalesce(p_reason, '') ||
+                coalesce(p_evidence_present::text, '') ||
+                coalesce(p_failed_checks::text, '') ||
+                coalesce(p_rule_version, '') ||
+                coalesce(p_proof_status, '')
+            )::bytea,
+            'sha256'
+        ),
+        'hex'
+    );
+
+    select *
+      into v_existing
+      from ledger.idempotency_keys
+     where idempotency_key = p_idempotency_key;
+
+    if found then
+        if v_existing.obligation_id <> p_obligation_id then
+            raise exception 'IDEMPOTENCY_KEY_REUSE_WITH_DIFFERENT_OBLIGATION';
+        end if;
+
+        if v_existing.input_hash is not null and v_existing.input_hash <> v_input_hash then
+            raise exception 'IDEMPOTENCY_KEY_REUSE_WITH_DIFFERENT_INPUT';
+        end if;
+
+        return jsonb_build_object(
+            'ok', true,
+            'event_id', v_existing.event_id,
+            'obligation_id', v_existing.obligation_id,
+            'receipt_id', v_existing.receipt_id,
+            'resolution_type', p_resolution_type,
+            'proof_status', p_proof_status,
+            'replayed', true
+        );
+    end if;
+
+    -- =========================================================
+    -- AUTHORITATIVE STATE LOAD
+    -- =========================================================
+    select o.workspace_id, o.status
+      into v_workspace_id, v_status
+      from core.obligations o
+     where o.id = p_obligation_id;
+
+    if v_workspace_id is null then
+        raise exception 'OBLIGATION_NOT_FOUND';
+    end if;
+
+    perform core.assert_member(v_workspace_id);
 
     if v_status <> 'open' then
         raise exception 'OBLIGATION_NOT_OPEN';
@@ -173,14 +193,16 @@ begin
         obligation_id,
         resolution_type,
         event_id,
-        receipt_id
+        receipt_id,
+        input_hash
     )
     values (
         p_idempotency_key,
         p_obligation_id,
         p_resolution_type,
         v_event_id,
-        v_receipt_id
+        v_receipt_id,
+        v_input_hash
     );
 
     -- =========================================================
