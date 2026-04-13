@@ -1,0 +1,1 @@
+select pg_get_functiondef('api.resolve_obligation(uuid,uuid,text,text,jsonb,jsonb,text,text)'::regprocedure);

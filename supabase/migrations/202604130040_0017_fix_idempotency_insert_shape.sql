@@ -13,7 +13,7 @@ returns jsonb
 language plpgsql
 security definer
 set search_path = public, pg_temp
-as $$
+as $function$
 declare
     v_obligation core.obligations%rowtype;
     v_existing_key ledger.idempotency_keys%rowtype;
@@ -39,10 +39,10 @@ begin
     end if;
 
     select *
-    into v_obligation
-    from core.obligations
-    where id = p_obligation_id
-    for update;
+      into v_obligation
+      from core.obligations
+     where id = p_obligation_id
+     for update;
 
     if not found then
         raise exception 'OBLIGATION_NOT_FOUND';
@@ -67,10 +67,10 @@ begin
     );
 
     select *
-    into v_existing_key
-    from ledger.idempotency_keys
-    where idempotency_key = p_idempotency_key
-    for update;
+      into v_existing_key
+      from ledger.idempotency_keys
+     where idempotency_key = p_idempotency_key
+     for update;
 
     if found then
         if v_existing_key.obligation_id <> p_obligation_id then
@@ -101,7 +101,10 @@ begin
         obligation_id,
         actor_id,
         event_type,
-        payload,
+        reason,
+        evidence_present,
+        failed_checks,
+        rule_version,
         emitted_at
     )
     values (
@@ -109,74 +112,68 @@ begin
         v_obligation.workspace_id,
         p_obligation_id,
         p_actor_id,
-        'obligation_resolved',
-        jsonb_build_object(
-            'resolution_type', p_resolution_type,
-            'reason', p_reason,
-            'evidence_present', coalesce(p_evidence_present, '{}'::jsonb),
-            'failed_checks', coalesce(p_failed_checks, '[]'::jsonb),
-            'rule_version', p_rule_version,
-            'proof_status', p_proof_status
-        ),
+        p_resolution_type,
+        p_reason,
+        coalesce(p_evidence_present, '{}'::jsonb),
+        coalesce(p_failed_checks, '[]'::jsonb),
+        p_rule_version,
         v_now
     );
 
     update core.obligations
-    set
-        status = 'resolved',
-        resolution_type = p_resolution_type,
-        resolution_reason = p_reason,
-        proof_status = p_proof_status,
-        resolved_at = v_now,
-        updated_at = v_now
-    where id = p_obligation_id;
+       set status = 'resolved',
+           resolution_type = p_resolution_type,
+           resolution_reason = p_reason,
+           proof_status = p_proof_status,
+           resolved_at = v_now
+     where id = p_obligation_id;
 
     insert into receipts.receipts (
         id,
-        workspace_id,
         obligation_id,
-        event_id,
-        receipt_type,
-        payload,
+        workspace_id,
+        actor_id,
+        resolution_type,
+        reason,
+        evidence_present,
+        failed_checks,
+        proof_status,
+        rule_version,
         emitted_at
     )
     values (
         v_receipt_id,
-        v_obligation.workspace_id,
         p_obligation_id,
-        v_event_id,
-        'obligation_resolution_receipt',
-        jsonb_build_object(
-            'obligation_id', p_obligation_id,
-            'actor_id', p_actor_id,
-            'resolution_type', p_resolution_type,
-            'reason', p_reason,
-            'evidence_present', coalesce(p_evidence_present, '{}'::jsonb),
-            'failed_checks', coalesce(p_failed_checks, '[]'::jsonb),
-            'rule_version', p_rule_version,
-            'proof_status', p_proof_status,
-            'resolved_at', v_now
-        ),
+        v_obligation.workspace_id,
+        p_actor_id,
+        p_resolution_type,
+        p_reason,
+        coalesce(p_evidence_present, '{}'::jsonb),
+        coalesce(p_failed_checks, '[]'::jsonb),
+        p_proof_status,
+        p_rule_version,
         v_now
     );
 
     insert into ledger.idempotency_keys (
+        id,
         idempotency_key,
-        workspace_id,
         obligation_id,
+        resolution_type,
         event_id,
         receipt_id,
-        input_hash,
-        created_at
+        created_at,
+        input_hash
     )
     values (
+        gen_random_uuid(),
         p_idempotency_key,
-        v_obligation.workspace_id,
         p_obligation_id,
+        p_resolution_type,
         v_event_id,
         v_receipt_id,
-        v_input_hash,
-        v_now
+        v_now,
+        v_input_hash
     );
 
     return jsonb_build_object(
@@ -188,4 +185,4 @@ begin
         'input_hash', v_input_hash
     );
 end;
-$$;
+$function$;
