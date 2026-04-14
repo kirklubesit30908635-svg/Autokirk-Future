@@ -12,5 +12,5 @@ Write-Host '== Reset local database =='
 supabase db reset
 
 Write-Host '== Run verification query file =='
-Get-Content .\sql\verify\01_basic_flow.sql
-Write-Host 'Run this SQL in Supabase local query tool or wire this script to db query next.'
+$sql = Get-Content .\sql\verify\01_basic_flow.sql -Raw
+supabase db query "$sql"
