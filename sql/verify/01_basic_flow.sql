@@ -11,4 +11,4 @@ from core.obligations
 union all
 
 select 'receipts' as section, count(*) as total
-from ledger.receipts;
+from receipts.receipts;
