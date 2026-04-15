@@ -1,14 +1,24 @@
--- 01_basic_flow.sql
-
-select 'events' as section, count(*) as total
+select 'events' as surface, count(*)::text as count
 from ledger.events
+where obligation_id in (
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid,
+  'cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid
+)
 
 union all
 
-select 'obligations' as section, count(*) as total
+select 'obligations' as surface, count(*)::text as count
 from core.obligations
+where id in (
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid,
+  'cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid
+)
 
 union all
 
-select 'receipts' as section, count(*) as total
-from receipts.receipts;
+select 'receipts' as surface, count(*)::text as count
+from receipts.receipts
+where obligation_id in (
+  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid,
+  'cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid
+);
