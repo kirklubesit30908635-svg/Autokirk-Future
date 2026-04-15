@@ -13,19 +13,3 @@ values (
   'owner'
 )
 on conflict do nothing;
-
-insert into core.obligations (id, workspace_id, status, proof_status)
-values
-(
-  'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb'::uuid,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
-  'open',
-  'pending'
-),
-(
-  'cccccccc-cccc-cccc-cccc-cccccccccccc'::uuid,
-  'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
-  'open',
-  'pending'
-)
-on conflict do nothing;
