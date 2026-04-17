@@ -35,4 +35,8 @@ select
   (select min(id::text) from obligation_match) as obligation_id,
   (select min(id::text) from receipt_match) as receipt_id,
   (select min(obligation_code) from obligation_match) as obligation_code,
+<<<<<<< Updated upstream
   (select min(truth_burden) from obligation_match) as truth_burden;
+=======
+  (select min(truth_burden) from obligation_match) as truth_burden;
+>>>>>>> Stashed changes
