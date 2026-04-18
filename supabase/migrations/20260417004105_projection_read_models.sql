@@ -1,6 +1,8 @@
 create schema if not exists projection;
 
-create or replace view projection.obligation_lifecycle as
+drop view if exists projection.obligation_lifecycle;
+
+create view projection.obligation_lifecycle as
 select
   o.id as obligation_id,
   o.obligation_code,
@@ -14,7 +16,14 @@ select
   r.id as receipt_id,
   r.resolution_type,
   r.proof_status,
-  r.emitted_at as receipt_emitted_at
+  r.emitted_at as receipt_emitted_at,
+  o.truth_burden,
+  case
+    when r.id is null then 'open'
+    when r.proof_status = 'sufficient' then 'resolved'
+    when r.proof_status = 'failed' then 'failed'
+    else 'unknown'
+  end as lifecycle_state
 from core.obligation_sources os
 join core.obligations o
   on o.id = os.obligation_id

@@ -1,19 +1,4 @@
-Write-Host '== AutoKirk System Verification =='
-
-Write-Host '== Kernel Slice =='
-.\scripts\verify-kernel.ps1
-
-Write-Host '== Ingest Slice =='
-.\scripts\verify-ingest.ps1
-
-Write-Host '== Full Lifecycle Slice =='
-.\scripts\verify-full-lifecycle.ps1
-
-Write-Host '== System Verified =='
-
-Write-Host ""
-Write-Host "=== Truth burden alignment ==="
-supabase db query "select
+select
   obligation_id,
   truth_burden,
   receipt_id,
@@ -39,4 +24,3 @@ where
     and proof_status = 'sufficient'
     and lifecycle_state <> 'resolved'
   );
-" --output table
