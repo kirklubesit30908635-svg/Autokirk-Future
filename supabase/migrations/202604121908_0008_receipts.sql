@@ -1,3 +1,5 @@
+create schema if not exists receipts;
+
 create table if not exists receipts.receipts (
     id uuid primary key default gen_random_uuid(),
     obligation_id uuid not null references core.obligations(id) on delete cascade,
