@@ -25,21 +25,20 @@ type EmitResult = {
   delivered: boolean
   status: number | null
   event_key: string
+  skipped?: boolean
   error?: string
 }
 
-type ApiResponse = {
-  ok: boolean
-  scanned_count: number
-  delivered_count: number
-  failed_count: number
-  results: EmitResult[]
-}
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-const internalTriggerSecret = process.env.WATCHDOG_EMIT_SECRET
-const outboundWebhookUrl = process.env.WATCHDOG_OUTBOUND_WEBHOOK_URL
+type ApiResponse =
+  | {
+      ok: true
+      scanned_count: number
+      emitted_count: number
+      delivered_count: number
+      failed_count: number
+      results: EmitResult[]
+    }
+  | { ok: false; error: string }
 
 function assertEnv(name: string, value: string | undefined): string {
   if (!value || !value.trim()) {
@@ -54,7 +53,7 @@ function buildEventKey(row: WatchdogRow): string {
 
 export default async function handler(
   req: NextApiRequest,
-  res: NextApiResponse<ApiResponse | { ok: false; error: string }>
+  res: NextApiResponse<ApiResponse>
 ) {
   if (req.method !== 'POST') {
     res.setHeader('Allow', 'POST')
@@ -62,7 +61,7 @@ export default async function handler(
   }
 
   try {
-    const expectedSecret = assertEnv('WATCHDOG_EMIT_SECRET', internalTriggerSecret)
+    const expectedSecret = assertEnv('WATCHDOG_EMIT_SECRET', process.env.WATCHDOG_EMIT_SECRET)
     const authHeader = req.headers.authorization ?? ''
     const providedSecret = authHeader.startsWith('Bearer ')
       ? authHeader.slice('Bearer '.length)
@@ -72,16 +71,16 @@ export default async function handler(
       return res.status(401).json({ ok: false, error: 'UNAUTHORIZED' })
     }
 
-    const url = assertEnv('NEXT_PUBLIC_SUPABASE_URL', supabaseUrl)
-    const key = assertEnv('SUPABASE_SERVICE_ROLE_KEY', supabaseServiceRoleKey)
-    const webhookUrl = assertEnv('WATCHDOG_OUTBOUND_WEBHOOK_URL', outboundWebhookUrl)
+    const url = assertEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    const key = assertEnv('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY)
+    const webhookUrl = assertEnv('WATCHDOG_OUTBOUND_WEBHOOK_URL', process.env.WATCHDOG_OUTBOUND_WEBHOOK_URL)
 
     const supabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
     })
 
     const { data, error } = await supabase
-      .from('overdue_failure_watchdog')
+      .from('overdue_failure_emission_candidates')
       .select('*')
       .order('due_at', { ascending: true })
 
@@ -94,6 +93,35 @@ export default async function handler(
 
     for (const row of rows) {
       const eventKey = buildEventKey(row)
+
+      const { data: inserted, error: insertError } = await supabase
+        .schema('control')
+        .from('watchdog_emissions')
+        .insert({
+          obligation_id: row.obligation_id,
+          delivery_target: 'outbound-webhook',
+          delivery_status: 'pending',
+          payload: {
+            event_type: 'watchdog.overdue_failure.detected',
+            event_key: eventKey,
+            source: 'public.overdue_failure_watchdog',
+            data: row,
+          },
+        })
+        .select('id, obligation_id')
+        .single()
+
+      if (insertError) {
+        results.push({
+          obligation_id: row.obligation_id,
+          delivered: false,
+          status: null,
+          event_key: eventKey,
+          skipped: true,
+          error: insertError.message,
+        })
+        continue
+      }
 
       try {
         const response = await fetch(webhookUrl, {
@@ -112,6 +140,14 @@ export default async function handler(
           }),
         })
 
+        const deliveryStatus = response.ok ? 'delivered' : 'failed'
+
+        await supabase
+          .schema('control')
+          .from('watchdog_emissions')
+          .update({ delivery_status: deliveryStatus })
+          .eq('id', inserted.id)
+
         results.push({
           obligation_id: row.obligation_id,
           delivered: response.ok,
@@ -120,6 +156,12 @@ export default async function handler(
           error: response.ok ? undefined : `HTTP_${response.status}`,
         })
       } catch (err) {
+        await supabase
+          .schema('control')
+          .from('watchdog_emissions')
+          .update({ delivery_status: 'failed' })
+          .eq('id', inserted.id)
+
         results.push({
           obligation_id: row.obligation_id,
           delivered: false,
@@ -130,12 +172,14 @@ export default async function handler(
       }
     }
 
+    const emittedCount = results.filter((r) => !r.skipped).length
     const deliveredCount = results.filter((r) => r.delivered).length
-    const failedCount = results.length - deliveredCount
+    const failedCount = results.filter((r) => !r.delivered && !r.skipped).length
 
     return res.status(200).json({
       ok: true,
       scanned_count: rows.length,
+      emitted_count: emittedCount,
       delivered_count: deliveredCount,
       failed_count: failedCount,
       results,
