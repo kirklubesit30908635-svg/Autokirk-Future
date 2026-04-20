@@ -1,0 +1,41 @@
+current state
+AutoKirk Future is locked at v0.2-canonical-system-truth.
+System truth is reproducible from a single command and proven across:
+- resolved
+- failed by insufficient proof
+- failed by rejected proof
+- failed by overdue unresolved obligation
+
+canonical proof markers
+- TERMINAL_STATE_VERIFICATION_OK
+- OVERDUE_FAILURE_VERIFICATION_MANUAL_OK
+- SYSTEM_TRUTH_VERIFICATION_OK
+
+repo anchor
+- branch: main
+- commit: d8e8da48443c6f402065cae1aa257ad35224c34b
+- tag: v0.2-canonical-system-truth
+- remote checkpoint branch: checkpoint/system-truth-canonical
+
+active files
+- scripts/reset-and-prove.ps1
+- scripts/verify-system-truth.ps1
+- supabase/migrations/202604190070_0034_fix_ingest_event_to_obligation_kernel_call.sql
+- supabase/migrations/202604190800_0035_fix_projection_failure_mapping.sql
+- supabase/migrations/202604191030_0036_add_due_at_and_overdue_failure_projection.sql
+- supabase/migrations/202604191200_0037_add_public_overdue_failure_watchdog_view.sql
+- later repair migrations through 0046 on main
+
+next exact step
+Do not expand the architecture broadly.
+Choose one bounded next layer on top of the proven kernel:
+either
+1. durable watchdog emission tracking and retry discipline
+or
+2. one real external integration that consumes overdue failure truth without mutating kernel authority
+
+what not to touch
+- kernel mutation authority
+- canonical lifecycle projection semantics
+- overdue failure classification
+- canonical proof harness
