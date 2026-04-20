@@ -2,7 +2,9 @@
   "name": "autokirk-future",
   "private": true,
   "scripts": {
-    "dev": "next dev"
+    "dev": "next dev",
+    "prove": "powershell -ExecutionPolicy Bypass -File .\\scripts\\verify-system-truth.ps1",
+    "prove:reset": "powershell -ExecutionPolicy Bypass -File .\\scripts\\reset-and-prove.ps1"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.43.0",
