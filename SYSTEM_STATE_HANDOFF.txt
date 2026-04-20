@@ -39,3 +39,8 @@ what not to touch
 - canonical lifecycle projection semantics
 - overdue failure classification
 - canonical proof harness
+watchdog delivery lifecycle proven:
+- pending claim creation
+- failed retryable transition
+- exhausted terminal delivery state
+- retry eligibility removed at exhaustion
