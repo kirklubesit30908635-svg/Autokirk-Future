@@ -20,6 +20,13 @@ type WatchdogRow = {
   lifecycle_state: string
 }
 
+type InsertedEmission = {
+  id: string
+  obligation_id: string
+  attempt_count?: number
+  max_attempts?: number
+}
+
 type EmitResult = {
   obligation_id: string
   delivered: boolean
@@ -49,6 +56,24 @@ function assertEnv(name: string, value: string | undefined): string {
 
 function buildEventKey(row: WatchdogRow): string {
   return `watchdog.overdue.${row.obligation_id}`
+}
+
+function computeRetryOutcome(emission: InsertedEmission) {
+  const currentAttempts = emission.attempt_count ?? 0
+  const maxAttempts = emission.max_attempts ?? 5
+  const nextAttemptCount = currentAttempts + 1
+
+  if (nextAttemptCount >= maxAttempts) {
+    return {
+      deliveryStatus: 'exhausted',
+      nextRetryAt: null,
+    }
+  }
+
+  return {
+    deliveryStatus: 'failed',
+    nextRetryAt: new Date(Date.now() + 60_000).toISOString(),
+  }
 }
 
 export default async function handler(
@@ -108,7 +133,7 @@ export default async function handler(
             data: row,
           },
         })
-        .select('id, obligation_id')
+        .select('id, obligation_id, attempt_count, max_attempts')
         .single()
 
       if (insertError) {
@@ -140,34 +165,68 @@ export default async function handler(
           }),
         })
 
-        const deliveryStatus = response.ok ? 'delivered' : 'failed'
+        if (response.ok) {
+          const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+            p_emission_id: inserted.id,
+            p_delivery_status: 'delivered',
+            p_next_retry_at: null,
+          })
 
-        await supabase
-          .schema('control')
-          .from('watchdog_emissions')
-          .update({ delivery_status: deliveryStatus })
-          .eq('id', inserted.id)
+          if (rpcError) {
+            results.push({
+              obligation_id: row.obligation_id,
+              delivered: false,
+              status: response.status,
+              event_key: eventKey,
+              error: rpcError.message,
+            })
+            continue
+          }
+
+          results.push({
+            obligation_id: row.obligation_id,
+            delivered: true,
+            status: response.status,
+            event_key: eventKey,
+          })
+
+          continue
+        }
+
+        const retryOutcome = computeRetryOutcome(inserted as InsertedEmission)
+
+        const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+          p_emission_id: inserted.id,
+          p_delivery_status: retryOutcome.deliveryStatus,
+          p_next_retry_at: retryOutcome.nextRetryAt,
+        })
 
         results.push({
           obligation_id: row.obligation_id,
-          delivered: response.ok,
+          delivered: false,
           status: response.status,
           event_key: eventKey,
-          error: response.ok ? undefined : `HTTP_${response.status}`,
+          error: rpcError ? rpcError.message : `HTTP_${response.status}`,
         })
       } catch (err) {
-        await supabase
-          .schema('control')
-          .from('watchdog_emissions')
-          .update({ delivery_status: 'failed' })
-          .eq('id', inserted.id)
+        const retryOutcome = computeRetryOutcome(inserted as InsertedEmission)
+
+        const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+          p_emission_id: inserted.id,
+          p_delivery_status: retryOutcome.deliveryStatus,
+          p_next_retry_at: retryOutcome.nextRetryAt,
+        })
 
         results.push({
           obligation_id: row.obligation_id,
           delivered: false,
           status: null,
           event_key: eventKey,
-          error: err instanceof Error ? err.message : 'UNKNOWN_ERROR',
+          error: rpcError
+            ? rpcError.message
+            : err instanceof Error
+              ? err.message
+              : 'UNKNOWN_ERROR',
         })
       }
     }
