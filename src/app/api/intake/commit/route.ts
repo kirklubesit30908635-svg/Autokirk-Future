@@ -3,6 +3,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
 import { cookies } from 'next/headers'
 
 type CommitIntakeBody = {
+  workspace_id: string
   candidate_ref: string
   obligation_code: string
   trigger_text: string
@@ -31,29 +32,40 @@ export async function POST(req: NextRequest) {
       )
     }
 
+    if (!body.workspace_id?.trim()) {
+      return NextResponse.json(
+        { ok: false, error: 'WORKSPACE_ID_REQUIRED' },
+        { status: 400 }
+      )
+    }
+
     const { data: membership, error: membershipError } = await supabase
       .from('core.workspace_members')
       .select('workspace_id,user_id')
       .eq('user_id', user.id)
-      .limit(1)
+      .eq('workspace_id', body.workspace_id)
       .maybeSingle()
 
     if (membershipError) {
       return NextResponse.json(
-        { ok: false, error: 'MEMBERSHIP_LOOKUP_FAILED', detail: membershipError.message },
+        {
+          ok: false,
+          error: 'MEMBERSHIP_LOOKUP_FAILED',
+          detail: membershipError.message,
+        },
         { status: 500 }
       )
     }
 
-    if (!membership?.workspace_id) {
+    if (!membership) {
       return NextResponse.json(
-        { ok: false, error: 'WORKSPACE_MEMBERSHIP_REQUIRED' },
+        { ok: false, error: 'INVALID_WORKSPACE_ACCESS' },
         { status: 403 }
       )
     }
 
     const { data, error } = await supabase.rpc('commit_intake_candidate', {
-      p_workspace_id: membership.workspace_id,
+      p_workspace_id: body.workspace_id,
       p_actor_user_id: user.id,
       p_candidate_ref: body.candidate_ref,
       p_obligation_code: body.obligation_code,
