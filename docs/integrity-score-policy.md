@@ -118,6 +118,8 @@ This projection is observational only:
 - it emits only failed contractual classifications
 - it does not mutate obligations, receipts, or policy state
 - it exists to make downstream consequence handling observable before enforcement is implemented
+- it is a current-state projection, not an append-only event history surface
+- its deterministic keys represent the entity's present failed contractual state, not distinct failure occurrences for replay or delivery semantics
 
 ## Observational Consumer Surface
 
@@ -126,6 +128,7 @@ This projection is observational only:
 It is also observational only:
 
 - it is sourced from `projection.integrity_events`
+- it currently exposes only failed contractual classifications because that is the full upstream contract today
 - it is intended for operator/watchdog consumption
 - it does not trigger contract behavior by itself
 - it must not be treated as mutation authority

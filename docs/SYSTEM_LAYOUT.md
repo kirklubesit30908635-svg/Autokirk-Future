@@ -197,9 +197,9 @@ Active schemas include:
 - `projection.entity_integrity_classification`
   Policy-wrapped interpretation of the raw integrity score.
 - `projection.integrity_events`
-  Read-only consequence/event projection derived from failed contractual integrity classifications.
+  Read-only current-state consequence projection derived from failed contractual integrity classifications. It is not an append-only history stream.
 - `projection.integrity_watchdog_candidates`
-  Read-only observer surface for watchdog-style consumers of integrity events.
+  Read-only observer surface for watchdog-style consumers of failed contractual integrity events.
 
 ### Canonical write boundary
 
@@ -265,8 +265,8 @@ Operational baseline:
 Current proof also verifies entity propagation through lifecycle projection rows and overdue watchdog truth.
 Current proof also verifies that `projection.entity_integrity_score` is populated, count-consistent, and bounded to the published `[-100, 100]` range.
 Current proof also verifies that `projection.entity_integrity_classification` resolves deterministically from `governance.integrity_score_policy`.
-Current proof also verifies that `projection.integrity_events` emits only the read-side failed contractual integrity events derived from classification.
-Current proof also verifies that `projection.integrity_watchdog_candidates` exposes a stable observer surface sourced only from `projection.integrity_events`.
+Current proof also verifies that `projection.integrity_events` emits only the read-side failed contractual integrity events derived from classification and is treated as a current-state projection rather than append-only history.
+Current proof also verifies that `projection.integrity_watchdog_candidates` exposes a stable contractual-only observer surface sourced only from `projection.integrity_events`.
 
 ## Current Structural Reality
 

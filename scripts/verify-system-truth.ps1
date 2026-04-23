@@ -242,7 +242,7 @@ foreach ($row in $integrityWatchdogRows) {
         throw "INTEGRITY_WATCHDOG_CANDIDATES_SOURCE_INVALID"
     }
 
-    if ([string]$row.action_mode -notin @('contractual', 'internal')) {
+    if ([string]$row.action_mode -ne 'contractual') {
         throw "INTEGRITY_WATCHDOG_CANDIDATES_ACTION_MODE_INVALID"
     }
 
