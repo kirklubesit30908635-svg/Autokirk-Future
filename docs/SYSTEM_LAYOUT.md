@@ -91,7 +91,7 @@ Responsibilities:
 
 Read flow:
 
-`core + ingest + receipts -> projection.obligation_lifecycle / projection.entity_integrity_score / projection.entity_integrity_classification / projection.integrity_events -> public watchdog views -> Next.js API routes -> dashboard`
+`core + ingest + receipts -> projection.obligation_lifecycle / projection.entity_integrity_score / projection.entity_integrity_classification / projection.integrity_events / projection.integrity_watchdog_candidates -> public watchdog views -> Next.js API routes -> dashboard`
 
 Responsibilities:
 
@@ -99,6 +99,7 @@ Responsibilities:
 - aggregate deterministic entity-level integrity scoring from lifecycle truth
 - classify raw integrity scores through queryable governance policy
 - expose read-only integrity consequence events without enforcing them
+- expose watchdog-consumer candidates from integrity events without side effects
 - surface overdue and failed obligations
 - expose watchdog delivery state separately from truth mutation
 
@@ -197,6 +198,8 @@ Active schemas include:
   Policy-wrapped interpretation of the raw integrity score.
 - `projection.integrity_events`
   Read-only consequence/event projection derived from failed contractual integrity classifications.
+- `projection.integrity_watchdog_candidates`
+  Read-only observer surface for watchdog-style consumers of integrity events.
 
 ### Canonical write boundary
 
@@ -251,6 +254,7 @@ Rule:
 - `sql/verify/19_entity_integrity_score.sql`
 - `sql/verify/20_entity_integrity_classification.sql`
 - `sql/verify/21_integrity_events.sql`
+- `sql/verify/22_integrity_watchdog_candidates.sql`
 - additional `sql/verify/*` files for narrower checks
 
 Operational baseline:
@@ -262,6 +266,7 @@ Current proof also verifies entity propagation through lifecycle projection rows
 Current proof also verifies that `projection.entity_integrity_score` is populated, count-consistent, and bounded to the published `[-100, 100]` range.
 Current proof also verifies that `projection.entity_integrity_classification` resolves deterministically from `governance.integrity_score_policy`.
 Current proof also verifies that `projection.integrity_events` emits only the read-side failed contractual integrity events derived from classification.
+Current proof also verifies that `projection.integrity_watchdog_candidates` exposes a stable observer surface sourced only from `projection.integrity_events`.
 
 ## Current Structural Reality
 

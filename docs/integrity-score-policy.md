@@ -118,3 +118,14 @@ This projection is observational only:
 - it emits only failed contractual classifications
 - it does not mutate obligations, receipts, or policy state
 - it exists to make downstream consequence handling observable before enforcement is implemented
+
+## Observational Consumer Surface
+
+`projection.integrity_watchdog_candidates` is the first allowed consumer-facing surface for integrity consequence review.
+
+It is also observational only:
+
+- it is sourced from `projection.integrity_events`
+- it is intended for operator/watchdog consumption
+- it does not trigger contract behavior by itself
+- it must not be treated as mutation authority

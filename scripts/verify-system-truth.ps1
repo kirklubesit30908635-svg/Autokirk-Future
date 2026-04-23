@@ -26,6 +26,7 @@ $overdueScript  = Join-Path $PSScriptRoot "verify-overdue-failure.ps1"
 $integritySql   = Join-Path $repoRoot "sql\verify\19_entity_integrity_score.sql"
 $classificationSql = Join-Path $repoRoot "sql\verify\20_entity_integrity_classification.sql"
 $integrityEventsSql = Join-Path $repoRoot "sql\verify\21_integrity_events.sql"
+$integrityWatchdogSql = Join-Path $repoRoot "sql\verify\22_integrity_watchdog_candidates.sql"
 
 if (-not (Test-Path $terminalScript)) {
     throw "SCRIPT_NOT_FOUND: $terminalScript"
@@ -45,6 +46,10 @@ if (-not (Test-Path $classificationSql)) {
 
 if (-not (Test-Path $integrityEventsSql)) {
     throw "SQL_FILE_NOT_FOUND: $integrityEventsSql"
+}
+
+if (-not (Test-Path $integrityWatchdogSql)) {
+    throw "SQL_FILE_NOT_FOUND: $integrityWatchdogSql"
 }
 
 Write-Host ""
@@ -202,6 +207,59 @@ $integrityEventsRows | Format-Table entity_id, event_type, event_key, integrity_
 
 if (-not $hasFailedIntegrityEvent) {
     throw "INTEGRITY_EVENTS_EXPECTED_FAILED_FIXTURE_MISSING"
+}
+
+Write-Host ""
+Write-Host "==> Running integrity watchdog candidates verification" -ForegroundColor Cyan
+$integrityWatchdogJson = supabase db query --file $integrityWatchdogSql --output json
+
+if ($LASTEXITCODE -ne 0 -or -not $integrityWatchdogJson) {
+    throw "INTEGRITY_WATCHDOG_CANDIDATES_VERIFICATION_FAILED"
+}
+
+$integrityWatchdogRows = Get-SupabaseRows -JsonText $integrityWatchdogJson
+
+if (-not $integrityWatchdogRows) {
+    throw "INTEGRITY_WATCHDOG_CANDIDATES_EMPTY"
+}
+
+$hasFailedIntegrityWatchdogCandidate = $false
+
+foreach ($row in $integrityWatchdogRows) {
+    if ([string]::IsNullOrWhiteSpace([string]$row.entity_id)) {
+        throw "INTEGRITY_WATCHDOG_CANDIDATES_ENTITY_ID_NULL"
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$row.event_key)) {
+        throw "INTEGRITY_WATCHDOG_CANDIDATES_KEY_NULL"
+    }
+
+    if ([string]$row.event_type -ne 'integrity.failed') {
+        throw "INTEGRITY_WATCHDOG_CANDIDATES_TYPE_INVALID"
+    }
+
+    if ([string]$row.source_projection -ne 'projection.entity_integrity_classification') {
+        throw "INTEGRITY_WATCHDOG_CANDIDATES_SOURCE_INVALID"
+    }
+
+    if ([string]$row.action_mode -notin @('contractual', 'internal')) {
+        throw "INTEGRITY_WATCHDOG_CANDIDATES_ACTION_MODE_INVALID"
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$row.occurred_at)) {
+        throw "INTEGRITY_WATCHDOG_CANDIDATES_OCCURRED_AT_NULL"
+    }
+
+    if ([string]$row.entity_id -eq 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' -and
+        [string]$row.action_mode -eq 'contractual') {
+        $hasFailedIntegrityWatchdogCandidate = $true
+    }
+}
+
+$integrityWatchdogRows | Format-Table event_key, entity_id, event_type, action_mode, occurred_at -AutoSize
+
+if (-not $hasFailedIntegrityWatchdogCandidate) {
+    throw "INTEGRITY_WATCHDOG_CANDIDATES_EXPECTED_FIXTURE_MISSING"
 }
 
 Write-Host ""
