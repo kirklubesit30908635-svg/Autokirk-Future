@@ -91,12 +91,13 @@ Responsibilities:
 
 Read flow:
 
-`core + ingest + receipts -> projection.obligation_lifecycle / projection.entity_integrity_score -> public watchdog views -> Next.js API routes -> dashboard`
+`core + ingest + receipts -> projection.obligation_lifecycle / projection.entity_integrity_score / projection.entity_integrity_classification -> public watchdog views -> Next.js API routes -> dashboard`
 
 Responsibilities:
 
 - expose lifecycle truth without mutating it
 - aggregate deterministic entity-level integrity scoring from lifecycle truth
+- classify raw integrity scores through queryable governance policy
 - surface overdue and failed obligations
 - expose watchdog delivery state separately from truth mutation
 
@@ -155,6 +156,7 @@ Active schemas include:
 - `ingest`
 - `receipts`
 - `projection`
+- `governance`
 - `kernel`
 - `ledger`
 - `api`
@@ -181,6 +183,17 @@ Active schemas include:
   Replay guard substrate.
 - `control.watchdog_emissions`
   Outbound watchdog delivery tracking.
+- `governance.integrity_score_policy`
+  Queryable interpretation thresholds and floor conditions for integrity classification.
+
+### Canonical projection views
+
+- `projection.obligation_lifecycle`
+  Canonical lifecycle read model.
+- `projection.entity_integrity_score`
+  Raw proof-backed reliability score per entity.
+- `projection.entity_integrity_classification`
+  Policy-wrapped interpretation of the raw integrity score.
 
 ### Canonical write boundary
 
@@ -233,6 +246,7 @@ Rule:
 - `sql/verify/16_prove_overdue_failure.sql`
 - `sql/verify/17_overdue_failure_truth_alignment.sql`
 - `sql/verify/19_entity_integrity_score.sql`
+- `sql/verify/20_entity_integrity_classification.sql`
 - additional `sql/verify/*` files for narrower checks
 
 Operational baseline:
@@ -242,6 +256,7 @@ Operational baseline:
 
 Current proof also verifies entity propagation through lifecycle projection rows and overdue watchdog truth.
 Current proof also verifies that `projection.entity_integrity_score` is populated, count-consistent, and bounded to the published `[-100, 100]` range.
+Current proof also verifies that `projection.entity_integrity_classification` resolves deterministically from `governance.integrity_score_policy`.
 
 ## Current Structural Reality
 

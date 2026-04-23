@@ -24,6 +24,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $terminalScript = Join-Path $PSScriptRoot "verify-terminal-states.ps1"
 $overdueScript  = Join-Path $PSScriptRoot "verify-overdue-failure.ps1"
 $integritySql   = Join-Path $repoRoot "sql\verify\19_entity_integrity_score.sql"
+$classificationSql = Join-Path $repoRoot "sql\verify\20_entity_integrity_classification.sql"
 
 if (-not (Test-Path $terminalScript)) {
     throw "SCRIPT_NOT_FOUND: $terminalScript"
@@ -35,6 +36,10 @@ if (-not (Test-Path $overdueScript)) {
 
 if (-not (Test-Path $integritySql)) {
     throw "SQL_FILE_NOT_FOUND: $integritySql"
+}
+
+if (-not (Test-Path $classificationSql)) {
+    throw "SQL_FILE_NOT_FOUND: $classificationSql"
 }
 
 Write-Host ""
@@ -90,6 +95,57 @@ foreach ($row in $integrityRows) {
 }
 
 $integrityRows | Format-Table entity_id, total_obligations, resolved_count, failed_count, weak_proof_count, resolution_rate, integrity_score -AutoSize
+
+Write-Host ""
+Write-Host "==> Running entity integrity classification verification" -ForegroundColor Cyan
+$classificationJson = supabase db query --file $classificationSql --output json
+
+if ($LASTEXITCODE -ne 0 -or -not $classificationJson) {
+    throw "ENTITY_INTEGRITY_CLASSIFICATION_VERIFICATION_FAILED"
+}
+
+$classificationRows = Get-SupabaseRows -JsonText $classificationJson
+
+if (-not $classificationRows) {
+    throw "ENTITY_INTEGRITY_CLASSIFICATION_EMPTY"
+}
+
+$expectedLabels = @('healthy', 'warning', 'critical', 'failed')
+$hasFailedClassification = $false
+
+foreach ($row in $classificationRows) {
+    if ([string]::IsNullOrWhiteSpace([string]$row.entity_id)) {
+        throw "ENTITY_INTEGRITY_CLASSIFICATION_ENTITY_ID_NULL"
+    }
+
+    if ($expectedLabels -notcontains [string]$row.integrity_label_key) {
+        throw "ENTITY_INTEGRITY_CLASSIFICATION_LABEL_INVALID"
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$row.integrity_label)) {
+        throw "ENTITY_INTEGRITY_CLASSIFICATION_LABEL_NULL"
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$row.action_mode)) {
+        throw "ENTITY_INTEGRITY_CLASSIFICATION_ACTION_MODE_NULL"
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$row.classification_basis)) {
+        throw "ENTITY_INTEGRITY_CLASSIFICATION_BASIS_NULL"
+    }
+
+    if ([string]$row.entity_id -eq 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa' -and
+        [string]$row.integrity_label_key -eq 'failed' -and
+        [string]$row.action_mode -eq 'contractual') {
+        $hasFailedClassification = $true
+    }
+}
+
+$classificationRows | Format-Table entity_id, integrity_label_key, integrity_label, action_mode, classification_basis, resolution_rate, integrity_score -AutoSize
+
+if (-not $hasFailedClassification) {
+    throw "ENTITY_INTEGRITY_CLASSIFICATION_EXPECTED_FAILED_FIXTURE_MISSING"
+}
 
 Write-Host ""
 Write-Host "SYSTEM_TRUTH_VERIFICATION_OK" -ForegroundColor Green
