@@ -21,11 +21,9 @@ create or replace view public.watchdog_delivery_candidates as
 select
   e.id,
   e.obligation_id,
-  e.emitted_at,
+  e.created_at as emitted_at,
   e.delivery_target,
   e.delivery_status,
-  e.payload,
-  e.created_at,
   e.attempt_count,
   e.last_attempt_at,
   e.next_retry_at,

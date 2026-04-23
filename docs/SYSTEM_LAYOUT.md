@@ -91,11 +91,12 @@ Responsibilities:
 
 Read flow:
 
-`core + ingest + receipts -> projection.obligation_lifecycle -> public watchdog views -> Next.js API routes -> dashboard`
+`core + ingest + receipts -> projection.obligation_lifecycle / projection.entity_integrity_score -> public watchdog views -> Next.js API routes -> dashboard`
 
 Responsibilities:
 
 - expose lifecycle truth without mutating it
+- aggregate deterministic entity-level integrity scoring from lifecycle truth
 - surface overdue and failed obligations
 - expose watchdog delivery state separately from truth mutation
 
@@ -231,6 +232,7 @@ Rule:
 - `sql/verify/14_prove_rejected_path.sql`
 - `sql/verify/16_prove_overdue_failure.sql`
 - `sql/verify/17_overdue_failure_truth_alignment.sql`
+- `sql/verify/19_entity_integrity_score.sql`
 - additional `sql/verify/*` files for narrower checks
 
 Operational baseline:
@@ -239,6 +241,7 @@ Operational baseline:
 - `npm run prove`
 
 Current proof also verifies entity propagation through lifecycle projection rows and overdue watchdog truth.
+Current proof also verifies that `projection.entity_integrity_score` is populated, count-consistent, and bounded to the published `[-100, 100]` range.
 
 ## Current Structural Reality
 
