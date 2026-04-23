@@ -1,5 +1,7 @@
 select
   obligation_id,
+  entity_id::text as entity_id,
+  receipt_entity_id::text as receipt_entity_id,
   resolution_type,
   proof_status,
   lifecycle_state,

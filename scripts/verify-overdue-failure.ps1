@@ -1,5 +1,24 @@
 $ErrorActionPreference = "Stop"
 
+function Get-SupabaseRows {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$JsonText
+    )
+
+    if ($JsonText -is [array]) {
+        $JsonText = ($JsonText -join [Environment]::NewLine)
+    }
+
+    $parsed = $JsonText | ConvertFrom-Json
+
+    if ($null -ne $parsed.rows) {
+        return $parsed.rows
+    }
+
+    return $parsed
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 $proveOverduePath = Join-Path $repoRoot "sql\verify\16_prove_overdue_failure.sql"
@@ -27,6 +46,21 @@ supabase db query --file $proveOverduePath --output table
 Write-Host ""
 Write-Host "==> Running overdue truth check (17)" -ForegroundColor Cyan
 supabase db query --file $alignOverduePath --output table
+
+$entityCheckJson = supabase db query "
+select count(*) as count
+from public.overdue_failure_watchdog
+where due_at is not null
+  and due_at < now()
+  and receipt_id is null
+  and entity_id is null;
+" --output json
+
+$entityCheckRows = Get-SupabaseRows -JsonText $entityCheckJson
+
+if ([int]$entityCheckRows[0].count -ne 0) {
+    throw "OVERDUE_FAILURE_ENTITY_BINDING_FAILED"
+}
 
 Write-Host ""
 Write-Host "OVERDUE_FAILURE_VERIFICATION_MANUAL_OK" -ForegroundColor Green

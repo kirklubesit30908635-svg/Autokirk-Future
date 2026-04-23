@@ -8,4 +8,4 @@ where id = (
   order by o.created_at desc
   limit 1
 )
-returning id as obligation_id, due_at, created_at;
+returning id as obligation_id, entity_id::text as entity_id, due_at, created_at;

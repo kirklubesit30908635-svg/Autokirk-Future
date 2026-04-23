@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type FailedRow = {
   obligation_id: string;
+  entity_id: string;
   obligation_code: string;
   workspace_id: string;
   obligation_created_at: string;
@@ -12,6 +13,7 @@ type FailedRow = {
   source_event_type: string | null;
   source_event_created_at: string | null;
   receipt_id: string | null;
+  receipt_entity_id: string | null;
   resolution_type: string | null;
   proof_status: string | null;
   receipt_emitted_at: string | null;
@@ -138,6 +140,7 @@ export default function Home() {
           <div style={styles.tableWrap}>
             <div style={styles.tableHeader}>
               <div>OBLIGATION</div>
+              <div>ENTITY</div>
               <div>DUE</div>
               <div>DELIVERY</div>
               <div>ATTEMPTS</div>
@@ -148,6 +151,14 @@ export default function Home() {
                 <div style={styles.primaryCell}>
                   <div style={styles.code}>{row.obligation_code}</div>
                   <div style={styles.meta}>{row.obligation_id}</div>
+                </div>
+                <div style={styles.entityCell}>
+                  <div style={styles.meta}>{row.entity_id}</div>
+                  <div style={styles.entitySub}>
+                    {row.receipt_entity_id
+                      ? `receipt: ${row.receipt_entity_id}`
+                      : "receipt: pending"}
+                  </div>
                 </div>
                 <div>{formatDate(row.due_at)}</div>
                 <div>{row.delivery_status ?? "pending"}</div>
@@ -166,6 +177,9 @@ export default function Home() {
         <div style={styles.stat}>STATUS: {statusText}</div>
         <div style={styles.stat}>
           ROUTE: {error ? "DEGRADED" : loading ? "SYNCING" : "OK"}
+        </div>
+        <div style={styles.stat}>
+          ENTITY: {loading ? "…" : rows[0]?.entity_id ?? "NONE"}
         </div>
       </aside>
     </div>
@@ -272,7 +286,7 @@ const styles: Record<string, CSSProperties> = {
   },
   tableHeader: {
     display: "grid",
-    gridTemplateColumns: "2fr 1.4fr 1fr 0.8fr",
+    gridTemplateColumns: "1.6fr 1.9fr 1.2fr 1fr 0.7fr",
     gap: 12,
     padding: "12px 14px",
     background: "rgba(255,255,255,0.03)",
@@ -282,7 +296,7 @@ const styles: Record<string, CSSProperties> = {
   },
   tableRow: {
     display: "grid",
-    gridTemplateColumns: "2fr 1.4fr 1fr 0.8fr",
+    gridTemplateColumns: "1.6fr 1.9fr 1.2fr 1fr 0.7fr",
     gap: 12,
     padding: "14px",
     borderTop: "1px solid rgba(255,255,255,0.06)",
@@ -301,6 +315,16 @@ const styles: Record<string, CSSProperties> = {
   meta: {
     color: "#8a8a8a",
     fontSize: 11,
+    overflowWrap: "anywhere",
+  },
+  entityCell: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  entitySub: {
+    color: "#7a7a7a",
+    fontSize: 10,
     overflowWrap: "anywhere",
   },
   rightPanel: {

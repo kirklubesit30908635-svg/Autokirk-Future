@@ -1,5 +1,24 @@
 $ErrorActionPreference = "Stop"
 
+function Get-SupabaseRows {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$JsonText
+    )
+
+    if ($JsonText -is [array]) {
+        $JsonText = ($JsonText -join [Environment]::NewLine)
+    }
+
+    $parsed = $JsonText | ConvertFrom-Json
+
+    if ($null -ne $parsed.rows) {
+        return $parsed.rows
+    }
+
+    return $parsed
+}
+
 function Step($label) {
     Write-Host ""
     Write-Host "== $label ==" -ForegroundColor Cyan
@@ -13,7 +32,7 @@ function Run-SupabaseQuery($sql) {
 }
 
 function Get-ScalarCount($sql) {
-    $result = supabase db query $sql --output json | ConvertFrom-Json
+    $result = Get-SupabaseRows -JsonText (supabase db query $sql --output json)
     if ($LASTEXITCODE -ne 0) {
         throw "Scalar count query failed."
     }
@@ -85,6 +104,12 @@ if ($sourceEvents -ne 1) { throw "Expected source_events = 1 after ingest, got $
 if ($obligationSources -ne 1) { throw "Expected obligation_sources = 1 after ingest, got $obligationSources" }
 if ($obligations -ne 1) { throw "Expected obligations = 1 after ingest, got $obligations" }
 
+$missingSourceEventEntities = Get-ScalarCount "select count(*) as count from ingest.source_events where entity_id is null;"
+$missingObligationEntities = Get-ScalarCount "select count(*) as count from core.obligations where entity_id is null;"
+
+if ($missingSourceEventEntities -ne 0) { throw "Expected source_events.entity_id to be populated after ingest" }
+if ($missingObligationEntities -ne 0) { throw "Expected obligations.entity_id to be populated after ingest" }
+
 Step "Inspect obligation birth semantics"
 Run-SupabaseQuery @"
 select
@@ -128,6 +153,18 @@ Write-Host "obligations=$obligations"
 if ($sourceEvents -ne 1) { throw "Expected source_events = 1 after replay, got $sourceEvents" }
 if ($obligationSources -ne 1) { throw "Expected obligation_sources = 1 after replay, got $obligationSources" }
 if ($obligations -ne 1) { throw "Expected obligations = 1 after replay, got $obligations" }
+
+$mismatchedEntities = Get-ScalarCount @"
+select count(*) as count
+from core.obligations o
+join core.obligation_sources os
+  on os.obligation_id = o.id
+join ingest.source_events se
+  on se.id = os.source_event_id
+where o.entity_id <> se.entity_id;
+"@
+
+if ($mismatchedEntities -ne 0) { throw "Expected obligation and source event entity bindings to match" }
 
 Write-Host ""
 Write-Host "INGEST CHECK PASSED" -ForegroundColor Green

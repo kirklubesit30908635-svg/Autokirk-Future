@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 type WatchdogRow = {
   obligation_id: string
+  entity_id: string
   obligation_code: string
   workspace_id: string
   obligation_created_at: string
@@ -12,6 +13,7 @@ type WatchdogRow = {
   source_event_type: string
   source_event_created_at: string
   receipt_id: string | null
+  receipt_entity_id: string | null
   resolution_type: string | null
   proof_status: string | null
   receipt_emitted_at: string | null
@@ -29,6 +31,7 @@ type InsertedEmission = {
 
 type EmitResult = {
   obligation_id: string
+  entity_id: string
   delivered: boolean
   status: number | null
   event_key: string
@@ -38,13 +41,13 @@ type EmitResult = {
 
 type ApiResponse =
   | {
-      ok: true
-      scanned_count: number
-      emitted_count: number
-      delivered_count: number
-      failed_count: number
-      results: EmitResult[]
-    }
+    ok: true
+    scanned_count: number
+    emitted_count: number
+    delivered_count: number
+    failed_count: number
+    results: EmitResult[]
+  }
   | { ok: false; error: string }
 
 function assertEnv(name: string, value: string | undefined): string {
@@ -99,6 +102,7 @@ export default async function handler(
     const url = assertEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL)
     const key = assertEnv('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY)
     const webhookUrl = assertEnv('WATCHDOG_OUTBOUND_WEBHOOK_URL', process.env.WATCHDOG_OUTBOUND_WEBHOOK_URL)
+    const watchdogSharedSecret = assertEnv('WATCHDOG_SHARED_SECRET', process.env.WATCHDOG_SHARED_SECRET)
 
     const supabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -139,6 +143,7 @@ export default async function handler(
       if (insertError) {
         results.push({
           obligation_id: row.obligation_id,
+          entity_id: row.entity_id,
           delivered: false,
           status: null,
           event_key: eventKey,
@@ -155,6 +160,7 @@ export default async function handler(
             'content-type': 'application/json',
             'x-autokirk-event-key': eventKey,
             'x-autokirk-event-type': 'watchdog.overdue_failure.detected',
+            'x-autokirk-signature': watchdogSharedSecret,
           },
           body: JSON.stringify({
             event_type: 'watchdog.overdue_failure.detected',
@@ -175,6 +181,7 @@ export default async function handler(
           if (rpcError) {
             results.push({
               obligation_id: row.obligation_id,
+              entity_id: row.entity_id,
               delivered: false,
               status: response.status,
               event_key: eventKey,
@@ -185,6 +192,7 @@ export default async function handler(
 
           results.push({
             obligation_id: row.obligation_id,
+            entity_id: row.entity_id,
             delivered: true,
             status: response.status,
             event_key: eventKey,
@@ -203,6 +211,7 @@ export default async function handler(
 
         results.push({
           obligation_id: row.obligation_id,
+          entity_id: row.entity_id,
           delivered: false,
           status: response.status,
           event_key: eventKey,
@@ -219,6 +228,7 @@ export default async function handler(
 
         results.push({
           obligation_id: row.obligation_id,
+          entity_id: row.entity_id,
           delivered: false,
           status: null,
           event_key: eventKey,

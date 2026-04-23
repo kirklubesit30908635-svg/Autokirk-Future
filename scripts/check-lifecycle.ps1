@@ -1,5 +1,24 @@
 $ErrorActionPreference = "Stop"
 
+function Get-SupabaseRows {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$JsonText
+    )
+
+    if ($JsonText -is [array]) {
+        $JsonText = ($JsonText -join [Environment]::NewLine)
+    }
+
+    $parsed = $JsonText | ConvertFrom-Json
+
+    if ($null -ne $parsed.rows) {
+        return $parsed.rows
+    }
+
+    return $parsed
+}
+
 function Step($label) {
     Write-Host ""
     Write-Host "== $label ==" -ForegroundColor Cyan
@@ -13,7 +32,7 @@ function Run-SupabaseQuery($sql) {
 }
 
 function Get-ScalarCount($sql) {
-    $result = supabase db query $sql --output json | ConvertFrom-Json
+    $result = Get-SupabaseRows -JsonText (supabase db query $sql --output json)
     if ($LASTEXITCODE -ne 0) {
         throw "Scalar count query failed."
     }
@@ -111,6 +130,18 @@ if ($sourceEvents -ne 1) { throw "Expected source_events = 1 after resolution, g
 if ($obligationSources -ne 1) { throw "Expected obligation_sources = 1 after resolution, got $obligationSources" }
 if ($obligations -ne 1) { throw "Expected obligations = 1 after resolution, got $obligations" }
 if ($receipts -ne 1) { throw "Expected receipts = 1 after resolution, got $receipts" }
+
+$missingReceiptEntities = Get-ScalarCount "select count(*) as count from receipts.receipts where entity_id is null;"
+$mismatchedReceiptEntities = Get-ScalarCount @"
+select count(*) as count
+from receipts.receipts r
+join core.obligations o
+  on o.id = r.obligation_id
+where r.entity_id <> o.entity_id;
+"@
+
+if ($missingReceiptEntities -ne 0) { throw "Expected receipts.entity_id to be populated after resolution" }
+if ($mismatchedReceiptEntities -ne 0) { throw "Expected receipt and obligation entity bindings to match" }
 
 Step "Inspect lifecycle state"
 Run-SupabaseQuery @"

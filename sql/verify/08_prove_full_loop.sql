@@ -31,4 +31,16 @@ resolve as (
 select
   (select ingest_result from parsed) as ingest_result,
   (select obligation_id from parsed) as obligation_id,
-  (select resolve_result from resolve) as resolve_result;
+  (select resolve_result from resolve) as resolve_result,
+  (
+    select pl.entity_id::text
+    from projection.obligation_lifecycle pl
+    where pl.obligation_id = (select obligation_id from parsed)
+    limit 1
+  ) as entity_id,
+  (
+    select pl.receipt_entity_id::text
+    from projection.obligation_lifecycle pl
+    where pl.obligation_id = (select obligation_id from parsed)
+    limit 1
+  ) as receipt_entity_id;

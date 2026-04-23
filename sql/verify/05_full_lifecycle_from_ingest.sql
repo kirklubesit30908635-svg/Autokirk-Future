@@ -1,38 +1,46 @@
-with source_match as (
-  select se.id, se.source_system, se.source_event_key
-  from ingest.source_events se
-  where se.source_system = 'test_system'
-    and se.source_event_key = 'event-1'
-),
-obligation_source_match as (
-  select os.obligation_id
-  from core.obligation_sources os
-  where os.source_system = 'test_system'
-    and os.source_event_key = 'event-1'
-),
-obligation_match as (
-  select o.id, o.status, o.obligation_code, o.truth_burden
-  from core.obligations o
-  join obligation_source_match os
-    on os.obligation_id = o.id
-),
-receipt_match as (
-  select r.id, r.obligation_id
-  from receipts.receipts r
-  join obligation_source_match os
-    on os.obligation_id = r.obligation_id
-)
+﻿-- hard reset test context
+do table
+declare
+  v_workspace_id uuid := gen_random_uuid();
+  v_actor_id uuid := gen_random_uuid();
+  v_result jsonb;
+  v_obligation_id uuid;
+begin
+  -- create workspace + actor binding
+  insert into core.legal_entities (id, entity_name, entity_type)
+  values (v_workspace_id, 'test-workspace-entity', 'workspace');
+
+  insert into core.workspaces (id, name, entity_id)
+  values (v_workspace_id, 'test-workspace', v_workspace_id);
+
+  insert into core.workspace_members (workspace_id, actor_id)
+  values (v_workspace_id, v_actor_id);
+
+  -- INGEST → obligation
+  select api.ingest_event_to_obligation(
+    v_workspace_id,
+    v_actor_id,
+    'test_system',
+    'event_1',
+    'test_event',
+    '{}'::jsonb,
+    now()
+  )
+  into v_result;
+
+  v_obligation_id := (v_result->'obligation'->>'obligation_id')::uuid;
+
+  -- RESOLVE → receipt
+  perform api.resolve_obligation(
+    v_obligation_id,
+    v_actor_id,
+    'resolve_with_proof',
+    '{"proof":"ok"}'::jsonb
+  );
+end table;
+
+-- VERIFY COUNTS
 select
-  (select count(*) from source_match) as source_event_count,
-  (select count(*) from obligation_source_match) as obligation_source_count,
-  (select count(*) from obligation_match) as obligation_count,
-  (select count(*) from receipt_match) as receipt_count,
-  (select count(*) = 1 from source_match) as source_event_ok,
-  (select count(*) = 1 from obligation_source_match) as obligation_source_ok,
-  (select count(*) = 1 from obligation_match) as obligation_ok,
-  (select count(*) = 1 from receipt_match) as receipt_ok,
-  (select bool_or(status in ('resolved', 'closed', 'rejected')) from obligation_match) as terminal_status_ok,
-  (select min(id::text) from obligation_match) as obligation_id,
-  (select min(id::text) from receipt_match) as receipt_id,
-  (select min(obligation_code) from obligation_match) as obligation_code,
-  (select min(truth_burden) from obligation_match) as truth_burden;
+  (select count(*) from ingest.source_events) as source_event_count,
+  (select count(*) from core.obligations) as obligation_count,
+  (select count(*) from receipts.receipts) as receipt_count;

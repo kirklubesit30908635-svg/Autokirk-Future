@@ -1,5 +1,24 @@
 $ErrorActionPreference = "Stop"
 
+function Get-SupabaseRows {
+    param(
+        [Parameter(Mandatory = $true)]
+        [object]$JsonText
+    )
+
+    if ($JsonText -is [array]) {
+        $JsonText = ($JsonText -join [Environment]::NewLine)
+    }
+
+    $parsed = $JsonText | ConvertFrom-Json
+
+    if ($null -ne $parsed.rows) {
+        return $parsed.rows
+    }
+
+    return $parsed
+}
+
 function Invoke-SqlFile {
     param(
         [Parameter(Mandatory = $true)]
@@ -38,6 +57,9 @@ Invoke-SqlFile -Path $proveRejectedPath
 
 $projectionSql = @"
 select
+  entity_id::text as entity_id,
+  receipt_id,
+  receipt_entity_id::text as receipt_entity_id,
   resolution_type,
   proof_status,
   lifecycle_state
@@ -55,7 +77,7 @@ if (-not $json) {
     throw "PROJECTION_QUERY_RETURNED_NO_OUTPUT"
 }
 
-$rows = $json | ConvertFrom-Json
+$rows = Get-SupabaseRows -JsonText $json
 
 if (-not $rows) {
     throw "PROJECTION_QUERY_RETURNED_NO_ROWS"
@@ -66,6 +88,15 @@ $hasInsufficient = $false
 $hasRejected = $false
 
 foreach ($row in $rows) {
+    if ([string]::IsNullOrWhiteSpace([string]$row.entity_id)) {
+        throw "MISSING_ENTITY_ID_IN_LIFECYCLE_PROJECTION"
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace([string]$row.receipt_id) -and
+        ([string]$row.receipt_entity_id -ne [string]$row.entity_id)) {
+        throw "RECEIPT_ENTITY_MISMATCH"
+    }
+
     if ($row.resolution_type -eq "resolve_with_proof" -and
         $row.proof_status -eq "sufficient" -and
         $row.lifecycle_state -eq "resolved") {
@@ -87,7 +118,7 @@ foreach ($row in $rows) {
 
 Write-Host ""
 Write-Host "==> Terminal state summary" -ForegroundColor Cyan
-$rows | Format-Table resolution_type, proof_status, lifecycle_state -AutoSize
+$rows | Format-Table entity_id, receipt_entity_id, resolution_type, proof_status, lifecycle_state -AutoSize
 
 if (-not $hasSufficient) {
     throw "MISSING_TERMINAL_STATE: resolve_with_proof / sufficient / resolved"
