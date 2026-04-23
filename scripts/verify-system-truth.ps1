@@ -25,6 +25,7 @@ $terminalScript = Join-Path $PSScriptRoot "verify-terminal-states.ps1"
 $overdueScript  = Join-Path $PSScriptRoot "verify-overdue-failure.ps1"
 $integritySql   = Join-Path $repoRoot "sql\verify\19_entity_integrity_score.sql"
 $classificationSql = Join-Path $repoRoot "sql\verify\20_entity_integrity_classification.sql"
+$integrityEventsSql = Join-Path $repoRoot "sql\verify\21_integrity_events.sql"
 
 if (-not (Test-Path $terminalScript)) {
     throw "SCRIPT_NOT_FOUND: $terminalScript"
@@ -40,6 +41,10 @@ if (-not (Test-Path $integritySql)) {
 
 if (-not (Test-Path $classificationSql)) {
     throw "SQL_FILE_NOT_FOUND: $classificationSql"
+}
+
+if (-not (Test-Path $integrityEventsSql)) {
+    throw "SQL_FILE_NOT_FOUND: $integrityEventsSql"
 }
 
 Write-Host ""
@@ -145,6 +150,58 @@ $classificationRows | Format-Table entity_id, integrity_label_key, integrity_lab
 
 if (-not $hasFailedClassification) {
     throw "ENTITY_INTEGRITY_CLASSIFICATION_EXPECTED_FAILED_FIXTURE_MISSING"
+}
+
+Write-Host ""
+Write-Host "==> Running integrity events verification" -ForegroundColor Cyan
+$integrityEventsJson = supabase db query --file $integrityEventsSql --output json
+
+if ($LASTEXITCODE -ne 0 -or -not $integrityEventsJson) {
+    throw "INTEGRITY_EVENTS_VERIFICATION_FAILED"
+}
+
+$integrityEventsRows = Get-SupabaseRows -JsonText $integrityEventsJson
+
+if (-not $integrityEventsRows) {
+    throw "INTEGRITY_EVENTS_EMPTY"
+}
+
+$hasFailedIntegrityEvent = $false
+
+foreach ($row in $integrityEventsRows) {
+    if ([string]::IsNullOrWhiteSpace([string]$row.entity_id)) {
+        throw "INTEGRITY_EVENTS_ENTITY_ID_NULL"
+    }
+
+    if ([string]$row.event_type -ne 'integrity.failed') {
+        throw "INTEGRITY_EVENTS_TYPE_INVALID"
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$row.event_key)) {
+        throw "INTEGRITY_EVENTS_KEY_NULL"
+    }
+
+    if ([string]$row.source_projection -ne 'projection.entity_integrity_classification') {
+        throw "INTEGRITY_EVENTS_SOURCE_INVALID"
+    }
+
+    if ([string]::IsNullOrWhiteSpace([string]$row.detected_at)) {
+        throw "INTEGRITY_EVENTS_DETECTED_AT_NULL"
+    }
+
+    if ([string]$row.integrity_label_key -ne 'failed' -or [string]$row.action_mode -ne 'contractual') {
+        throw "INTEGRITY_EVENTS_CLASSIFICATION_MISMATCH"
+    }
+
+    if ([string]$row.entity_id -eq 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa') {
+        $hasFailedIntegrityEvent = $true
+    }
+}
+
+$integrityEventsRows | Format-Table entity_id, event_type, event_key, integrity_label_key, action_mode, classification_basis, detected_at -AutoSize
+
+if (-not $hasFailedIntegrityEvent) {
+    throw "INTEGRITY_EVENTS_EXPECTED_FAILED_FIXTURE_MISSING"
 }
 
 Write-Host ""

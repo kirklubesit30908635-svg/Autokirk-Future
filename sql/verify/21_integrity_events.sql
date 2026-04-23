@@ -1,0 +1,26 @@
+select
+  entity_id::text as entity_id,
+  event_type,
+  event_key,
+  source_projection,
+  detected_at::text as detected_at,
+  integrity_label_key,
+  integrity_label,
+  action_mode,
+  classification_basis,
+  integrity_score::text as integrity_score,
+  resolution_rate::text as resolution_rate,
+  total_obligations,
+  resolved_count,
+  failed_count,
+  weak_proof_count,
+  coalesce(max_overdue_age_days, 0)::text as max_overdue_age_days,
+  failed_performance_recent_count,
+  weak_proof_recent_count,
+  overdue_floor_triggered,
+  failed_performance_floor_triggered,
+  weak_proof_floor_triggered,
+  failed_obligation_count,
+  weak_proof_event_count
+from projection.integrity_events
+order by entity_id;

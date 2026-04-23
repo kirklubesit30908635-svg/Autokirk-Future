@@ -107,3 +107,14 @@ Thresholds and floor conditions should be queryable and changeable without requi
 ## Current Rule
 
 Until calibration is complete, raw integrity score should not be represented as a customer-facing trust grade without a policy wrapper.
+
+## Read-Side Consequence Events
+
+Before any enforcement logic is attached, failed contractual classifications may be exposed as read-only consequence events through `projection.integrity_events`.
+
+This projection is observational only:
+
+- it is sourced from `projection.entity_integrity_classification`
+- it emits only failed contractual classifications
+- it does not mutate obligations, receipts, or policy state
+- it exists to make downstream consequence handling observable before enforcement is implemented
