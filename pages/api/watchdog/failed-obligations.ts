@@ -101,7 +101,10 @@ export default async function handler(
             next_retry_at,
             max_attempts
           `)
+          .eq('delivery_target', 'outbound-webhook')
           .in('obligation_id', obligationIds)
+          .order('created_at', { ascending: false })
+          .order('id', { ascending: false })
 
     if (emissionsError) {
       return res.status(500).json({ ok: false, error: emissionsError.message })
@@ -109,7 +112,9 @@ export default async function handler(
 
     const emissionByObligationId = new Map<string, EmissionRow>()
     for (const row of ((emissionsData ?? []) as EmissionRow[])) {
-      emissionByObligationId.set(row.obligation_id, row)
+      if (!emissionByObligationId.has(row.obligation_id)) {
+        emissionByObligationId.set(row.obligation_id, row)
+      }
     }
 
     const rows: EnforcementRow[] = failedRows.map((row) => {

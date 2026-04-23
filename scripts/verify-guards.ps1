@@ -26,6 +26,8 @@ function Invoke-ExpectedFailure {
 
 Invoke-ExpectedFailure ".\sql\verify\20_fail_invalid_resolution_type.sql" "UNSUPPORTED_RESOLUTION_TYPE"
 Invoke-ExpectedFailure ".\sql\verify\21_fail_missing_proof.sql" "PROOF_REQUIRED"
+Invoke-ExpectedFailure ".\sql\verify\24_fail_invalid_kernel_resolution_type.sql" "UNSUPPORTED_RESOLUTION_TYPE"
+Invoke-ExpectedFailure ".\sql\verify\25_fail_invalid_kernel_proof_status.sql" "INVALID_PROOF_STATUS"
 
 Write-Host ""
 Write-Host "GUARD_VERIFICATION_OK"
