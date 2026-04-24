@@ -2,7 +2,6 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
 const WORKSPACE_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-const ACTOR_ID = "11111111-1111-1111-1111-111111111111";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -67,6 +66,11 @@ export default async function handler(
   }
 
   try {
+    const authHeader = req.headers.authorization;
+    const accessToken =
+      typeof authHeader === "string" && authHeader.startsWith("Bearer ")
+        ? authHeader.slice("Bearer ".length)
+        : null;
     const url = assertEnv(
       "NEXT_PUBLIC_SUPABASE_URL",
       process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -80,6 +84,40 @@ export default async function handler(
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
+    if (!accessToken) {
+      return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+    }
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser(accessToken);
+
+    if (userError || !user) {
+      return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+    }
+
+    const { data: membership, error: membershipError } = await supabase
+      .from("core.workspace_members")
+      .select("workspace_id,user_id")
+      .eq("workspace_id", WORKSPACE_ID)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (membershipError) {
+      return res.status(500).json({
+        ok: false,
+        error: `MEMBERSHIP_LOOKUP_FAILED: ${membershipError.message}`,
+      });
+    }
+
+    if (!membership) {
+      return res.status(403).json({
+        ok: false,
+        error: "INVALID_WORKSPACE_ACCESS",
+      });
+    }
+
     const runId = `live-proof-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 10)}`;
@@ -88,7 +126,7 @@ export default async function handler(
       .schema("api")
       .rpc("ingest_event_to_obligation", {
         p_workspace_id: WORKSPACE_ID,
-        p_actor_id: ACTOR_ID,
+        p_actor_id: user.id,
         p_source_system: "live-proof-ui",
         p_source_event_key: runId,
         p_source_event_type: "autokirk.live_proof_requested",
@@ -115,7 +153,7 @@ export default async function handler(
       .schema("api")
       .rpc("resolve_obligation", {
         p_obligation_id: obligationId,
-        p_actor_id: ACTOR_ID,
+        p_actor_id: user.id,
         p_resolution_type: "resolve_with_proof",
         p_reason: "live proof completed",
         p_evidence_present: {

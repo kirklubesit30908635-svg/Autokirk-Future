@@ -1,3 +1,7 @@
+import { useEffect, useState, useTransition } from "react";
+import { useRouter } from "next/router";
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+
 type LifecycleRow = {
   obligation_id: string;
   entity_id: string | null;
@@ -40,6 +44,32 @@ export type SystemProofBoardProps = {
   error?: string;
 };
 
+type LiveProofRunSuccess = {
+  ok: true;
+  event: Record<string, unknown>;
+  obligation: Record<string, unknown>;
+  resolution: Record<string, unknown>;
+  receipt: Record<string, unknown>;
+  lifecycle_state: string;
+  entity_id: string | null;
+  receipt_entity_id: string | null;
+};
+
+type LiveProofRunFailure = {
+  ok: false;
+  error: string;
+};
+
+type LiveProofRunResponse = LiveProofRunSuccess | LiveProofRunFailure;
+
+type AuthState =
+  | "loading"
+  | "ready"
+  | "signed_out"
+  | "sending"
+  | "error"
+  | "unavailable";
+
 const leftRail = [
   "KERNEL",
   "OBLIGATIONS",
@@ -47,6 +77,29 @@ const leftRail = [
   "FAILURES",
   "WATCHDOG",
 ];
+
+const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const publicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+let browserSupabaseClient: SupabaseClient | null = null;
+
+function getBrowserSupabaseClient(): SupabaseClient | null {
+  if (!publicSupabaseUrl?.trim() || !publicSupabaseAnonKey?.trim()) {
+    return null;
+  }
+
+  if (!browserSupabaseClient) {
+    browserSupabaseClient = createClient(publicSupabaseUrl, publicSupabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    });
+  }
+
+  return browserSupabaseClient;
+}
 
 function formatValue(value: SummaryValue): string {
   if (value === null || typeof value === "undefined" || value === "") {
@@ -153,6 +206,21 @@ function RowField({
   );
 }
 
+function ResultField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="runResultField">
+      <div className="fieldLabel">{label}</div>
+      <div className="runResultValue">{value}</div>
+    </div>
+  );
+}
+
 function RowRecord({ row }: { row: LifecycleRow }) {
   return (
     <article className="record">
@@ -224,6 +292,109 @@ export function SystemProofBoard({
   note,
   error,
 }: SystemProofBoardProps) {
+  const router = useRouter();
+  const [isRunning, startRunTransition] = useTransition();
+  const [operatorEmail, setOperatorEmail] = useState("");
+  const [authState, setAuthState] = useState<AuthState>("loading");
+  const [authMessage, setAuthMessage] = useState(
+    "Checking for an authenticated operator session..."
+  );
+  const [operatorSession, setOperatorSession] = useState<Session | null>(null);
+  const [runStatus, setRunStatus] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [runMessage, setRunMessage] = useState<string>(
+    "Run the canonical event -> obligation -> resolution -> receipt loop through kernel authority."
+  );
+  const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const stored = window.sessionStorage.getItem("autokirk-live-proof-result");
+
+    if (!stored) {
+      return;
+    }
+
+    window.sessionStorage.removeItem("autokirk-live-proof-result");
+
+    try {
+      const parsed = JSON.parse(stored) as LiveProofRunSuccess;
+      setRunStatus("success");
+      setRunMessage(
+        "Full loop completed through kernel authority. Projection truth has been reloaded."
+      );
+      setRunResult(parsed);
+    } catch {
+      window.sessionStorage.removeItem("autokirk-live-proof-result");
+    }
+  }, []);
+
+  useEffect(() => {
+    const client = getBrowserSupabaseClient();
+
+    if (!client) {
+      setAuthState("unavailable");
+      setAuthMessage("Operator auth is unavailable in this environment.");
+      return;
+    }
+
+    let isMounted = true;
+
+    const syncSession = (session: Session | null) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setOperatorSession(session);
+
+      if (session?.access_token) {
+        setAuthState("ready");
+        setAuthMessage(
+          `Operator session active for ${session.user.email ?? session.user.id}.`
+        );
+        if (session.user.email) {
+          setOperatorEmail((current) => current || session.user.email || "");
+        }
+      } else {
+        setAuthState("signed_out");
+        setAuthMessage("Sign in as a workspace operator to run the live loop.");
+      }
+    };
+
+    client.auth
+      .getSession()
+      .then(({ data, error: sessionError }) => {
+        if (sessionError) {
+          throw sessionError;
+        }
+
+        syncSession(data.session);
+      })
+      .catch((sessionError: Error) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setAuthState("error");
+        setAuthMessage(sessionError.message);
+      });
+
+    const {
+      data: { subscription },
+    } = client.auth.onAuthStateChange((_event, session) => {
+      syncSession(session);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
   const projection = String(summary.projection ?? "NO LIVE DATA");
   const projectionTone = getProjectionTone(projection);
   const lifecycleOutcome = getLifecycleOutcome(lifecycleRows);
@@ -258,6 +429,134 @@ export function SystemProofBoard({
     { label: "RETRIES", value: summary.retries },
     { label: "PROJECTION", value: projection },
   ];
+
+  function toApiError(payload: unknown, fallback: string): string {
+    if (!payload || typeof payload !== "object") {
+      return fallback;
+    }
+
+    const candidate = (payload as { error?: unknown }).error;
+    return typeof candidate === "string" && candidate.trim()
+      ? candidate
+      : fallback;
+  }
+
+  function handleRunLoop() {
+    startRunTransition(async () => {
+      if (!operatorSession?.access_token) {
+        setRunStatus("error");
+        setRunMessage("OPERATOR_SIGN_IN_REQUIRED");
+        return;
+      }
+
+      setRunStatus("running");
+      setRunMessage("Running the full loop through the kernel...");
+      setRunResult(null);
+
+      try {
+        const response = await fetch("/api/live-proof/run", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${operatorSession.access_token}`,
+          },
+        });
+
+        const payload = (await response.json()) as LiveProofRunResponse;
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(
+            toApiError(payload, `LIVE_PROOF_REQUEST_FAILED_${response.status}`)
+          );
+        }
+
+        setRunStatus("success");
+        setRunMessage(
+          "Loop completed. Reloading projection truth from the live read model..."
+        );
+        setRunResult(payload);
+
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(
+            "autokirk-live-proof-result",
+            JSON.stringify(payload)
+          );
+          window.setTimeout(() => {
+            router.reload();
+          }, 500);
+        }
+      } catch (runError) {
+        setRunStatus("error");
+        setRunMessage(
+          runError instanceof Error
+            ? runError.message
+            : "LIVE_PROOF_REQUEST_FAILED"
+        );
+      }
+    });
+  }
+
+  async function handleOperatorSignIn() {
+    const client = getBrowserSupabaseClient();
+
+    if (!client) {
+      setAuthState("unavailable");
+      setAuthMessage("Operator auth is unavailable in this environment.");
+      return;
+    }
+
+    const email = operatorEmail.trim();
+
+    if (!email) {
+      setAuthState("error");
+      setAuthMessage("OPERATOR_EMAIL_REQUIRED");
+      return;
+    }
+
+    setAuthState("sending");
+    setAuthMessage("Sending operator sign-in link...");
+
+    const { error: signInError } = await client.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo:
+          typeof window !== "undefined"
+            ? `${window.location.origin}${router.asPath}`
+            : undefined,
+      },
+    });
+
+    if (signInError) {
+      setAuthState("error");
+      setAuthMessage(signInError.message);
+      return;
+    }
+
+    setAuthState("signed_out");
+    setAuthMessage("Check your email for the operator sign-in link.");
+  }
+
+  async function handleOperatorSignOut() {
+    const client = getBrowserSupabaseClient();
+
+    if (!client) {
+      return;
+    }
+
+    const { error: signOutError } = await client.auth.signOut();
+
+    if (signOutError) {
+      setAuthState("error");
+      setAuthMessage(signOutError.message);
+      return;
+    }
+
+    setRunResult(null);
+    setRunStatus("idle");
+    setRunMessage(
+      "Run the canonical event -> obligation -> resolution -> receipt loop through kernel authority."
+    );
+  }
 
   return (
     <main className="surface">
@@ -351,6 +650,136 @@ export function SystemProofBoard({
             </div>
 
             <div className="noticeStack">
+              <div className="operatorCard">
+                <div className="operatorHeader">
+                  <div>
+                    <div className="noticeLabel">Operator Session</div>
+                    <div className="operatorTitle">Authenticated Kernel Access</div>
+                  </div>
+                  <div className={`operatorBadge operatorBadge-${authState}`}>
+                    {authState === "ready"
+                      ? "AUTHENTICATED"
+                      : authState === "sending"
+                      ? "SENDING"
+                      : authState === "loading"
+                      ? "CHECKING"
+                      : authState === "unavailable"
+                      ? "UNAVAILABLE"
+                      : "SIGN IN REQUIRED"}
+                  </div>
+                </div>
+
+                <p className="operatorText">
+                  The live loop can only be triggered by an authenticated workspace
+                  operator.
+                </p>
+
+                <div className="operatorControls">
+                  <input
+                    type="email"
+                    value={operatorEmail}
+                    onChange={(event) => setOperatorEmail(event.target.value)}
+                    className="operatorInput"
+                    placeholder="operator@autokirk.com"
+                    autoComplete="email"
+                    disabled={authState === "ready" || authState === "loading"}
+                  />
+                  {authState === "ready" ? (
+                    <button
+                      type="button"
+                      className="secondaryButton"
+                      onClick={handleOperatorSignOut}
+                    >
+                      Sign Out
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="secondaryButton"
+                      onClick={handleOperatorSignIn}
+                      disabled={authState === "loading" || authState === "sending"}
+                    >
+                      {authState === "sending" ? "Sending Link..." : "Send Sign-In Link"}
+                    </button>
+                  )}
+                </div>
+
+                <div className={`operatorMessage operatorMessage-${authState}`}>
+                  {authMessage}
+                </div>
+              </div>
+
+              <div className="runPanel">
+                <div className="runPanelCopy">
+                  <div className="noticeLabel">Operator Loop</div>
+                  <div className="runPanelTitle">Run The Full Loop</div>
+                  <p className="runPanelText">
+                    Emit a live source event, open the obligation, resolve it
+                    through kernel authority, and confirm receipt emission.
+                  </p>
+                </div>
+
+                <div className="runPanelAction">
+                  <button
+                    type="button"
+                    className="runButton"
+                    onClick={handleRunLoop}
+                    disabled={isRunning || authState !== "ready"}
+                  >
+                    {isRunning ? "RUNNING LOOP..." : "RUN FULL LOOP"}
+                  </button>
+                  <div className={`runStatus runStatus-${runStatus}`}>
+                    {runMessage}
+                  </div>
+                </div>
+              </div>
+
+              {runResult ? (
+                <div className="runResultCard">
+                  <div className="noticeLabel">Latest Loop Result</div>
+                  <div className="runResultGrid">
+                    <ResultField
+                      label="EVENT"
+                      value={String(
+                        runResult.event["source_event_type"] ??
+                          runResult.event["id"] ??
+                          "—"
+                      )}
+                    />
+                    <ResultField
+                      label="OBLIGATION"
+                      value={String(
+                        runResult.obligation["obligation_code"] ??
+                          runResult.obligation["id"] ??
+                          "—"
+                      )}
+                    />
+                    <ResultField
+                      label="RESOLUTION"
+                      value={String(
+                        runResult.resolution["resolution_type"] ??
+                          runResult.resolution["id"] ??
+                          "—"
+                      )}
+                    />
+                    <ResultField
+                      label="RECEIPT"
+                      value={String(
+                        runResult.receipt["id"] ?? runResult.receipt_entity_id ?? "—"
+                      )}
+                    />
+                    <ResultField
+                      label="STATE"
+                      value={runResult.lifecycle_state.toUpperCase()}
+                    />
+                    <ResultField
+                      label="ENTITY"
+                      value={runResult.entity_id ?? "—"}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               <div className="noticeCard">
                 <div className="noticeLabel">READ MODEL</div>
                 <div className="noticeBody">{note}</div>
@@ -726,11 +1155,277 @@ export function SystemProofBoard({
           gap: 12px;
         }
 
+        .operatorCard,
+        .runPanel,
         .noticeCard {
           padding: 16px 18px;
           border-radius: 18px;
           border: 1px solid rgba(212, 175, 55, 0.08);
           background: rgba(212, 175, 55, 0.04);
+        }
+
+        .operatorCard {
+          display: grid;
+          gap: 14px;
+          background:
+            linear-gradient(180deg, rgba(10, 9, 7, 0.98), rgba(17, 14, 10, 0.94));
+        }
+
+        .operatorHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: start;
+          flex-wrap: wrap;
+        }
+
+        .operatorTitle {
+          color: #fff2cf;
+          font-size: 1.15rem;
+          line-height: 1.1;
+        }
+
+        .operatorText {
+          margin: 0;
+          color: #cbbd96;
+          font-size: 14px;
+          line-height: 1.7;
+        }
+
+        .operatorBadge {
+          padding: 8px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(212, 175, 55, 0.14);
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+
+        .operatorBadge-ready {
+          color: #87d38f;
+        }
+
+        .operatorBadge-loading,
+        .operatorBadge-sending {
+          color: #fff2cf;
+        }
+
+        .operatorBadge-signed_out,
+        .operatorBadge-unavailable {
+          color: #d8bb67;
+        }
+
+        .operatorBadge-error {
+          color: #f59b7d;
+        }
+
+        .operatorControls {
+          display: flex;
+          gap: 12px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .operatorInput {
+          min-width: min(100%, 320px);
+          flex: 1 1 280px;
+          padding: 14px 16px;
+          border-radius: 16px;
+          border: 1px solid rgba(212, 175, 55, 0.16);
+          background: rgba(5, 5, 4, 0.88);
+          color: #fff2cf;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
+          letter-spacing: 0.04em;
+        }
+
+        .operatorInput::placeholder {
+          color: #8e7d54;
+        }
+
+        .operatorInput:disabled {
+          opacity: 0.72;
+        }
+
+        .secondaryButton {
+          padding: 13px 18px;
+          border: 1px solid rgba(212, 175, 55, 0.2);
+          border-radius: 999px;
+          background: rgba(212, 175, 55, 0.08);
+          color: #f7edcf;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 11px;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+
+        .secondaryButton:disabled {
+          opacity: 0.72;
+          cursor: wait;
+        }
+
+        .operatorMessage {
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 11px;
+          letter-spacing: 0.06em;
+          line-height: 1.8;
+          text-transform: uppercase;
+        }
+
+        .operatorMessage-ready {
+          color: #87d38f;
+        }
+
+        .operatorMessage-loading,
+        .operatorMessage-sending {
+          color: #fff2cf;
+        }
+
+        .operatorMessage-signed_out,
+        .operatorMessage-unavailable {
+          color: #d8bb67;
+        }
+
+        .operatorMessage-error {
+          color: #f59b7d;
+        }
+
+        .runPanel {
+          display: flex;
+          justify-content: space-between;
+          gap: 18px;
+          align-items: center;
+          background:
+            linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.03)),
+            rgba(212, 175, 55, 0.04);
+        }
+
+        .runPanelCopy {
+          display: grid;
+          gap: 8px;
+          max-width: 560px;
+        }
+
+        .runPanelTitle {
+          color: #fff2cf;
+          font-size: 1.25rem;
+          line-height: 1.1;
+        }
+
+        .runPanelText {
+          margin: 0;
+          color: #cbbd96;
+          font-size: 14px;
+          line-height: 1.7;
+        }
+
+        .runPanelAction {
+          min-width: 280px;
+          display: grid;
+          gap: 10px;
+          justify-items: end;
+        }
+
+        .runButton {
+          min-width: 220px;
+          padding: 14px 18px;
+          border: 1px solid rgba(212, 175, 55, 0.28);
+          border-radius: 999px;
+          background:
+            linear-gradient(180deg, rgba(212, 175, 55, 0.26), rgba(212, 175, 55, 0.12));
+          color: #fff4d5;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition:
+            transform 140ms ease,
+            border-color 140ms ease,
+            background 140ms ease;
+        }
+
+        .runButton:hover:not(:disabled) {
+          transform: translateY(-1px);
+          border-color: rgba(212, 175, 55, 0.45);
+          background:
+            linear-gradient(180deg, rgba(212, 175, 55, 0.34), rgba(212, 175, 55, 0.16));
+        }
+
+        .runButton:disabled {
+          opacity: 0.72;
+          cursor: wait;
+        }
+
+        .runStatus {
+          max-width: 320px;
+          text-align: right;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          line-height: 1.8;
+          text-transform: uppercase;
+        }
+
+        .runStatus-idle {
+          color: #bfa85f;
+        }
+
+        .runStatus-running {
+          color: #fff2cf;
+        }
+
+        .runStatus-success {
+          color: #87d38f;
+        }
+
+        .runStatus-error {
+          color: #f59b7d;
+        }
+
+        .runResultCard {
+          padding: 16px 18px;
+          border-radius: 18px;
+          border: 1px solid rgba(212, 175, 55, 0.12);
+          background: rgba(6, 6, 4, 0.52);
+          display: grid;
+          gap: 14px;
+        }
+
+        .runResultGrid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .runResultField {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .runResultValue {
+          color: #efe2bc;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
+          line-height: 1.6;
+          overflow-wrap: anywhere;
         }
 
         .noticeError {
@@ -922,6 +1617,7 @@ export function SystemProofBoard({
         @media (max-width: 1024px) {
           .heroStats,
           .fieldGrid,
+          .runResultGrid,
           .navList,
           .statusStack,
           .lifecycleStrip {
@@ -935,9 +1631,24 @@ export function SystemProofBoard({
           }
 
           .heroTop,
+          .operatorHeader,
+          .runPanel,
           .streamHeader,
           .proofPanelHeader {
             flex-direction: column;
+          }
+
+          .runPanelAction {
+            min-width: 0;
+            width: 100%;
+            justify-items: stretch;
+          }
+
+          .runButton,
+          .runStatus {
+            max-width: none;
+            width: 100%;
+            text-align: left;
           }
         }
 
