@@ -40,13 +40,6 @@ export type SystemProofBoardProps = {
   error?: string;
 };
 
-const lifecycleSteps = [
-  "EVENT RECORDED",
-  "OBLIGATION OPENED",
-  "RESOLUTION PROVEN",
-  "RECEIPT EMITTED",
-];
-
 const leftRail = [
   "KERNEL",
   "OBLIGATIONS",
@@ -56,8 +49,8 @@ const leftRail = [
 ];
 
 function formatValue(value: SummaryValue): string {
-  if (value === null || typeof value === "undefined") {
-    return "--";
+  if (value === null || typeof value === "undefined" || value === "") {
+    return "—";
   }
 
   if (typeof value === "number") {
@@ -69,7 +62,7 @@ function formatValue(value: SummaryValue): string {
 
 function formatTimestamp(value: string | null): string {
   if (!value) {
-    return "not emitted";
+    return "—";
   }
 
   const date = new Date(value);
@@ -86,77 +79,144 @@ function formatTimestamp(value: string | null): string {
 
 function compactId(value: string | null): string {
   if (!value) {
-    return "none";
+    return "—";
   }
 
-  if (value.length <= 18) {
+  if (value.length <= 20) {
     return value;
   }
 
-  return `${value.slice(0, 8)}...${value.slice(-6)}`;
+  return `${value.slice(0, 10)}...${value.slice(-6)}`;
 }
 
-function firstRows(
+function selectRows(
   rows: LifecycleRow[],
-  predicate: (row: LifecycleRow) => boolean
+  predicate: (row: LifecycleRow) => boolean,
+  limit = 4
 ): LifecycleRow[] {
-  return rows.filter(predicate).slice(0, 3);
+  return rows.filter(predicate).slice(0, limit);
 }
 
-function renderRow(row: LifecycleRow) {
+function getProjectionTone(
+  projection: string
+): "projectionOk" | "projectionFailing" | "projectionOffline" {
+  if (projection === "OK") {
+    return "projectionOk";
+  }
+
+  if (projection === "FAILING") {
+    return "projectionFailing";
+  }
+
+  return "projectionOffline";
+}
+
+function getLifecycleOutcome(rows: LifecycleRow[]): string {
+  if (rows.some((row) => row.lifecycle_state === "failed")) {
+    return "FAILURE RECORDED";
+  }
+
+  if (
+    rows.some(
+      (row) =>
+        row.lifecycle_state === "resolved" ||
+        row.proof_status === "sufficient" ||
+        row.proof_status === "accepted"
+    )
+  ) {
+    return "RESOLUTION PROVEN";
+  }
+
+  return "RESOLUTION PENDING";
+}
+
+function getReceiptOutcome(rows: LifecycleRow[]): string {
+  if (rows.some((row) => Boolean(row.receipt_id))) {
+    return "RECEIPT EMITTED";
+  }
+
+  return "RECEIPT ABSENT";
+}
+
+function RowField({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
-    <article key={row.obligation_id} className="rowCard">
-      <div className="rowCardTop">
-        <span className={`stateBadge state-${row.lifecycle_state}`}>
+    <div className="field">
+      <div className="fieldLabel">{label}</div>
+      <div className="fieldValue">{value}</div>
+    </div>
+  );
+}
+
+function RowRecord({ row }: { row: LifecycleRow }) {
+  return (
+    <article className="record">
+      <div className="recordTop">
+        <div className="recordIdentity">
+          <div className="recordCode">{row.obligation_code}</div>
+          <div className="recordSource">
+            {row.source_event_type ?? "NO SOURCE EVENT TYPE"}
+          </div>
+        </div>
+
+        <div className={`stateBadge state-${row.lifecycle_state}`}>
           {row.lifecycle_state}
-        </span>
-        <span className="rowCode">{row.obligation_code}</span>
+        </div>
       </div>
-      <div className="rowMeta">
-        <span>{row.source_event_type ?? "source event pending"}</span>
-        <span>{row.truth_burden ?? "truth burden n/a"}</span>
-      </div>
-      <div className="rowMeta">
-        <span>entity {compactId(row.entity_id)}</span>
-        <span>receipt {compactId(row.receipt_id)}</span>
-      </div>
-      <div className="rowMeta">
-        <span>opened {formatTimestamp(row.obligation_created_at)}</span>
-        <span>due {formatTimestamp(row.due_at)}</span>
+
+      <div className="fieldGrid">
+        <RowField label="CODE" value={row.obligation_code} />
+        <RowField label="STATE" value={row.lifecycle_state.toUpperCase()} />
+        <RowField
+          label="BURDEN"
+          value={(row.truth_burden ?? "—").toUpperCase()}
+        />
+        <RowField label="RECEIPT" value={compactId(row.receipt_id)} />
+        <RowField label="OPENED" value={formatTimestamp(row.obligation_created_at)} />
+        <RowField label="DUE" value={formatTimestamp(row.due_at)} />
       </div>
     </article>
   );
 }
 
-function ProofCard({
+function StreamSection({
   title,
   value,
-  tone,
   description,
   rows,
 }: {
   title: string;
   value: SummaryValue;
-  tone: "neutral" | "success" | "warning" | "danger";
   description: string;
   rows: LifecycleRow[];
 }) {
   return (
-    <section className={`proofCard proofCard-${tone}`}>
-      <div className="cardHeader">
-        <span className="cardLabel">{title}</span>
-        <span className="cardValue">{formatValue(value)}</span>
+    <section className="streamSection">
+      <div className="streamHeader">
+        <div>
+          <div className="sectionTitle">{title}</div>
+          <p className="sectionDescription">{description}</p>
+        </div>
+        <div className="sectionValue">{formatValue(value)}</div>
       </div>
-      <p className="cardDescription">{description}</p>
-      <div className="rowList">
-        {rows.length > 0 ? rows.map(renderRow) : <div className="emptyState">No rows in the current read slice.</div>}
+
+      <div className="recordList">
+        {rows.length > 0 ? (
+          rows.map((row) => <RowRecord key={row.obligation_id} row={row} />)
+        ) : (
+          <div className="emptyState">NO LIVE DATA</div>
+        )}
       </div>
     </section>
   );
 }
 
 export function SystemProofBoard({
-  mode,
   generatedAt,
   summary,
   lifecycleRows,
@@ -164,156 +224,238 @@ export function SystemProofBoard({
   note,
   error,
 }: SystemProofBoardProps) {
-  const openRows = firstRows(lifecycleRows, (row) => row.lifecycle_state === "open");
-  const receiptRows = firstRows(lifecycleRows, (row) => Boolean(row.receipt_id));
-  const failedRows = firstRows(lifecycleRows, (row) => row.lifecycle_state === "failed");
+  const projection = String(summary.projection ?? "NO LIVE DATA");
+  const projectionTone = getProjectionTone(projection);
+  const lifecycleOutcome = getLifecycleOutcome(lifecycleRows);
+  const receiptOutcome = getReceiptOutcome(lifecycleRows);
 
-  const statusRail = [
+  const sourceRows = selectRows(lifecycleRows, (row) => Boolean(row.source_event_id));
+  const obligationRows = lifecycleRows.slice(0, 4);
+  const receiptRows = selectRows(lifecycleRows, (row) => Boolean(row.receipt_id));
+  const failedRows = selectRows(
+    lifecycleRows,
+    (row) => row.lifecycle_state === "failed"
+  );
+  const overdueRows = watchdogRows.slice(0, 4);
+  const projectionRows = selectRows(
+    lifecycleRows,
+    (row) =>
+      row.lifecycle_state === "open" ||
+      row.lifecycle_state === "failed" ||
+      !row.receipt_id
+  );
+
+  const heroStats = [
+    { label: "Source Events", value: summary.sourceEvents },
+    { label: "Obligations", value: summary.obligations },
+    { label: "Receipts", value: summary.receipts },
+  ];
+
+  const rightRail = [
     { label: "OPEN", value: summary.open },
     { label: "FAILED", value: summary.failed },
     { label: "OVERDUE", value: summary.overdue },
     { label: "RETRIES", value: summary.retries },
-    { label: "PROJECTION", value: summary.projection },
+    { label: "PROJECTION", value: projection },
   ];
 
   return (
-    <main className="proofSurface">
-      <div className="grain" />
+    <main className="surface">
+      <div className="ambientGlow ambientGlowLeft" />
+      <div className="ambientGlow ambientGlowRight" />
       <div className="frame">
         <aside className="leftRail">
-          <div className="railLabel">READ ONLY PROJECTION SURFACE</div>
-          <nav className="navStack" aria-label="System sections">
+          <div className="railBrand">
+            <div className="eyebrow">READ ONLY PROJECTION SURFACE</div>
+            <p className="railCopy">
+              Kernel authority remains the sole mutation path. This surface only
+              renders projection truth.
+            </p>
+          </div>
+
+          <nav className="navList" aria-label="System sections">
             {leftRail.map((item) => (
               <div key={item} className="navItem">
-                <span className="navMarker" />
+                <span className="navPulse" />
                 <span>{item}</span>
               </div>
             ))}
           </nav>
+
+          <div className="railFooter">
+            <div className="eyebrow">Generated</div>
+            <div className="railTimestamp">{formatTimestamp(generatedAt)}</div>
+          </div>
         </aside>
 
-        <section className="centerColumn">
+        <section className="workspace">
           <header className="heroPanel">
-            <div className="heroEyebrow">AutoKirk Future</div>
-            <h1>Failures Do Not Disappear</h1>
-            <p>
-              Every event becomes an obligation. Every obligation remains active
-              until proven resolved.
-            </p>
-            <div className="heroMeta">
-              <span className={`modeTag mode-${mode}`}>{mode.toUpperCase()}</span>
-              <span>generated {formatTimestamp(generatedAt)}</span>
+            <div className="heroTop">
+              <div>
+                <div className="heroEyebrow">AUTOKIRK FUTURE</div>
+                <h1>FAILURES DO NOT DISAPPEAR</h1>
+                <p className="heroCopy">
+                  Every event becomes an obligation. Every obligation remains
+                  active until proven resolved.
+                </p>
+              </div>
+
+              <div className={`projectionChip ${projectionTone}`}>
+                <span>PROJECTION</span>
+                <strong>{projection}</strong>
+              </div>
+            </div>
+
+            <div className="heroStats">
+              {heroStats.map((item) => (
+                <div key={item.label} className="heroStatCard">
+                  <div className="heroStatLabel">{item.label}</div>
+                  <div className="heroStatValue">{formatValue(item.value)}</div>
+                </div>
+              ))}
             </div>
           </header>
 
-          <section className="lifecyclePanel" aria-label="Lifecycle row">
-            {lifecycleSteps.map((step, index) => (
-              <div key={step} className="lifecycleStep">
-                <span>{step}</span>
-                {index < lifecycleSteps.length - 1 ? (
-                  <span className="lifecycleArrow">-&gt;</span>
-                ) : null}
+          <section className="proofPanel">
+            <div className="proofPanelHeader">
+              <div>
+                <div className="sectionLabel">Main Proof Block</div>
+                <p className="proofCopy">
+                  The lifecycle remains visible until proof or failure is
+                  explicitly recorded by the kernel.
+                </p>
               </div>
-            ))}
+              <div className="proofMeta">{formatTimestamp(generatedAt)}</div>
+            </div>
+
+            <div className="lifecycleStrip">
+              <div className="lifecycleNode">
+                <span className="nodeIndex">01</span>
+                <span className="nodeLabel">EVENT RECORDED</span>
+              </div>
+              <div className="lifecycleConnector" />
+              <div className="lifecycleNode">
+                <span className="nodeIndex">02</span>
+                <span className="nodeLabel">OBLIGATION OPENED</span>
+              </div>
+              <div className="lifecycleConnector" />
+              <div className="lifecycleNode lifecycleNodeAccent">
+                <span className="nodeIndex">03</span>
+                <span className="nodeLabel">{lifecycleOutcome}</span>
+              </div>
+              <div className="lifecycleConnector" />
+              <div className="lifecycleNode lifecycleNodeAccent">
+                <span className="nodeIndex">04</span>
+                <span className="nodeLabel">{receiptOutcome}</span>
+              </div>
+            </div>
+
+            <div className="noticeStack">
+              <div className="noticeCard">
+                <div className="noticeLabel">READ MODEL</div>
+                <div className="noticeBody">{note}</div>
+              </div>
+              {error ? (
+                <div className="noticeCard noticeError">
+                  <div className="noticeLabel">ERROR</div>
+                  <div className="noticeBody">{error}</div>
+                </div>
+              ) : null}
+            </div>
           </section>
 
-          <section className="proofGrid">
-            <ProofCard
+          <div className="sections">
+            <StreamSection
               title="Source Events"
               value={summary.sourceEvents}
-              tone="neutral"
-              description="Projection truth anchored to recorded source events."
-              rows={firstRows(lifecycleRows, (row) => Boolean(row.source_event_id))}
+              description="Latest recorded events attached to obligation truth."
+              rows={sourceRows}
             />
-            <ProofCard
+            <StreamSection
               title="Obligations"
               value={summary.obligations}
-              tone="neutral"
-              description="Open and terminal obligation rows from the lifecycle projection."
-              rows={lifecycleRows.slice(0, 3)}
+              description="Open and recent obligations in the projection stream."
+              rows={obligationRows}
             />
-            <ProofCard
+            <StreamSection
               title="Receipts"
               value={summary.receipts}
-              tone="success"
-              description="Receipts remain visible as proof-backed terminal artifacts."
+              description="Receipt-backed lifecycle proofs emitted by the system."
               rows={receiptRows}
             />
-            <ProofCard
+            <StreamSection
               title="Failed"
               value={summary.failed}
-              tone="danger"
-              description="Failure remains visible until the kernel emits a terminal receipt."
+              description="Failure states remain visible until doctrine-valid proof exists."
               rows={failedRows}
             />
-            <ProofCard
+            <StreamSection
               title="Overdue"
               value={summary.overdue}
-              tone="warning"
-              description="Read-only watchdog rows sourced from public.overdue_failure_watchdog."
-              rows={watchdogRows.slice(0, 3)}
+              description="Watchdog rows surfaced from the overdue failure read model."
+              rows={overdueRows}
             />
-            <ProofCard
+            <StreamSection
               title="Projection Status"
-              value={summary.projection}
-              tone="neutral"
-              description={note}
-              rows={openRows}
+              value={projection}
+              description="Current projection health with unresolved or receipt-absent rows."
+              rows={projectionRows}
             />
-          </section>
-
-          <section className="footerPanel">
-            <div className="footerLine">
-              <span className="footerKey">Mode</span>
-              <span>{mode.toUpperCase()}</span>
-            </div>
-            <div className="footerLine">
-              <span className="footerKey">Authority</span>
-              <span>Kernel mutation authority remains outside this UI.</span>
-            </div>
-            {error ? (
-              <div className="footerError">
-                <span className="footerKey">Read failure</span>
-                <span>{error}</span>
-              </div>
-            ) : null}
-          </section>
+          </div>
         </section>
 
         <aside className="rightRail">
-          {statusRail.map((item) => (
-            <div key={item.label} className="statusItem">
-              <div className="statusLabel">{item.label}</div>
-              <div className="statusValue">{formatValue(item.value)}</div>
-            </div>
-          ))}
+          <div className="statusStack">
+            {rightRail.map((item) => (
+              <div key={item.label} className="statusCard">
+                <div className="statusLabel">{item.label}</div>
+                <div
+                  className={`statusValue ${
+                    item.label === "PROJECTION" ? projectionTone : ""
+                  }`}
+                >
+                  {formatValue(item.value)}
+                </div>
+              </div>
+            ))}
+          </div>
         </aside>
       </div>
 
       <style jsx>{`
-        .proofSurface {
+        .surface {
           min-height: 100vh;
           position: relative;
           overflow: hidden;
           background:
-            radial-gradient(circle at top left, rgba(217, 166, 55, 0.12), transparent 28%),
-            radial-gradient(circle at top right, rgba(217, 166, 55, 0.08), transparent 24%),
-            linear-gradient(180deg, #090806 0%, #0e0b07 52%, #090806 100%);
-          color: #f6e7b6;
+            radial-gradient(circle at top left, rgba(212, 175, 55, 0.16), transparent 30%),
+            radial-gradient(circle at 85% 0%, rgba(212, 175, 55, 0.08), transparent 24%),
+            linear-gradient(180deg, #050403 0%, #090705 48%, #040302 100%);
+          color: #f3ead3;
           font-family:
-            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
-            Menlo, monospace;
+            "Söhne", "Avenir Next", "Segoe UI", system-ui, sans-serif;
         }
 
-        .grain {
+        .ambientGlow {
           position: absolute;
-          inset: 0;
-          background-image:
-            linear-gradient(rgba(255, 214, 102, 0.03) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255, 214, 102, 0.03) 1px, transparent 1px);
-          background-size: 100% 4px, 4px 100%;
-          opacity: 0.24;
+          width: 34rem;
+          height: 34rem;
+          border-radius: 999px;
+          filter: blur(100px);
+          opacity: 0.08;
           pointer-events: none;
+        }
+
+        .ambientGlowLeft {
+          top: -14rem;
+          left: -10rem;
+          background: #d4af37;
+        }
+
+        .ambientGlowRight {
+          top: 14rem;
+          right: -14rem;
+          background: #8b6a17;
         }
 
         .frame {
@@ -321,51 +463,67 @@ export function SystemProofBoard({
           z-index: 1;
           min-height: 100vh;
           display: grid;
-          grid-template-columns: 220px minmax(0, 1fr) 220px;
-          gap: 20px;
+          grid-template-columns: 248px minmax(0, 1fr) 220px;
+          gap: 24px;
           padding: 24px;
         }
 
         .leftRail,
-        .rightRail,
         .heroPanel,
-        .lifecyclePanel,
-        .proofCard,
-        .footerPanel {
-          border: 1px solid rgba(246, 231, 182, 0.12);
-          background: rgba(7, 6, 5, 0.86);
+        .proofPanel,
+        .streamSection,
+        .statusCard {
+          border: 1px solid rgba(243, 234, 211, 0.08);
+          background:
+            linear-gradient(180deg, rgba(19, 16, 12, 0.94), rgba(8, 7, 5, 0.94));
           box-shadow:
-            inset 0 0 0 1px rgba(217, 166, 55, 0.05),
-            0 24px 80px rgba(0, 0, 0, 0.34);
+            inset 0 1px 0 rgba(255, 245, 215, 0.04),
+            0 18px 60px rgba(0, 0, 0, 0.28);
         }
 
-        .leftRail,
-        .rightRail {
+        .leftRail {
           display: grid;
           align-content: start;
-          gap: 18px;
-          padding: 20px;
-          backdrop-filter: blur(18px);
+          gap: 22px;
+          padding: 24px 20px;
+          border-radius: 28px;
         }
 
-        .centerColumn {
-          display: grid;
-          gap: 20px;
-          align-content: start;
-        }
-
-        .railLabel,
+        .eyebrow,
         .heroEyebrow,
-        .cardLabel,
+        .sectionLabel,
+        .heroStatLabel,
         .statusLabel,
-        .footerKey {
-          color: #cf9f31;
-          letter-spacing: 0.24em;
-          text-transform: uppercase;
+        .fieldLabel,
+        .noticeLabel {
+          color: #d4af37;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
           font-size: 11px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
         }
 
-        .navStack {
+        .railCopy,
+        .heroCopy,
+        .proofCopy,
+        .sectionDescription,
+        .noticeBody,
+        .railTimestamp {
+          color: #cbbd96;
+          line-height: 1.75;
+        }
+
+        .railCopy,
+        .proofCopy,
+        .sectionDescription,
+        .noticeBody,
+        .railTimestamp {
+          font-size: 13px;
+        }
+
+        .navList {
           display: grid;
           gap: 10px;
         }
@@ -373,278 +531,441 @@ export function SystemProofBoard({
         .navItem {
           display: flex;
           align-items: center;
-          gap: 10px;
-          padding: 12px 14px;
-          border: 1px solid rgba(217, 166, 55, 0.12);
-          background: linear-gradient(90deg, rgba(217, 166, 55, 0.08), transparent);
-          color: #f9efcb;
+          gap: 12px;
+          padding: 14px 14px;
+          border-radius: 16px;
+          border: 1px solid rgba(212, 175, 55, 0.08);
+          background: rgba(212, 175, 55, 0.04);
+          color: #f6eed5;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 13px;
+          letter-spacing: 0.05em;
         }
 
-        .navMarker {
+        .navPulse {
           width: 8px;
           height: 8px;
           border-radius: 999px;
-          background: #cf9f31;
-          box-shadow: 0 0 18px rgba(217, 166, 55, 0.5);
+          background: #d4af37;
+          box-shadow: 0 0 18px rgba(212, 175, 55, 0.6);
+        }
+
+        .workspace {
+          display: grid;
+          gap: 20px;
+          align-content: start;
+        }
+
+        .heroPanel,
+        .proofPanel,
+        .streamSection {
+          border-radius: 28px;
         }
 
         .heroPanel {
-          padding: 28px;
+          padding: 30px;
+          display: grid;
+          gap: 24px;
+        }
+
+        .heroTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          align-items: start;
+          flex-wrap: wrap;
         }
 
         h1 {
-          margin: 12px 0 16px;
-          color: #fff5d6;
-          font-size: clamp(2.6rem, 5vw, 4.75rem);
-          line-height: 0.96;
+          margin: 8px 0 14px;
+          max-width: 10ch;
+          color: #fff5da;
+          font-size: clamp(2.8rem, 5.2vw, 5.6rem);
+          line-height: 0.94;
+          letter-spacing: -0.04em;
+        }
+
+        .heroCopy {
+          margin: 0;
+          max-width: 760px;
+          font-size: 17px;
+        }
+
+        .projectionChip {
+          min-width: 170px;
+          display: grid;
+          gap: 8px;
+          padding: 16px 18px;
+          border-radius: 20px;
+          border: 1px solid rgba(212, 175, 55, 0.12);
+          background: rgba(212, 175, 55, 0.05);
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
           text-transform: uppercase;
         }
 
-        p {
-          margin: 0;
-          max-width: 760px;
-          color: #d8c590;
-          font-size: 17px;
-          line-height: 1.8;
+        .projectionChip span {
+          font-size: 10px;
+          letter-spacing: 0.18em;
         }
 
-        .heroMeta {
+        .projectionChip strong {
+          font-size: 1.4rem;
+          line-height: 1.1;
+        }
+
+        .projectionOk {
+          color: #87d38f;
+        }
+
+        .projectionFailing {
+          color: #f59b7d;
+        }
+
+        .projectionOffline {
+          color: #d8bb67;
+        }
+
+        .heroStats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 14px;
+        }
+
+        .heroStatCard {
+          padding: 18px;
+          border-radius: 20px;
+          border: 1px solid rgba(212, 175, 55, 0.1);
+          background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.02));
+        }
+
+        .heroStatValue {
+          margin-top: 10px;
+          color: #fff2cf;
+          font-size: clamp(1.4rem, 2.8vw, 2.15rem);
+          line-height: 1;
+        }
+
+        .proofPanel {
+          padding: 26px;
+          display: grid;
+          gap: 20px;
+        }
+
+        .proofPanelHeader {
           display: flex;
+          justify-content: space-between;
+          gap: 20px;
+          align-items: start;
           flex-wrap: wrap;
-          gap: 12px;
-          margin-top: 18px;
-          color: #bfa564;
+        }
+
+        .proofCopy {
+          margin: 10px 0 0;
+          max-width: 620px;
+        }
+
+        .proofMeta {
+          color: #9f9270;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
           font-size: 12px;
+          letter-spacing: 0.05em;
+        }
+
+        .lifecycleStrip {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr) 24px minmax(0, 1fr);
+          align-items: center;
+          gap: 10px;
+        }
+
+        .lifecycleNode {
+          min-height: 122px;
+          display: grid;
+          align-content: start;
+          gap: 18px;
+          padding: 18px;
+          border-radius: 22px;
+          border: 1px solid rgba(212, 175, 55, 0.12);
+          background: rgba(212, 175, 55, 0.04);
+        }
+
+        .lifecycleNodeAccent {
+          background: linear-gradient(180deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.03));
+          border-color: rgba(212, 175, 55, 0.2);
+        }
+
+        .nodeIndex {
+          color: #a08c5b;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 11px;
+          letter-spacing: 0.18em;
+        }
+
+        .nodeLabel {
+          color: #fff3d4;
+          font-size: 15px;
+          line-height: 1.4;
+          text-transform: uppercase;
+        }
+
+        .lifecycleConnector {
+          height: 1px;
+          background: linear-gradient(90deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.7), rgba(212, 175, 55, 0.2));
+        }
+
+        .noticeStack {
+          display: grid;
+          gap: 12px;
+        }
+
+        .noticeCard {
+          padding: 16px 18px;
+          border-radius: 18px;
+          border: 1px solid rgba(212, 175, 55, 0.08);
+          background: rgba(212, 175, 55, 0.04);
+        }
+
+        .noticeError {
+          border-color: rgba(245, 155, 125, 0.16);
+          background: rgba(245, 155, 125, 0.06);
+        }
+
+        .sections {
+          display: grid;
+          gap: 18px;
+        }
+
+        .streamSection {
+          padding: 24px;
+          display: grid;
+          gap: 18px;
+        }
+
+        .streamHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 16px;
+          align-items: start;
+        }
+
+        .sectionTitle {
+          color: #fff2cf;
+          font-size: 1.2rem;
+          line-height: 1.1;
+        }
+
+        .sectionDescription {
+          margin: 10px 0 0;
+          max-width: 680px;
+        }
+
+        .sectionValue {
+          color: #fff2cf;
+          font-size: clamp(1.5rem, 3vw, 2.7rem);
+          line-height: 1;
+          white-space: nowrap;
+        }
+
+        .recordList {
+          display: grid;
+          gap: 12px;
+        }
+
+        .record {
+          padding: 18px;
+          display: grid;
+          gap: 14px;
+          border-radius: 20px;
+          border: 1px solid rgba(212, 175, 55, 0.08);
+          background:
+            linear-gradient(180deg, rgba(18, 16, 12, 0.92), rgba(13, 11, 8, 0.92));
+        }
+
+        .recordTop {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: start;
+          flex-wrap: wrap;
+        }
+
+        .recordIdentity {
+          display: grid;
+          gap: 6px;
+        }
+
+        .recordCode {
+          color: #fff3d7;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 13px;
           letter-spacing: 0.08em;
           text-transform: uppercase;
         }
 
-        .modeTag {
-          padding: 6px 10px;
-          border: 1px solid rgba(217, 166, 55, 0.18);
-          background: rgba(217, 166, 55, 0.08);
-        }
-
-        .mode-live {
-          color: #f5dd96;
-        }
-
-        .mode-placeholder {
-          color: #f0b85f;
-        }
-
-        .mode-error {
-          color: #ff8d67;
-        }
-
-        .lifecyclePanel {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          gap: 12px;
-          padding: 18px;
-        }
-
-        .lifecycleStep {
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          gap: 10px;
-          min-height: 78px;
-          padding: 0 12px;
-          border: 1px solid rgba(217, 166, 55, 0.12);
-          color: #fff2c5;
-          background: linear-gradient(180deg, rgba(217, 166, 55, 0.1), rgba(217, 166, 55, 0.02));
-          text-align: center;
+        .recordSource {
+          color: #bca871;
           font-size: 13px;
+          line-height: 1.5;
+        }
+
+        .stateBadge {
+          padding: 7px 10px;
+          border-radius: 999px;
+          border: 1px solid rgba(212, 175, 55, 0.12);
+          background: rgba(212, 175, 55, 0.07);
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 10px;
           letter-spacing: 0.14em;
           text-transform: uppercase;
         }
 
-        .lifecycleArrow {
-          color: #cf9f31;
-        }
-
-        .proofGrid {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 18px;
-        }
-
-        .proofCard {
-          display: grid;
-          gap: 14px;
-          padding: 20px;
-          min-height: 280px;
-        }
-
-        .proofCard-success {
-          box-shadow:
-            inset 0 0 0 1px rgba(119, 154, 92, 0.12),
-            0 24px 80px rgba(0, 0, 0, 0.34);
-        }
-
-        .proofCard-warning {
-          box-shadow:
-            inset 0 0 0 1px rgba(189, 133, 50, 0.16),
-            0 24px 80px rgba(0, 0, 0, 0.34);
-        }
-
-        .proofCard-danger {
-          box-shadow:
-            inset 0 0 0 1px rgba(190, 92, 66, 0.16),
-            0 24px 80px rgba(0, 0, 0, 0.34);
-        }
-
-        .cardHeader {
-          display: flex;
-          align-items: baseline;
-          justify-content: space-between;
-          gap: 16px;
-        }
-
-        .cardValue,
-        .statusValue {
-          color: #fff5d6;
-          font-size: clamp(1.4rem, 3vw, 2.6rem);
-          line-height: 1;
-        }
-
-        .cardDescription {
-          color: #ceb980;
-          font-size: 13px;
-          line-height: 1.7;
-        }
-
-        .rowList {
-          display: grid;
-          gap: 10px;
-        }
-
-        .rowCard,
-        .statusItem {
-          border: 1px solid rgba(217, 166, 55, 0.12);
-          background: rgba(217, 166, 55, 0.04);
-        }
-
-        .rowCard {
-          display: grid;
-          gap: 8px;
-          padding: 12px;
-        }
-
-        .rowCardTop,
-        .rowMeta {
-          display: flex;
-          justify-content: space-between;
-          gap: 10px;
-          flex-wrap: wrap;
-        }
-
-        .rowCode {
-          color: #f9efcb;
-          font-size: 12px;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-
-        .rowMeta {
-          color: #bca770;
-          font-size: 12px;
-        }
-
-        .stateBadge {
-          padding: 4px 8px;
-          border: 1px solid rgba(217, 166, 55, 0.2);
-          color: #0b0906;
-          background: #cf9f31;
-          font-size: 10px;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-        }
-
         .state-open {
-          background: #c59a2d;
+          color: #edcb72;
         }
 
         .state-resolved {
-          background: #7d9f61;
+          color: #87d38f;
         }
 
         .state-failed {
-          background: #bf6b4c;
+          color: #f59b7d;
+        }
+
+        .fieldGrid {
+          display: grid;
+          grid-template-columns: repeat(6, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .field {
+          display: grid;
+          gap: 6px;
+          min-width: 0;
+        }
+
+        .fieldValue {
+          color: #efe2bc;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
+          line-height: 1.65;
+          overflow-wrap: anywhere;
         }
 
         .emptyState {
-          padding: 12px;
-          border: 1px dashed rgba(217, 166, 55, 0.16);
-          color: #9d8857;
+          padding: 22px 18px;
+          border-radius: 18px;
+          border: 1px dashed rgba(212, 175, 55, 0.18);
+          color: #d1bb73;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
           font-size: 12px;
-        }
-
-        .footerPanel {
-          display: grid;
-          gap: 10px;
-          padding: 18px 20px;
-        }
-
-        .footerLine,
-        .footerError {
-          display: flex;
-          justify-content: space-between;
-          gap: 12px;
-          flex-wrap: wrap;
-          color: #d5c390;
-          font-size: 12px;
-        }
-
-        .footerError {
-          color: #ff9b78;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
         }
 
         .rightRail {
+          display: grid;
+          align-content: start;
+        }
+
+        .statusStack {
+          display: grid;
           gap: 12px;
+          position: sticky;
+          top: 24px;
         }
 
-        .statusItem {
-          padding: 14px;
+        .statusCard {
+          padding: 18px;
+          border-radius: 22px;
         }
 
-        @media (max-width: 1180px) {
+        .statusValue {
+          margin-top: 10px;
+          color: #fff2cf;
+          font-size: clamp(1.35rem, 2.8vw, 2.2rem);
+          line-height: 1.05;
+          overflow-wrap: anywhere;
+        }
+
+        @media (max-width: 1260px) {
           .frame {
             grid-template-columns: 1fr;
           }
 
           .leftRail,
-          .rightRail {
-            grid-template-columns: repeat(5, minmax(0, 1fr));
+          .statusStack {
+            position: static;
           }
 
-          .navStack {
+          .navList,
+          .statusStack {
             grid-template-columns: repeat(5, minmax(0, 1fr));
           }
         }
 
-        @media (max-width: 920px) {
-          .proofGrid,
-          .lifecyclePanel,
-          .leftRail,
-          .rightRail,
-          .navStack {
+        @media (max-width: 1024px) {
+          .heroStats,
+          .fieldGrid,
+          .navList,
+          .statusStack,
+          .lifecycleStrip {
             grid-template-columns: 1fr;
           }
 
-          .frame {
-            padding: 16px;
+          .lifecycleConnector {
+            width: 1px;
+            height: 20px;
+            justify-self: center;
           }
 
+          .heroTop,
+          .streamHeader,
+          .proofPanelHeader {
+            flex-direction: column;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .frame {
+            padding: 14px;
+            gap: 14px;
+          }
+
+          .leftRail,
           .heroPanel,
-          .lifecyclePanel,
-          .proofCard,
-          .footerPanel,
+          .proofPanel,
+          .streamSection,
+          .statusCard {
+            border-radius: 22px;
+          }
+
           .leftRail,
-          .rightRail {
+          .heroPanel,
+          .proofPanel,
+          .streamSection,
+          .statusCard {
             padding-left: 16px;
             padding-right: 16px;
+          }
+
+          h1 {
+            font-size: 2.55rem;
           }
         }
       `}</style>

@@ -23,126 +23,23 @@ type LifecycleRow = {
   lifecycle_state: string;
 };
 
-function placeholderBoard(): SystemProofBoardProps {
+function noLiveDataBoard(note: string): SystemProofBoardProps {
   return {
     mode: "placeholder",
     generatedAt: new Date().toISOString(),
     summary: {
-      sourceEvents: 48,
-      obligations: 48,
-      receipts: 39,
-      failed: 6,
-      overdue: 3,
-      open: 3,
-      retries: "projection only",
-      projection: "PLACEHOLDER",
+      sourceEvents: null,
+      obligations: null,
+      receipts: null,
+      failed: null,
+      overdue: null,
+      open: null,
+      retries: "—",
+      projection: "NO LIVE DATA",
     },
-    lifecycleRows: [
-      {
-        obligation_id: "proof-obligation-001",
-        entity_id: "entity-proof-001",
-        obligation_code: "invoice_delivery_confirmed",
-        workspace_id: "workspace-proof-001",
-        obligation_created_at: "2026-04-24T11:15:00.000Z",
-        source_event_id: "source-proof-001",
-        source_system: "billing-webhook",
-        source_event_key: "charge.succeeded:proof-001",
-        source_event_type: "billing.charge_succeeded",
-        source_event_created_at: "2026-04-24T11:15:00.000Z",
-        receipt_id: "receipt-proof-001",
-        receipt_entity_id: "entity-proof-001",
-        resolution_type: "resolve_with_proof",
-        proof_status: "sufficient",
-        receipt_emitted_at: "2026-04-24T11:16:00.000Z",
-        truth_burden: "contractual",
-        due_at: "2026-04-25T11:15:00.000Z",
-        lifecycle_state: "resolved",
-      },
-      {
-        obligation_id: "proof-obligation-002",
-        entity_id: "entity-proof-002",
-        obligation_code: "followup_notice_due",
-        workspace_id: "workspace-proof-001",
-        obligation_created_at: "2026-04-24T10:45:00.000Z",
-        source_event_id: "source-proof-002",
-        source_system: "operator-intake",
-        source_event_key: "manual:notice-002",
-        source_event_type: "operator.followup_requested",
-        source_event_created_at: "2026-04-24T10:45:00.000Z",
-        receipt_id: null,
-        receipt_entity_id: null,
-        resolution_type: null,
-        proof_status: null,
-        receipt_emitted_at: null,
-        truth_burden: "contractual",
-        due_at: "2026-04-25T10:45:00.000Z",
-        lifecycle_state: "open",
-      },
-      {
-        obligation_id: "proof-obligation-003",
-        entity_id: "entity-proof-003",
-        obligation_code: "overdue_chargeback_response",
-        workspace_id: "workspace-proof-002",
-        obligation_created_at: "2026-04-19T08:20:00.000Z",
-        source_event_id: "source-proof-003",
-        source_system: "watchdog",
-        source_event_key: "watchdog:chargeback-003",
-        source_event_type: "watchdog.overdue_failure_detected",
-        source_event_created_at: "2026-04-19T08:20:00.000Z",
-        receipt_id: null,
-        receipt_entity_id: null,
-        resolution_type: null,
-        proof_status: null,
-        receipt_emitted_at: null,
-        truth_burden: "contractual",
-        due_at: "2026-04-20T08:20:00.000Z",
-        lifecycle_state: "failed",
-      },
-    ],
-    watchdogRows: [
-      {
-        obligation_id: "proof-obligation-003",
-        entity_id: "entity-proof-003",
-        obligation_code: "overdue_chargeback_response",
-        workspace_id: "workspace-proof-002",
-        obligation_created_at: "2026-04-19T08:20:00.000Z",
-        source_event_id: "source-proof-003",
-        source_system: "watchdog",
-        source_event_key: "watchdog:chargeback-003",
-        source_event_type: "watchdog.overdue_failure_detected",
-        source_event_created_at: "2026-04-19T08:20:00.000Z",
-        receipt_id: null,
-        receipt_entity_id: null,
-        resolution_type: null,
-        proof_status: null,
-        receipt_emitted_at: null,
-        truth_burden: "contractual",
-        due_at: "2026-04-20T08:20:00.000Z",
-        lifecycle_state: "failed",
-      },
-      {
-        obligation_id: "proof-obligation-004",
-        entity_id: "entity-proof-004",
-        obligation_code: "refund_evidence_missing",
-        workspace_id: "workspace-proof-003",
-        obligation_created_at: "2026-04-18T04:10:00.000Z",
-        source_event_id: "source-proof-004",
-        source_system: "operator-intake",
-        source_event_key: "manual:refund-004",
-        source_event_type: "operator.refund_escalated",
-        source_event_created_at: "2026-04-18T04:10:00.000Z",
-        receipt_id: null,
-        receipt_entity_id: null,
-        resolution_type: null,
-        proof_status: null,
-        receipt_emitted_at: null,
-        truth_burden: "contractual",
-        due_at: "2026-04-19T04:10:00.000Z",
-        lifecycle_state: "failed",
-      },
-    ],
-    note:
-      "Supabase environment variables are missing. Showing placeholder proof rows only.",
+    lifecycleRows: [],
+    watchdogRows: [],
+    note,
   };
 }
 
@@ -150,12 +47,34 @@ function countValue(value: number | null): number {
   return typeof value === "number" ? value : 0;
 }
 
+function getProjectionStatus({
+  hasLiveRows,
+  failed,
+  overdue,
+}: {
+  hasLiveRows: boolean;
+  failed: number;
+  overdue: number;
+}): "OK" | "FAILING" | "NO LIVE DATA" {
+  if (!hasLiveRows) {
+    return "NO LIVE DATA";
+  }
+
+  if (failed > 0 || overdue > 0) {
+    return "FAILING";
+  }
+
+  return "OK";
+}
+
 export async function getSystemProofBoardData(): Promise<SystemProofBoardProps> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url?.trim() || !serviceRoleKey?.trim()) {
-    return placeholderBoard();
+    return noLiveDataBoard(
+      "Live projection credentials are unavailable for this environment."
+    );
   }
 
   const supabase = createClient(url, serviceRoleKey, {
@@ -179,14 +98,14 @@ export async function getSystemProofBoardData(): Promise<SystemProofBoardProps> 
         "obligation_id, entity_id, obligation_code, workspace_id, obligation_created_at, source_event_id, source_system, source_event_key, source_event_type, source_event_created_at, receipt_id, receipt_entity_id, resolution_type, proof_status, receipt_emitted_at, truth_burden, due_at, lifecycle_state"
       )
       .order("obligation_created_at", { ascending: false })
-      .limit(8),
+      .limit(12),
     supabase
       .from("overdue_failure_watchdog")
       .select(
         "obligation_id, entity_id, obligation_code, workspace_id, obligation_created_at, source_event_id, source_system, source_event_key, source_event_type, source_event_created_at, receipt_id, receipt_entity_id, resolution_type, proof_status, receipt_emitted_at, truth_burden, due_at, lifecycle_state"
       )
       .order("obligation_created_at", { ascending: false })
-      .limit(8),
+      .limit(12),
     lifecycleView.select("obligation_id", { count: "exact", head: true }),
     lifecycleView
       .select("source_event_id", { count: "exact", head: true })
@@ -226,16 +145,21 @@ export async function getSystemProofBoardData(): Promise<SystemProofBoardProps> 
         failed: null,
         overdue: null,
         open: null,
-        retries: "not surfaced",
-        projection: "ERROR",
+        retries: "—",
+        projection: "FAILING",
       },
       lifecycleRows: [],
       watchdogRows: [],
-      note:
-        "Projection env vars are present, but the read-model query failed. No placeholder truth was injected.",
+      note: "The read model is configured, but the projection query is failing.",
       error: firstError.message,
     };
   }
+
+  const lifecycleRows = (lifecycleRowsResult.data ?? []) as LifecycleRow[];
+  const watchdogRows = (watchdogRowsResult.data ?? []) as LifecycleRow[];
+  const failed = countValue(failedCountResult.count);
+  const overdue = countValue(overdueCountResult.count);
+  const hasLiveRows = lifecycleRows.length > 0 || watchdogRows.length > 0;
 
   return {
     mode: "live",
@@ -244,15 +168,15 @@ export async function getSystemProofBoardData(): Promise<SystemProofBoardProps> 
       sourceEvents: countValue(sourceEventsCountResult.count),
       obligations: countValue(obligationsCountResult.count),
       receipts: countValue(receiptsCountResult.count),
-      failed: countValue(failedCountResult.count),
-      overdue: countValue(overdueCountResult.count),
+      failed,
+      overdue,
       open: countValue(openCountResult.count),
-      retries: "kernel-owned",
-      projection: "LIVE",
+      retries: "—",
+      projection: getProjectionStatus({ hasLiveRows, failed, overdue }),
     },
-    lifecycleRows: (lifecycleRowsResult.data ?? []) as LifecycleRow[],
-    watchdogRows: (watchdogRowsResult.data ?? []) as LifecycleRow[],
+    lifecycleRows,
+    watchdogRows,
     note:
-      "Read-only truth is sourced from projection.obligation_lifecycle and public.overdue_failure_watchdog only.",
+      "Read-only truth is sourced from projection.obligation_lifecycle and public.overdue_failure_watchdog.",
   };
 }
