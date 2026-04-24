@@ -42,7 +42,9 @@ receipts_after_one as (
 projection_after_one as (
     select
         obligation_id,
+        entity_id,
         receipt_id,
+        receipt_entity_id,
         resolution_type,
         proof_status,
         lifecycle_state
@@ -73,6 +75,8 @@ select
     coalesce((select max(resolved_count) from run_two), 0) as resolver_run_two_resolved_count,
     (select cnt from receipts_after_two) as final_single_receipt_count,
     (select cnt from watchdog_after) as watchdog_after_count,
+    (select entity_id::text from projection_after_one limit 1) as projection_entity_id,
+    (select receipt_entity_id::text from projection_after_one limit 1) as projection_receipt_entity_id,
     (select resolution_type from projection_after_one limit 1) as projection_resolution_type,
     (select proof_status from projection_after_one limit 1) as projection_proof_status,
     (select lifecycle_state from projection_after_one limit 1) as projection_lifecycle_state;

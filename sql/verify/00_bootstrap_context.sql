@@ -1,7 +1,19 @@
 do $$
 begin
-  insert into core.workspaces (id, name)
-  values ('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa', 'autokirk-verify-workspace')
+  insert into core.legal_entities (id, entity_name, entity_type)
+  values (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    'autokirk-verify-workspace-entity',
+    'workspace'
+  )
+  on conflict (id) do nothing;
+
+  insert into core.workspaces (id, name, entity_id)
+  values (
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
+    'autokirk-verify-workspace',
+    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+  )
   on conflict (id) do nothing;
 
   insert into auth.users (id)

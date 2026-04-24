@@ -1,5 +1,7 @@
 select
   obligation_id,
+  entity_id::text as entity_id,
+  receipt_entity_id::text as receipt_entity_id,
   obligation_code,
   workspace_id,
   obligation_created_at,
@@ -15,7 +17,5 @@ select
   truth_burden,
   due_at,
   lifecycle_state
-from projection.obligation_lifecycle
-where lifecycle_state = 'failed'
-  and receipt_id is null
-order by obligation_created_at desc;
+from public.overdue_failure_watchdog
+order by receipt_emitted_at desc, obligation_created_at desc;
