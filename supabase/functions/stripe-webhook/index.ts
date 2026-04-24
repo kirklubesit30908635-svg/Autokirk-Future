@@ -15,6 +15,7 @@ if (!supabaseServiceKey) throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
 const stripe = new Stripe(stripeSecretKey, {
   apiVersion: "2024-11-20",
 });
+const cryptoProvider = Stripe.createSubtleCryptoProvider();
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -32,23 +33,32 @@ Deno.serve(async (request) => {
 
     let event;
     try {
-      event = stripe.webhooks.constructEvent(body, signature, webhookSecret);
+      event = await stripe.webhooks.constructEventAsync(
+        body,
+        signature,
+        webhookSecret,
+        undefined,
+        cryptoProvider
+      );
     } catch (err) {
-      console.error("Webhook signature verification failed:", err.message);
+      console.error("Webhook signature verification failed:", err);
       return new Response("Invalid signature", { status: 400 });
     }
 
     console.log("Received Stripe event:", event.type);
 
-    const { data, error } = await supabase.rpc("ingest_event_to_obligation", {
-      p_workspace_id: WORKSPACE_ID,
-      p_actor_id: ACTOR_ID,
-      p_source_system: "stripe",
-      p_source_event_key: event.id,
-      p_source_event_type: event.type,
-      p_payload: event,
-      p_occurred_at: new Date(event.created * 1000).toISOString(),
-    });
+    const { data, error } = await supabase.schema("api").rpc(
+      "ingest_event_to_obligation",
+      {
+        p_workspace_id: WORKSPACE_ID,
+        p_actor_id: ACTOR_ID,
+        p_source_system: "stripe",
+        p_source_event_key: event.id,
+        p_source_event_type: event.type,
+        p_payload: event,
+        p_occurred_at: new Date(event.created * 1000).toISOString(),
+      }
+    );
 
     if (error) {
       console.error("RPC ingest_event_to_obligation failed:", error);
