@@ -85,7 +85,8 @@ begin
     p_source_event_key => v_source_event_key,
     p_source_event_type => 'intake_commit',
     p_payload => v_payload,
-    p_occurred_at => coalesce(p_occurred_at, now())
+    p_occurred_at => coalesce(p_occurred_at, now()),
+    p_obligation_code => p_obligation_code
   );
 
   return jsonb_build_object(

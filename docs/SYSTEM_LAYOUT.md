@@ -112,9 +112,11 @@ Current path:
 Responsibilities:
 
 - identify overdue unresolved obligations
-- record emission attempts
+- claim a retryable emission row through `api.claim_watchdog_emission()`
+- record emission attempts through `api.record_watchdog_attempt()`
 - deliver outbound webhook payloads
 - track retries and delivery status
+- prevent concurrent duplicate sends with a row lease on `control.watchdog_emissions`
 
 This path is delivery tracking only. It does not define lifecycle truth.
 
@@ -212,6 +214,7 @@ Application code should call:
 - `api.resolve_with_insufficient_proof()`
 - `api.resolve_rejected()`
 - `api.resolve_overdue_obligations()`
+- `api.claim_watchdog_emission()`
 - `api.record_watchdog_attempt()`
 
 Kernel truth mutation remains inside:
@@ -242,7 +245,7 @@ Rule:
 - `scripts/verify-terminal-states.ps1`
   Confirms sufficient, insufficient, and rejected terminal states through `projection.obligation_lifecycle`, including entity propagation.
 - `scripts/verify-overdue-failure.ps1`
-  Confirms overdue failure mutation, watchdog-aligned truth, and non-null entity attribution on overdue rows.
+  Confirms overdue failure mutation, watchdog-aligned truth, non-null entity attribution on overdue rows, and atomic watchdog claim/lease behavior.
 
 ### SQL proof assets
 

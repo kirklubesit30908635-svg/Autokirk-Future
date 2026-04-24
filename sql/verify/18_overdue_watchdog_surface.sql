@@ -17,7 +17,5 @@ select
   truth_burden,
   due_at,
   lifecycle_state
-from projection.obligation_lifecycle
-where lifecycle_state = 'failed'
-  and receipt_id is null
-order by obligation_created_at desc;
+from public.overdue_failure_watchdog
+order by receipt_emitted_at desc, obligation_created_at desc;

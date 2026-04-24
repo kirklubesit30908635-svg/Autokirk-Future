@@ -91,6 +91,9 @@ Observational doctrine:
 - they do not create contract consequences by themselves
 - they do not mutate kernel truth by observation alone
 - watchdog delivery state is separate from lifecycle truth
+- watchdog claiming is lease-governed delivery coordination, not lifecycle authority
+- retries reuse the same `control.watchdog_emissions` row
+- emitter send is permitted only after `api.claim_watchdog_emission()` returns a row
 
 ## What Is Explicitly Not Implemented Yet
 
@@ -108,6 +111,7 @@ The active proof harness verifies:
 
 - terminal lifecycle resolution states
 - overdue failure mutation and watchdog-aligned truth
+- atomic watchdog claim and lease coordination on `control.watchdog_emissions`
 - entity propagation through lifecycle truth
 - bounded entity integrity scoring
 - deterministic integrity classification through policy
@@ -118,6 +122,17 @@ Operational proof entry points:
 
 - `npm run prove`
 - `npm run prove:reset`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\verify-overdue-failure.ps1`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\verify-guards.ps1`
+
+Current watchdog concurrency proof guarantees:
+
+- `api.claim_watchdog_emission()` is a single atomic `UPDATE ... WHERE ... RETURNING`
+- only one concurrent claimant can acquire the same emission lease
+- a second concurrent claimant receives no row
+- `api.record_watchdog_attempt()` clears `lease_expires_at` on every attempt transition
+- retryable failure reuses the same logical emission row
+- expired leases allow re-claim of that same row
 
 ## Expansion Rule
 

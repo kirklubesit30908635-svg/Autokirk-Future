@@ -155,6 +155,8 @@ create index if not exists idx_receipts_entity_id
     on receipts.receipts(entity_id);
 
 drop function if exists kernel.open_obligation_internal(uuid, uuid, text, text, text);
+drop function if exists kernel.open_obligation_internal(uuid, uuid, text, text, text, uuid);
+drop function if exists api.ingest_event_to_obligation(uuid, uuid, text, text, text, jsonb, timestamptz);
 
 create or replace function kernel.open_obligation_internal(
     p_workspace_id uuid,
@@ -162,7 +164,8 @@ create or replace function kernel.open_obligation_internal(
     p_source_system text,
     p_source_event_key text,
     p_source_event_type text,
-    p_entity_id uuid
+    p_entity_id uuid,
+    p_obligation_code text default null
 )
 returns jsonb
 language plpgsql
@@ -173,6 +176,7 @@ declare
     v_existing_obligation_id uuid;
     v_obligation_id uuid;
     v_truth_burden text;
+    v_explicit_obligation_code text;
     v_obligation_code text;
 begin
     if p_workspace_id is null then
@@ -197,6 +201,18 @@ begin
 
     if nullif(btrim(coalesce(p_source_event_type, '')), '') is null then
         raise exception 'SOURCE_EVENT_TYPE_REQUIRED';
+    end if;
+
+    v_explicit_obligation_code :=
+        nullif(btrim(coalesce(p_obligation_code, '')), '');
+
+    if p_source_system = 'intake'
+       and v_explicit_obligation_code is null then
+        raise exception 'OBLIGATION_CODE_REQUIRED';
+    end if;
+
+    if v_explicit_obligation_code = 'unclassified' then
+        raise exception 'OBLIGATION_CODE_UNCLASSIFIED_NOT_ALLOWED';
     end if;
 
     if exists (
@@ -236,17 +252,20 @@ begin
         end;
 
     v_obligation_code :=
-        case
-            when p_source_event_type = 'service_commitment_created'
-                then 'fulfill_promised_service'
-            when p_source_system = 'stripe'
-             and p_source_event_type = 'invoice.upcoming'
-                then 'subscription_upcoming'
-            when p_source_system = 'stripe'
-             and p_source_event_type = 'payment_intent.succeeded'
-                then 'payment_succeeded'
-            else 'unclassified'
-        end;
+        coalesce(
+            v_explicit_obligation_code,
+            case
+                when p_source_event_type = 'service_commitment_created'
+                    then 'fulfill_promised_service'
+                when p_source_system = 'stripe'
+                 and p_source_event_type = 'invoice.upcoming'
+                    then 'subscription_upcoming'
+                when p_source_system = 'stripe'
+                 and p_source_event_type = 'payment_intent.succeeded'
+                    then 'payment_succeeded'
+                else 'unclassified'
+            end
+        );
 
     insert into core.obligations (
         workspace_id,
@@ -319,7 +338,8 @@ create or replace function api.ingest_event_to_obligation(
     p_source_event_key text,
     p_source_event_type text,
     p_payload jsonb default '{}'::jsonb,
-    p_occurred_at timestamptz default null
+    p_occurred_at timestamptz default null,
+    p_obligation_code text default null
 )
 returns jsonb
 language plpgsql
@@ -330,6 +350,7 @@ declare
     v_source_event_id uuid;
     v_existing_source_event_id uuid;
     v_entity_id uuid;
+    v_explicit_obligation_code text;
     v_result jsonb;
 begin
     if p_workspace_id is null then
@@ -351,6 +372,9 @@ begin
     if nullif(btrim(coalesce(p_source_event_type, '')), '') is null then
         raise exception 'SOURCE_EVENT_TYPE_REQUIRED';
     end if;
+
+    v_explicit_obligation_code :=
+        nullif(btrim(coalesce(p_obligation_code, '')), '');
 
     perform core.assert_member(p_workspace_id, p_actor_id);
 
@@ -432,7 +456,8 @@ begin
         p_source_system => p_source_system,
         p_source_event_key => p_source_event_key,
         p_source_event_type => p_source_event_type,
-        p_entity_id => v_entity_id
+        p_entity_id => v_entity_id,
+        p_obligation_code => v_explicit_obligation_code
     );
 
     return jsonb_build_object(

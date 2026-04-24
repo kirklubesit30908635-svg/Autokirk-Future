@@ -1,46 +1,53 @@
 current state
-AutoKirk Future is locked at v0.2-canonical-system-truth.
-System truth is reproducible from a single command and proven across:
+AutoKirk Future is sealed at the current kernel-authoritative lifecycle plus lease-governed watchdog delivery tracking.
+System truth and watchdog delivery coordination are reproducible from local proof commands and proven across:
 - resolved
 - failed by insufficient proof
 - failed by rejected proof
 - failed by overdue unresolved obligation
+- atomic watchdog claim and lease coordination
 
 canonical proof markers
 - TERMINAL_STATE_VERIFICATION_OK
 - OVERDUE_FAILURE_VERIFICATION_MANUAL_OK
 - SYSTEM_TRUTH_VERIFICATION_OK
+- GUARD_VERIFICATION_OK
+
+sealed watchdog delivery facts
+- logical emission identity is one row per `obligation_id + delivery_target`
+- `api.claim_watchdog_emission()` is the only claim gate
+- claim is a single atomic `UPDATE ... WHERE ... RETURNING`
+- emitter sends only after claim succeeds
+- retries reuse the same `control.watchdog_emissions` row
+- `api.record_watchdog_attempt()` clears the lease on every attempt transition
+- expired leases allow reclaim of the same row
+- watchdog delivery tracking does not mutate lifecycle truth
 
 repo anchor
-- branch: main
-- commit: d8e8da48443c6f402065cae1aa257ad35224c34b
-- tag: v0.2-canonical-system-truth
-- remote checkpoint branch: checkpoint/system-truth-canonical
+- branch: recover/local-work-after-sync
+- head: 968ab2437d5ae9e8db32c09b51bc0a94df755ad4
+
+sealed proof entry points
+- `supabase db reset --local`
+- `npm run prove`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\verify-overdue-failure.ps1`
+- `powershell -ExecutionPolicy Bypass -File .\scripts\verify-guards.ps1`
 
 active files
-- scripts/reset-and-prove.ps1
-- scripts/verify-system-truth.ps1
-- supabase/migrations/202604190070_0034_fix_ingest_event_to_obligation_kernel_call.sql
-- supabase/migrations/202604190800_0035_fix_projection_failure_mapping.sql
-- supabase/migrations/202604191030_0036_add_due_at_and_overdue_failure_projection.sql
-- supabase/migrations/202604191200_0037_add_public_overdue_failure_watchdog_view.sql
-- later repair migrations through 0046 on main
-
-next exact step
-Do not expand the architecture broadly.
-Choose one bounded next layer on top of the proven kernel:
-either
-1. durable watchdog emission tracking and retry discipline
-or
-2. one real external integration that consumes overdue failure truth without mutating kernel authority
+- docs/kernel/current-system-state.md
+- docs/SYSTEM_LAYOUT.md
+- scripts/verify-overdue-failure.ps1
+- pages/api/watchdog/emit-overdue-webhook.ts
+- supabase/migrations/20260423224500_add_watchdog_claim_lease.sql
 
 what not to touch
 - kernel mutation authority
 - canonical lifecycle projection semantics
 - overdue failure classification
-- canonical proof harness
-watchdog delivery lifecycle proven:
-- pending claim creation
-- failed retryable transition
-- exhausted terminal delivery state
-- retry eligibility removed at exhaustion
+- projection read-only doctrine
+- watchdog-as-delivery-only doctrine
+- canonical proof harness boundary
+
+next exact step
+Do not redesign the system.
+Any next change must stay inside one bounded surface and extend proof in the same pass.

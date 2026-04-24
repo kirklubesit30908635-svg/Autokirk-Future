@@ -4,8 +4,13 @@ select
   se.source_system,
   se.source_event_key,
   se.source_event_type,
+  se.payload ->> 'obligation_code' as committed_obligation_code,
   os.obligation_id,
-  o.obligation_code,
+  o.obligation_code as persisted_obligation_code,
+  (se.payload ->> 'obligation_code') = o.obligation_code
+    as committed_matches_persisted_obligation_code,
+  o.obligation_code <> 'unclassified'
+    as persisted_not_unclassified,
   o.truth_burden,
   o.status,
   o.proof_status
