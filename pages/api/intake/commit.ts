@@ -1,5 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from 'next'
-import { createPagesServerClient } from '@supabase/auth-helpers-nextjs'
+import { createClient } from '@supabase/supabase-js'
 
 type CommitIntakeBody = {
   workspace_id: string
@@ -23,13 +23,25 @@ export default async function handler(
 
   try {
     const body = req.body as CommitIntakeBody
+    const authHeader = req.headers.authorization
+    const accessToken =
+      typeof authHeader === 'string' && authHeader.startsWith('Bearer ')
+        ? authHeader.slice('Bearer '.length)
+        : null
 
-    const supabase = createPagesServerClient({ req, res })
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    if (!accessToken) {
+      return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' })
+    }
 
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser()
+    } = await supabase.auth.getUser(accessToken)
 
     if (userError || !user) {
       return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' })

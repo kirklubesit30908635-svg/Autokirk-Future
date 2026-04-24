@@ -4,11 +4,11 @@ import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
 import { SystemProofBoard, type SystemProofBoardProps } from "../components/SystemProofBoard";
 import { getSystemProofBoardData } from "../components/systemProofData";
 
-type HomePageProps = {
+type SystemProofPageProps = {
   board: SystemProofBoardProps;
 };
 
-export const getServerSideProps: GetServerSideProps<HomePageProps> = async () => {
+export const getServerSideProps: GetServerSideProps<SystemProofPageProps> = async () => {
   return {
     props: {
       board: await getSystemProofBoardData(),
@@ -16,16 +16,16 @@ export const getServerSideProps: GetServerSideProps<HomePageProps> = async () =>
   };
 };
 
-export default function HomePage({
+export default function SystemProofPage({
   board,
 }: InferGetServerSidePropsType<typeof getServerSideProps>) {
   return (
     <>
       <Head>
-        <title>AutoKirk Future</title>
+        <title>AutoKirk Future System Proof</title>
         <meta
           name="description"
-          content="Read-only proof surface for the AutoKirk Future lifecycle."
+          content="Read-only system proof surface for AutoKirk Future."
         />
       </Head>
       <SystemProofBoard {...board} />

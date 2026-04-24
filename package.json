@@ -3,6 +3,8 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
     "prove": "powershell -ExecutionPolicy Bypass -File .\\scripts\\verify-system-truth.ps1",
     "prove:reset": "powershell -ExecutionPolicy Bypass -File .\\scripts\\reset-and-prove.ps1"
   },
