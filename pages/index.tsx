@@ -1,341 +1,269 @@
 import type { CSSProperties } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 
-type FailedRow = {
-  obligation_id: string;
-  entity_id: string;
-  obligation_code: string;
-  workspace_id: string;
-  obligation_created_at: string;
-  source_event_id: string | null;
-  source_system: string | null;
-  source_event_key: string | null;
-  source_event_type: string | null;
-  source_event_created_at: string | null;
-  receipt_id: string | null;
-  receipt_entity_id: string | null;
-  resolution_type: string | null;
-  proof_status: string | null;
-  receipt_emitted_at: string | null;
-  truth_burden: string;
-  due_at: string | null;
-  lifecycle_state: "failed";
-  emission_id: string | null;
-  delivery_target: string | null;
-  delivery_status: string | null;
-  emission_created_at: string | null;
-  attempt_count: number | null;
-  last_attempt_at: string | null;
-  next_retry_at: string | null;
-  max_attempts: number | null;
+type ProofArtifact = Record<string, unknown>;
+
+type LiveProofResponse =
+  | {
+      ok: true;
+      event: ProofArtifact;
+      obligation: ProofArtifact;
+      resolution: ProofArtifact;
+      receipt: ProofArtifact;
+      lifecycle_state: string;
+      entity_id: string | null;
+      receipt_entity_id: string | null;
+    }
+  | {
+      ok: false;
+      error: string;
+    };
+
+type ProofCardProps = {
+  title: string;
+  eyebrow: string;
+  body: string;
+  artifact?: ProofArtifact;
 };
 
-type FailedApiResponse =
-  | { ok: true; count: number; rows: FailedRow[] }
-  | { ok: false; error: string };
-
-function formatDate(value: string | null): string {
-  if (!value) return "—";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleString();
+function ProofCard({ title, eyebrow, body, artifact }: ProofCardProps) {
+  return (
+    <section style={styles.card}>
+      <div style={styles.eyebrow}>{eyebrow}</div>
+      <h2 style={styles.cardTitle}>{title}</h2>
+      <p style={styles.cardBody}>{body}</p>
+      {artifact ? (
+        <pre style={styles.pre}>{JSON.stringify(artifact, null, 2)}</pre>
+      ) : null}
+    </section>
+  );
 }
 
 export default function Home() {
-  const [loading, setLoading] = useState(true);
-  const [failedCount, setFailedCount] = useState(0);
-  const [rows, setRows] = useState<FailedRow[]>([]);
+  const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [result, setResult] = useState<LiveProofResponse | null>(null);
 
-  useEffect(() => {
-    let active = true;
+  async function runLiveProof() {
+    try {
+      setRunning(true);
+      setError(null);
 
-    async function load() {
-      try {
-        setLoading(true);
-        setError(null);
+      const response = await fetch("/api/live-proof/run", {
+        method: "POST",
+      });
 
-        const response = await fetch("/api/watchdog/failed-obligations");
-        const data = (await response.json()) as FailedApiResponse;
+      const data = (await response.json()) as LiveProofResponse;
 
-        if (!active) return;
-
-        if (!response.ok || !data.ok) {
-          setFailedCount(0);
-          setRows([]);
-          setError(data.ok ? "WATCHDOG_ROUTE_FAILED" : data.error);
-          return;
-        }
-
-        setFailedCount(data.count);
-        setRows(data.rows);
-      } catch (err) {
-        if (!active) return;
-
-        setFailedCount(0);
-        setRows([]);
-        setError(err instanceof Error ? err.message : "UNKNOWN_ERROR");
-      } finally {
-        if (active) {
-          setLoading(false);
-        }
+      if (!response.ok) {
+        throw new Error("error" in data ? data.error : "LIVE_PROOF_FAILED");
       }
+
+      if (!data.ok) {
+        throw new Error("error" in data ? data.error : "LIVE_PROOF_FAILED");
+      }
+
+      setResult(data);
+    } catch (err) {
+      setResult(null);
+      setError(err instanceof Error ? err.message : "UNKNOWN_ERROR");
+    } finally {
+      setRunning(false);
     }
-
-    load();
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  const statusText = useMemo(() => {
-    if (loading) return "LOADING";
-    if (error) return "DEGRADED";
-    if (failedCount > 0) return "ACTIVE FAILURES";
-    return "CLEAR";
-  }, [loading, error, failedCount]);
+  }
 
   return (
-    <div style={styles.page}>
-      <aside style={styles.sidebar}>
-        <div style={styles.navItem}>KERNEL</div>
-        <div style={styles.navItem}>OBLIGATIONS</div>
-        <div style={styles.navItem}>RECEIPTS</div>
-        <div style={styles.navItem}>FAILURES</div>
-        <div style={styles.navItem}>WATCHDOG</div>
-      </aside>
-
-      <main style={styles.main}>
-        <div style={styles.badge}>ENFORCEMENT SURFACE</div>
-
-        <h1 style={styles.title}>Failures Do Not Disappear</h1>
-
-        <p style={styles.sub}>
-          Every event becomes obligation. Every obligation remains active until
-          valid proof resolves it.
-        </p>
-
-        <div style={styles.commandBox}>
-          <div style={styles.commandLabel}>watchdog.route</div>
-          <div style={styles.commandValue}>/api/watchdog/failed-obligations</div>
+    <main style={styles.page}>
+      <div style={styles.shell}>
+        <div style={styles.hero}>
+          <div style={styles.kicker}>Live Proof Runner</div>
+          <h1 style={styles.title}>AutoKirk Live Proof</h1>
+          <p style={styles.statement}>
+            AutoKirk proves what happened, how it resolved, and whose
+            obligation it was.
+          </p>
+          <button
+            type="button"
+            onClick={runLiveProof}
+            disabled={running}
+            style={{
+              ...styles.button,
+              ...(running ? styles.buttonDisabled : {}),
+            }}
+          >
+            {running ? "Running..." : "Run Live Proof"}
+          </button>
+          {error ? <div style={styles.error}>{error}</div> : null}
         </div>
 
-        <div style={styles.statusRow}>
-          <div style={styles.statusPill}>STATUS: {statusText}</div>
-          <div style={styles.statusPill}>
-            {loading ? "SYNCING…" : error ? "ERROR" : "TRUTH CONNECTED"}
-          </div>
-        </div>
+        <div style={styles.cards}>
+          <ProofCard
+            title="Event"
+            eyebrow="Step 1"
+            body={
+              result?.ok
+                ? "A source event was ingested into the obligation pipeline."
+                : "Run the proof to create a unique source event."
+            }
+            artifact={result?.ok ? result.event : undefined}
+          />
 
-        {error ? (
-          <div style={styles.errorBox}>ERROR: {error}</div>
-        ) : rows.length === 0 ? (
-          <div style={styles.emptyBox}>
-            No failed or overdue obligations are currently surfaced.
-          </div>
-        ) : (
-          <div style={styles.tableWrap}>
-            <div style={styles.tableHeader}>
-              <div>OBLIGATION</div>
-              <div>ENTITY</div>
-              <div>DUE</div>
-              <div>DELIVERY</div>
-              <div>ATTEMPTS</div>
-            </div>
+          <ProofCard
+            title="Obligation"
+            eyebrow="Step 2"
+            body={
+              result?.ok
+                ? `Lifecycle state: ${result.lifecycle_state}`
+                : "The resulting obligation will appear here."
+            }
+            artifact={result?.ok ? result.obligation : undefined}
+          />
 
-            {rows.map((row) => (
-              <div key={row.obligation_id} style={styles.tableRow}>
-                <div style={styles.primaryCell}>
-                  <div style={styles.code}>{row.obligation_code}</div>
-                  <div style={styles.meta}>{row.obligation_id}</div>
-                </div>
-                <div style={styles.entityCell}>
-                  <div style={styles.meta}>{row.entity_id}</div>
-                  <div style={styles.entitySub}>
-                    {row.receipt_entity_id
-                      ? `receipt: ${row.receipt_entity_id}`
-                      : "receipt: pending"}
-                  </div>
-                </div>
-                <div>{formatDate(row.due_at)}</div>
-                <div>{row.delivery_status ?? "pending"}</div>
-                <div>{row.attempt_count ?? 0}</div>
-              </div>
-            ))}
-          </div>
-        )}
-      </main>
+          <ProofCard
+            title="Resolution"
+            eyebrow="Step 3"
+            body={
+              result?.ok
+                ? "The obligation was resolved through the canonical API surface."
+                : "The resolution event will appear here."
+            }
+            artifact={result?.ok ? result.resolution : undefined}
+          />
 
-      <aside style={styles.rightPanel}>
-        <div style={styles.stat}>FAILED: {loading ? "…" : failedCount}</div>
-        <div style={styles.stat}>
-          ROWS: {loading ? "…" : rows.length}
+          <ProofCard
+            title="Receipt"
+            eyebrow="Step 4"
+            body={
+              result?.ok
+                ? "A receipt confirms the recorded terminal state."
+                : "The emitted receipt will appear here."
+            }
+            artifact={result?.ok ? result.receipt : undefined}
+          />
+
+          <ProofCard
+            title="Entity Attribution"
+            eyebrow="Attribution"
+            body={
+              result?.ok
+                ? `Obligation entity: ${result.entity_id ?? "missing"} | Receipt entity: ${
+                    result.receipt_entity_id ?? "missing"
+                  }`
+                : "Entity attribution is shown after a successful run."
+            }
+          />
         </div>
-        <div style={styles.stat}>STATUS: {statusText}</div>
-        <div style={styles.stat}>
-          ROUTE: {error ? "DEGRADED" : loading ? "SYNCING" : "OK"}
-        </div>
-        <div style={styles.stat}>
-          ENTITY: {loading ? "…" : rows[0]?.entity_id ?? "NONE"}
-        </div>
-      </aside>
-    </div>
+      </div>
+    </main>
   );
 }
 
 const styles: Record<string, CSSProperties> = {
   page: {
-    display: "flex",
     minHeight: "100vh",
-    background: "#050505",
-    color: "#e5e5e5",
-    fontFamily: "Inter, sans-serif",
+    padding: "40px 20px",
+    background:
+      "radial-gradient(circle at top, rgba(185, 230, 255, 0.35), transparent 32%), #f4f7fb",
+    color: "#102033",
+    fontFamily:
+      '"Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif',
   },
-  sidebar: {
-    width: 200,
-    padding: 24,
-    borderRight: "1px solid rgba(255,215,0,0.1)",
+  shell: {
+    maxWidth: 1120,
+    margin: "0 auto",
+    display: "grid",
+    gap: 28,
   },
-  navItem: {
-    marginBottom: 16,
+  hero: {
+    padding: "32px",
+    borderRadius: 24,
+    background: "rgba(255, 255, 255, 0.88)",
+    border: "1px solid rgba(16, 32, 51, 0.08)",
+    boxShadow: "0 24px 60px rgba(16, 32, 51, 0.08)",
+  },
+  kicker: {
     fontSize: 12,
-    letterSpacing: "0.2em",
-    color: "#a3a3a3",
-  },
-  main: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    justifyContent: "center",
-    padding: "48px 40px",
-    gap: 20,
-  },
-  badge: {
-    fontSize: 12,
-    letterSpacing: "0.28em",
+    letterSpacing: "0.18em",
     textTransform: "uppercase",
-    color: "#c9a84f",
+    color: "#4b6b88",
+    marginBottom: 12,
   },
   title: {
     margin: 0,
-    fontSize: 42,
-    letterSpacing: "-0.03em",
-    color: "#f5d27a",
+    fontSize: "clamp(2.2rem, 5vw, 4rem)",
+    lineHeight: 1,
   },
-  sub: {
-    maxWidth: 680,
-    color: "#a3a3a3",
+  statement: {
+    margin: "16px 0 24px",
+    maxWidth: 700,
+    fontSize: 18,
     lineHeight: 1.6,
-    margin: 0,
+    color: "#35506a",
   },
-  commandBox: {
-    width: "100%",
-    maxWidth: 720,
-    border: "1px solid rgba(255,215,0,0.2)",
-    borderRadius: 8,
-    padding: 14,
-    background: "rgba(255,255,255,0.02)",
-  },
-  commandLabel: {
-    fontSize: 11,
-    letterSpacing: "0.2em",
-    color: "#888",
-    marginBottom: 6,
-  },
-  commandValue: {
-    color: "#fff",
-    fontSize: 14,
-  },
-  statusRow: {
-    display: "flex",
-    gap: 12,
-    flexWrap: "wrap",
-  },
-  statusPill: {
-    padding: "8px 12px",
+  button: {
+    appearance: "none",
+    border: 0,
     borderRadius: 999,
-    border: "1px solid rgba(255,215,0,0.18)",
-    color: "#f5d27a",
-    fontSize: 12,
+    padding: "14px 22px",
+    background: "#102033",
+    color: "#ffffff",
+    fontSize: 16,
+    fontWeight: 600,
+    cursor: "pointer",
   },
-  errorBox: {
-    maxWidth: 720,
-    border: "1px solid rgba(255,100,100,0.35)",
-    background: "rgba(255,100,100,0.08)",
-    borderRadius: 8,
-    padding: 16,
-    color: "#ffb4b4",
+  buttonDisabled: {
+    cursor: "wait",
+    opacity: 0.7,
   },
-  emptyBox: {
-    maxWidth: 720,
-    border: "1px solid rgba(255,215,0,0.15)",
-    background: "rgba(255,255,255,0.02)",
-    borderRadius: 8,
-    padding: 16,
-    color: "#d4d4d4",
+  error: {
+    marginTop: 16,
+    padding: "14px 16px",
+    borderRadius: 16,
+    background: "#fff1f1",
+    color: "#b42318",
+    border: "1px solid rgba(180, 35, 24, 0.12)",
   },
-  tableWrap: {
-    width: "100%",
-    maxWidth: 900,
-    border: "1px solid rgba(255,215,0,0.15)",
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  tableHeader: {
+  cards: {
     display: "grid",
-    gridTemplateColumns: "1.6fr 1.9fr 1.2fr 1fr 0.7fr",
-    gap: 12,
-    padding: "12px 14px",
-    background: "rgba(255,255,255,0.03)",
+    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+    gap: 18,
+  },
+  card: {
+    minHeight: 240,
+    padding: "22px",
+    borderRadius: 20,
+    background: "rgba(255, 255, 255, 0.92)",
+    border: "1px solid rgba(16, 32, 51, 0.08)",
+    boxShadow: "0 18px 40px rgba(16, 32, 51, 0.06)",
+    display: "grid",
+    alignContent: "start",
+    gap: 10,
+  },
+  eyebrow: {
     fontSize: 11,
     letterSpacing: "0.18em",
-    color: "#999",
+    textTransform: "uppercase",
+    color: "#5d7a96",
   },
-  tableRow: {
-    display: "grid",
-    gridTemplateColumns: "1.6fr 1.9fr 1.2fr 1fr 0.7fr",
-    gap: 12,
+  cardTitle: {
+    margin: 0,
+    fontSize: 24,
+  },
+  cardBody: {
+    margin: 0,
+    color: "#47627c",
+    lineHeight: 1.6,
+  },
+  pre: {
+    margin: 0,
     padding: "14px",
-    borderTop: "1px solid rgba(255,255,255,0.06)",
-    alignItems: "center",
-    fontSize: 13,
-  },
-  primaryCell: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  code: {
-    color: "#f5d27a",
-    fontWeight: 600,
-  },
-  meta: {
-    color: "#8a8a8a",
-    fontSize: 11,
-    overflowWrap: "anywhere",
-  },
-  entityCell: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  entitySub: {
-    color: "#7a7a7a",
-    fontSize: 10,
-    overflowWrap: "anywhere",
-  },
-  rightPanel: {
-    width: 240,
-    padding: 24,
-    borderLeft: "1px solid rgba(255,215,0,0.1)",
-  },
-  stat: {
-    marginBottom: 12,
+    borderRadius: 14,
+    background: "#0f1a28",
+    color: "#d7e7f6",
     fontSize: 12,
-    color: "#f5d27a",
-    letterSpacing: "0.08em",
+    lineHeight: 1.5,
+    overflowX: "auto",
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
   },
 };
