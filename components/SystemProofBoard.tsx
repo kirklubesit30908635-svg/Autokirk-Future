@@ -167,17 +167,15 @@ function getProjectionTone(
 }
 
 function getOperatorRedirectUrl(): string | undefined {
-  if (typeof window === "undefined") {
-    return publicAppUrl ? new URL("/", publicAppUrl).toString() : undefined;
+  if (typeof window !== "undefined") {
+    const callbackPath = `${window.location.pathname || "/"}${
+      window.location.search || ""
+    }`;
+
+    return new URL(callbackPath || "/", window.location.origin).toString();
   }
 
-  const callbackOrigin =
-    publicAppUrl ||
-    (window.location.hostname.endsWith(".vercel.app")
-      ? "https://autokirk.com"
-      : window.location.origin);
-
-  return new URL(window.location.pathname || "/", callbackOrigin).toString();
+  return publicAppUrl ? new URL("/", publicAppUrl).toString() : undefined;
 }
 
 function getLifecycleOutcome(rows: LifecycleRow[]): string {
