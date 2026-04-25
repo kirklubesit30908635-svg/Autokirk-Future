@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react"
-import { supabase } from "@/lib/supabaseClient"
+import { supabase } from "./lib/supabaseClient"
 
 export function useCommandSurface() {
-  const [critical, setCritical] = useState(null)
-  const [queue, setQueue] = useState([])
+  const [critical, setCritical] = useState<any | null>(null)
+  const [queue, setQueue] = useState<any[]>([])
 
   useEffect(() => {
     load()
