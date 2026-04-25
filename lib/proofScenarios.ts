@@ -1,29 +1,11 @@
-export type MarineServiceRecord = {
-  boat_name: string;
-  customer_name: string;
-  service_event: string;
-  proof_note: string;
-  proof_photo_url: string | null;
-};
+export type ProofScenarioId = "marine_service" | "construction_task";
+export type ProofScenarioRecordValue = string | null;
+export type ProofScenarioRecord = Record<string, ProofScenarioRecordValue>;
+export type ProofScenarioDraft = Record<string, string>;
 
-export type MarineServiceDraft = {
-  boatName: string;
-  customerName: string;
-  serviceEvent: string;
-  proofNote: string;
-  proofPhotoUrl: string;
-};
-
-export type MarineServiceDraftKey = keyof MarineServiceDraft;
-export type MarineServiceRecordKey = keyof MarineServiceRecord;
-type RequiredMarineServiceRecordKey = Exclude<
-  MarineServiceRecordKey,
-  "proof_photo_url"
->;
-
-export type MarineServiceFieldConfig = {
-  draftKey: MarineServiceDraftKey;
-  recordKey: MarineServiceRecordKey;
+export type ProofScenarioFieldConfig = {
+  draftKey: string;
+  recordKey: string;
   label: string;
   placeholder: string;
   required: boolean;
@@ -36,8 +18,8 @@ export type MarineServiceFieldConfig = {
 };
 
 export type ProofScenarioConfig = {
-  id: "marine_service";
-  enabled: true;
+  id: ProofScenarioId;
+  enabled: boolean;
   run: {
     resultStorageKey: string;
     sourceSystem: string;
@@ -48,8 +30,10 @@ export type ProofScenarioConfig = {
     proofType: string;
     resolutionReason: string;
     ruleVersion: string;
+    runIdPrefix: string;
   };
   ui: {
+    selectorLabel: string;
     sectionLabel: string;
     sectionDescription: string;
     lifecycleStartLabel: string;
@@ -71,7 +55,7 @@ export type ProofScenarioConfig = {
     resultTitle: string;
     operatorEmailPlaceholder: string;
   };
-  fields: readonly MarineServiceFieldConfig[];
+  fields: readonly ProofScenarioFieldConfig[];
 };
 
 const marineServiceFields = [
@@ -123,7 +107,49 @@ const marineServiceFields = [
     defaultValue: "Hull washed, no visible damage",
     resultLabel: "PROOF NOTE",
   },
-] as const satisfies readonly MarineServiceFieldConfig[];
+] as const satisfies readonly ProofScenarioFieldConfig[];
+
+const constructionTaskFields = [
+  {
+    draftKey: "taskName",
+    recordKey: "task_name",
+    label: "Task Name",
+    placeholder: "Punch list framing repair",
+    required: true,
+    requiredError: "TASK_NAME_REQUIRED",
+    resultLabel: "TASK",
+  },
+  {
+    draftKey: "location",
+    recordKey: "location",
+    label: "Location",
+    placeholder: "Lot 12, north elevation",
+    required: true,
+    requiredError: "LOCATION_REQUIRED",
+    resultLabel: "LOCATION",
+  },
+  {
+    draftKey: "proofPhotoUrl",
+    recordKey: "proof_photo_url",
+    label: "Proof Photo URL (Optional)",
+    placeholder: "https://example.com/task-photo.jpg",
+    required: false,
+    resultLabel: "PROOF PHOTO",
+    emptyResultValue: "NOTE ONLY",
+  },
+  {
+    draftKey: "proofNote",
+    recordKey: "proof_note",
+    label: "Proof Note",
+    placeholder: "Task completed, area cleaned, no defects observed",
+    required: true,
+    requiredError: "PROOF_NOTE_REQUIRED",
+    multiline: true,
+    fullWidth: true,
+    defaultValue: "Task completed, area cleaned, no defects observed",
+    resultLabel: "PROOF NOTE",
+  },
+] as const satisfies readonly ProofScenarioFieldConfig[];
 
 export const proofScenarios = {
   marine_service: {
@@ -139,8 +165,10 @@ export const proofScenarios = {
       proofType: "operator_attestation",
       resolutionReason: "service proof submitted",
       ruleVersion: "marine-service-proof-v1",
+      runIdPrefix: "marine-service",
     },
     ui: {
+      selectorLabel: "Marine Service",
       sectionLabel: "Service Resolution",
       sectionDescription:
         "A service stays unresolved until operator proof or failure is explicitly recorded by the kernel.",
@@ -173,16 +201,80 @@ export const proofScenarios = {
     },
     fields: marineServiceFields,
   },
-} as const satisfies Record<string, ProofScenarioConfig>;
-
-export type ProofScenarioId = keyof typeof proofScenarios;
+  construction_task: {
+    id: "construction_task",
+    enabled: true,
+    run: {
+      resultStorageKey: "autokirk-construction-proof-result",
+      sourceSystem: "construction-task-board",
+      operatorSurface: "homepage",
+      serviceType: "construction_task",
+      eventType: "construction.task_started",
+      obligationCode: "complete_task_with_proof",
+      proofType: "operator_attestation",
+      resolutionReason: "construction task proof submitted",
+      ruleVersion: "construction-task-proof-v1",
+      runIdPrefix: "construction-task",
+    },
+    ui: {
+      selectorLabel: "Construction Task",
+      sectionLabel: "Task Completion",
+      sectionDescription:
+        "A task stays unresolved until operator proof or failure is explicitly recorded by the kernel.",
+      lifecycleStartLabel: "TASK STARTED",
+      lifecycleOpenLabel: "TASK OBLIGATION OPENED",
+      operatorDescription:
+        "Task proof can only be submitted by an authenticated workspace operator.",
+      signInRequiredMessage:
+        "Sign in as a workspace operator to submit task proof.",
+      signInSendingMessage: "Sending operator sign-in link...",
+      signInCheckEmailMessage: "Check your email for the operator sign-in link.",
+      recordEyebrow: "Construction Record",
+      recordTitle: "Submit Proof To Complete Task",
+      recordDescription:
+        "Capture one construction task record: task name, location, proof note, optional photo URL, then emit the receipt-backed resolution.",
+      proofDescription:
+        "Photo URL is optional; the note is always attached to the receipt.",
+      idleMessage:
+        "Record the task, location, and proof to resolve the obligation.",
+      runningMessage:
+        "Submitting the construction task record through the kernel...",
+      successMessage:
+        "Construction task resolved. Reloading projection truth from the live read model...",
+      restoredMessage:
+        "Construction task record resolved through kernel authority. Projection truth has been reloaded.",
+      submitLabel: "SUBMIT TASK PROOF",
+      submittingLabel: "SUBMITTING PROOF...",
+      resultTitle: "Latest Task Result",
+      operatorEmailPlaceholder: "operator@autokirk.com",
+    },
+    fields: constructionTaskFields,
+  },
+} as const satisfies Record<ProofScenarioId, ProofScenarioConfig>;
 
 export const activeProofScenario = proofScenarios.marine_service;
+export const enabledProofScenarios = Object.values(proofScenarios).filter(
+  (scenario) => scenario.enabled
+);
 
-export function createMarineServiceDraft(
+export function getProofScenario(id?: string | null): ProofScenarioConfig {
+  if (!id) {
+    return activeProofScenario;
+  }
+
+  const scenario = proofScenarios[id as ProofScenarioId];
+
+  if (!scenario || !scenario.enabled) {
+    throw new Error("SCENARIO_ID_INVALID");
+  }
+
+  return scenario;
+}
+
+export function createProofScenarioDraft(
   scenario: ProofScenarioConfig = activeProofScenario
-): MarineServiceDraft {
-  const draft = {} as MarineServiceDraft;
+): ProofScenarioDraft {
+  const draft: ProofScenarioDraft = {};
 
   for (const field of scenario.fields) {
     draft[field.draftKey] = field.defaultValue ?? "";
@@ -191,15 +283,15 @@ export function createMarineServiceDraft(
   return draft;
 }
 
-export function toMarineServiceDraft(
-  record?: MarineServiceRecord,
+export function toProofScenarioDraft(
+  record?: ProofScenarioRecord,
   scenario: ProofScenarioConfig = activeProofScenario
-): MarineServiceDraft {
+): ProofScenarioDraft {
   if (!record) {
-    return createMarineServiceDraft(scenario);
+    return createProofScenarioDraft(scenario);
   }
 
-  const draft = {} as MarineServiceDraft;
+  const draft: ProofScenarioDraft = {};
 
   for (const field of scenario.fields) {
     const value = record[field.recordKey];
@@ -209,21 +301,15 @@ export function toMarineServiceDraft(
   return draft;
 }
 
-export function toMarineServicePayload(
-  draft: MarineServiceDraft,
+export function toProofScenarioPayload(
+  draft: ProofScenarioDraft,
   scenario: ProofScenarioConfig = activeProofScenario
-): MarineServiceRecord {
-  const payload = {} as MarineServiceRecord;
+): ProofScenarioRecord {
+  const payload: ProofScenarioRecord = {};
 
   for (const field of scenario.fields) {
     const value = draft[field.draftKey].trim();
-
-    if (field.recordKey === "proof_photo_url") {
-      payload.proof_photo_url = value || null;
-      continue;
-    }
-
-    payload[field.recordKey as RequiredMarineServiceRecordKey] = value;
+    payload[field.recordKey] = field.recordKey === "proof_photo_url" ? value || null : value;
   }
 
   return payload;
@@ -238,12 +324,12 @@ export function isValidHttpUrl(value: string): boolean {
   }
 }
 
-export function getMarineServiceDraftError(
-  draft: MarineServiceDraft,
+export function getProofScenarioDraftError(
+  draft: ProofScenarioDraft,
   scenario: ProofScenarioConfig = activeProofScenario
 ): string | null {
   for (const field of scenario.fields) {
-    const value = draft[field.draftKey].trim();
+    const value = draft[field.draftKey]?.trim() ?? "";
 
     if (field.required && !value) {
       return field.requiredError ?? `${field.recordKey.toUpperCase()}_REQUIRED`;
@@ -258,7 +344,7 @@ export function getMarineServiceDraftError(
     return null;
   }
 
-  const proofPhotoUrl = draft[proofPhotoField.draftKey].trim();
+  const proofPhotoUrl = draft[proofPhotoField.draftKey]?.trim() ?? "";
 
   if (proofPhotoUrl && !isValidHttpUrl(proofPhotoUrl)) {
     return "PROOF_PHOTO_URL_INVALID";
@@ -267,9 +353,9 @@ export function getMarineServiceDraftError(
   return null;
 }
 
-export function getMarineServiceResultValue(
-  field: MarineServiceFieldConfig,
-  record?: MarineServiceRecord
+export function getProofScenarioResultValue(
+  field: ProofScenarioFieldConfig,
+  record?: ProofScenarioRecord
 ): string {
   const value = record?.[field.recordKey];
 
@@ -278,4 +364,26 @@ export function getMarineServiceResultValue(
   }
 
   return field.emptyResultValue ?? "—";
+}
+
+export function buildProofScenarioEvidence(
+  record: ProofScenarioRecord
+): Record<string, string | null> {
+  const evidence: Record<string, string | null> = {};
+
+  for (const [key, value] of Object.entries(record)) {
+    if (key === "proof_note") {
+      evidence.note = value;
+      continue;
+    }
+
+    if (key === "proof_photo_url") {
+      evidence.photo_url = value;
+      continue;
+    }
+
+    evidence[key] = value;
+  }
+
+  return evidence;
 }

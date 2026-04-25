@@ -4,14 +4,17 @@ import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import {
   activeProofScenario,
-  createMarineServiceDraft,
-  getMarineServiceDraftError,
-  getMarineServiceResultValue,
-  toMarineServiceDraft,
-  toMarineServicePayload,
-  type MarineServiceDraft,
-  type MarineServiceFieldConfig,
-  type MarineServiceRecord,
+  createProofScenarioDraft,
+  enabledProofScenarios,
+  getProofScenario,
+  getProofScenarioDraftError,
+  getProofScenarioResultValue,
+  toProofScenarioDraft,
+  toProofScenarioPayload,
+  type ProofScenarioDraft,
+  type ProofScenarioFieldConfig,
+  type ProofScenarioId,
+  type ProofScenarioRecord,
 } from "../lib/proofScenarios";
 
 type LifecycleRow = {
@@ -58,11 +61,12 @@ export type SystemProofBoardProps = {
 
 type LiveProofRunSuccess = {
   ok: true;
+  scenario_id: ProofScenarioId;
   event: Record<string, unknown>;
   obligation: Record<string, unknown>;
   resolution: Record<string, unknown>;
   receipt: Record<string, unknown>;
-  service_record?: MarineServiceRecord;
+  service_record?: ProofScenarioRecord;
   lifecycle_state: string;
   entity_id: string | null;
   receipt_entity_id: string | null;
@@ -90,8 +94,6 @@ const leftRail = [
   "FAILURES",
   "WATCHDOG",
 ];
-
-const proofScenario = activeProofScenario;
 const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const publicAppUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -307,10 +309,10 @@ function ServiceRecordTextarea({
 }
 
 function getServiceDraftValue(
-  draft: MarineServiceDraft,
-  field: MarineServiceFieldConfig
+  draft: ProofScenarioDraft,
+  field: ProofScenarioFieldConfig
 ): string {
-  return draft[field.draftKey];
+  return draft[field.draftKey] ?? "";
 }
 
 function RowRecord({ row }: { row: LifecycleRow }) {
@@ -387,45 +389,62 @@ export function SystemProofBoard({
   const router = useRouter();
   const [isRunning, startRunTransition] = useTransition();
   const [operatorEmail, setOperatorEmail] = useState("");
+  const [selectedScenarioId, setSelectedScenarioId] = useState<ProofScenarioId>(
+    activeProofScenario.id
+  );
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [authMessage, setAuthMessage] = useState(
     "Checking for an authenticated operator session..."
   );
   const [operatorSession, setOperatorSession] = useState<Session | null>(null);
-  const [serviceRecord, setServiceRecord] = useState<MarineServiceDraft>(() =>
-    createMarineServiceDraft(proofScenario)
+  const [serviceRecord, setServiceRecord] = useState<ProofScenarioDraft>(() =>
+    createProofScenarioDraft(activeProofScenario)
   );
   const [runStatus, setRunStatus] = useState<
     "idle" | "running" | "success" | "error"
   >("idle");
   const [runMessage, setRunMessage] = useState<string>(
-    proofScenario.ui.idleMessage
+    activeProofScenario.ui.idleMessage
   );
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
+  const selectedScenario = getProofScenario(selectedScenarioId);
+  const resultScenario = runResult
+    ? getProofScenario(runResult.scenario_id)
+    : selectedScenario;
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const stored = window.sessionStorage.getItem(
-      proofScenario.run.resultStorageKey
+    const storedScenario = enabledProofScenarios.find((scenario) =>
+      Boolean(window.sessionStorage.getItem(scenario.run.resultStorageKey))
     );
+
+    if (!storedScenario) {
+      return;
+    }
+
+    const stored = window.sessionStorage.getItem(storedScenario.run.resultStorageKey);
+
+    window.sessionStorage.removeItem(storedScenario.run.resultStorageKey);
 
     if (!stored) {
       return;
     }
 
-    window.sessionStorage.removeItem(proofScenario.run.resultStorageKey);
-
     try {
       const parsed = JSON.parse(stored) as LiveProofRunSuccess;
+      const restoredScenario = getProofScenario(
+        parsed.scenario_id ?? storedScenario.id
+      );
+      setSelectedScenarioId(restoredScenario.id);
       setRunStatus("success");
-      setRunMessage(proofScenario.ui.restoredMessage);
-      setServiceRecord(toMarineServiceDraft(parsed.service_record));
+      setRunMessage(restoredScenario.ui.restoredMessage);
+      setServiceRecord(toProofScenarioDraft(parsed.service_record, restoredScenario));
       setRunResult(parsed);
     } catch {
-      window.sessionStorage.removeItem(proofScenario.run.resultStorageKey);
+      window.sessionStorage.removeItem(storedScenario.run.resultStorageKey);
     }
   }, []);
 
@@ -457,7 +476,7 @@ export function SystemProofBoard({
         }
       } else {
         setAuthState("signed_out");
-        setAuthMessage(proofScenario.ui.signInRequiredMessage);
+        setAuthMessage(selectedScenario.ui.signInRequiredMessage);
       }
     };
 
@@ -489,7 +508,17 @@ export function SystemProofBoard({
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [selectedScenario.ui.signInRequiredMessage]);
+
+  useEffect(() => {
+    if (authState === "signed_out") {
+      setAuthMessage(selectedScenario.ui.signInRequiredMessage);
+    }
+
+    if (runStatus === "idle") {
+      setRunMessage(selectedScenario.ui.idleMessage);
+    }
+  }, [authState, runStatus, selectedScenario]);
 
   const projection = String(summary.projection ?? "NO LIVE DATA");
   const projectionTone = getProjectionTone(projection);
@@ -546,9 +575,9 @@ export function SystemProofBoard({
         return;
       }
 
-      const validationError = getMarineServiceDraftError(
+      const validationError = getProofScenarioDraftError(
         serviceRecord,
-        proofScenario
+        selectedScenario
       );
 
       if (validationError) {
@@ -557,13 +586,13 @@ export function SystemProofBoard({
         return;
       }
 
-      const serviceRecordPayload = toMarineServicePayload(
+      const serviceRecordPayload = toProofScenarioPayload(
         serviceRecord,
-        proofScenario
+        selectedScenario
       );
 
       setRunStatus("running");
-      setRunMessage(proofScenario.ui.runningMessage);
+      setRunMessage(selectedScenario.ui.runningMessage);
       setRunResult(null);
 
       try {
@@ -573,7 +602,10 @@ export function SystemProofBoard({
             "Content-Type": "application/json",
             Authorization: `Bearer ${operatorSession.access_token}`,
           },
-          body: JSON.stringify(serviceRecordPayload),
+          body: JSON.stringify({
+            scenario_id: selectedScenario.id,
+            ...serviceRecordPayload,
+          }),
         });
 
         const payload = (await response.json()) as LiveProofRunResponse;
@@ -585,13 +617,17 @@ export function SystemProofBoard({
         }
 
         setRunStatus("success");
-        setRunMessage(proofScenario.ui.successMessage);
-        setServiceRecord(toMarineServiceDraft(payload.service_record));
+        const responseScenario = getProofScenario(payload.scenario_id);
+        setSelectedScenarioId(responseScenario.id);
+        setRunMessage(responseScenario.ui.successMessage);
+        setServiceRecord(
+          toProofScenarioDraft(payload.service_record, responseScenario)
+        );
         setRunResult(payload);
 
         if (typeof window !== "undefined") {
           window.sessionStorage.setItem(
-            proofScenario.run.resultStorageKey,
+            responseScenario.run.resultStorageKey,
             JSON.stringify(payload)
           );
           window.setTimeout(() => {
@@ -627,7 +663,7 @@ export function SystemProofBoard({
     }
 
     setAuthState("sending");
-    setAuthMessage(proofScenario.ui.signInSendingMessage);
+    setAuthMessage(selectedScenario.ui.signInSendingMessage);
 
     const { error: signInError } = await client.auth.signInWithOtp({
       email,
@@ -643,7 +679,7 @@ export function SystemProofBoard({
     }
 
     setAuthState("signed_out");
-    setAuthMessage(proofScenario.ui.signInCheckEmailMessage);
+    setAuthMessage(selectedScenario.ui.signInCheckEmailMessage);
   }
 
   async function handleOperatorSignOut() {
@@ -663,7 +699,25 @@ export function SystemProofBoard({
 
     setRunResult(null);
     setRunStatus("idle");
-    setRunMessage(proofScenario.ui.idleMessage);
+    setRunMessage(selectedScenario.ui.idleMessage);
+  }
+
+  function handleScenarioSelect(nextScenarioId: ProofScenarioId) {
+    if (nextScenarioId === selectedScenarioId) {
+      return;
+    }
+
+    const nextScenario = getProofScenario(nextScenarioId);
+
+    setSelectedScenarioId(nextScenario.id);
+    setServiceRecord(createProofScenarioDraft(nextScenario));
+    setRunResult(null);
+    setRunStatus("idle");
+    setRunMessage(nextScenario.ui.idleMessage);
+
+    if (authState === "signed_out") {
+      setAuthMessage(nextScenario.ui.signInRequiredMessage);
+    }
   }
 
   return (
@@ -726,24 +780,41 @@ export function SystemProofBoard({
           <section className="proofPanel">
             <div className="proofPanelHeader">
               <div>
-                <div className="sectionLabel">{proofScenario.ui.sectionLabel}</div>
-                <p className="proofCopy">{proofScenario.ui.sectionDescription}</p>
+                <div className="sectionLabel">{selectedScenario.ui.sectionLabel}</div>
+                <p className="proofCopy">{selectedScenario.ui.sectionDescription}</p>
               </div>
               <div className="proofMeta">{formatTimestamp(generatedAt)}</div>
+            </div>
+
+            <div className="scenarioSelector" aria-label="Proof scenarios">
+              {enabledProofScenarios.map((scenario) => (
+                <button
+                  key={scenario.id}
+                  type="button"
+                  className={
+                    scenario.id === selectedScenarioId
+                      ? "scenarioButton scenarioButtonActive"
+                      : "scenarioButton"
+                  }
+                  onClick={() => handleScenarioSelect(scenario.id)}
+                >
+                  {scenario.ui.selectorLabel}
+                </button>
+              ))}
             </div>
 
             <div className="lifecycleStrip">
               <div className="lifecycleNode">
                 <span className="nodeIndex">01</span>
                 <span className="nodeLabel">
-                  {proofScenario.ui.lifecycleStartLabel}
+                  {selectedScenario.ui.lifecycleStartLabel}
                 </span>
               </div>
               <div className="lifecycleConnector" />
               <div className="lifecycleNode">
                 <span className="nodeIndex">02</span>
                 <span className="nodeLabel">
-                  {proofScenario.ui.lifecycleOpenLabel}
+                  {selectedScenario.ui.lifecycleOpenLabel}
                 </span>
               </div>
               <div className="lifecycleConnector" />
@@ -778,7 +849,7 @@ export function SystemProofBoard({
                   </div>
                 </div>
 
-                <p className="operatorText">{proofScenario.ui.operatorDescription}</p>
+                <p className="operatorText">{selectedScenario.ui.operatorDescription}</p>
 
                 <div className="operatorControls">
                   <input
@@ -786,7 +857,7 @@ export function SystemProofBoard({
                     value={operatorEmail}
                     onChange={(event) => setOperatorEmail(event.target.value)}
                     className="operatorInput"
-                    placeholder={proofScenario.ui.operatorEmailPlaceholder}
+                    placeholder={selectedScenario.ui.operatorEmailPlaceholder}
                     autoComplete="email"
                     disabled={authState === "ready" || authState === "loading"}
                   />
@@ -817,16 +888,16 @@ export function SystemProofBoard({
 
               <div className="runPanel">
                 <div className="runPanelCopy">
-                  <div className="noticeLabel">{proofScenario.ui.recordEyebrow}</div>
-                  <div className="runPanelTitle">{proofScenario.ui.recordTitle}</div>
-                  <p className="runPanelText">{proofScenario.ui.recordDescription}</p>
+                  <div className="noticeLabel">{selectedScenario.ui.recordEyebrow}</div>
+                  <div className="runPanelTitle">{selectedScenario.ui.recordTitle}</div>
+                  <p className="runPanelText">{selectedScenario.ui.recordDescription}</p>
                   <p className="runPanelText">
-                    Proof submitted: <code>{proofScenario.run.proofType}</code>.{" "}
-                    {proofScenario.ui.proofDescription}
+                    Proof submitted: <code>{selectedScenario.run.proofType}</code>.{" "}
+                    {selectedScenario.ui.proofDescription}
                   </p>
                   <div className="serviceRecordGrid">
-                    {proofScenario.fields.map((fieldConfig) => {
-                      const field = fieldConfig as MarineServiceFieldConfig;
+                    {selectedScenario.fields.map((fieldConfig) => {
+                      const field = fieldConfig as ProofScenarioFieldConfig;
 
                       return field.multiline ? (
                         <ServiceRecordTextarea
@@ -870,8 +941,8 @@ export function SystemProofBoard({
                     disabled={isRunning || authState !== "ready"}
                   >
                     {isRunning
-                      ? proofScenario.ui.submittingLabel
-                      : proofScenario.ui.submitLabel}
+                      ? selectedScenario.ui.submittingLabel
+                      : selectedScenario.ui.submitLabel}
                   </button>
                   <div className={`runStatus runStatus-${runStatus}`}>
                     {runMessage}
@@ -881,16 +952,16 @@ export function SystemProofBoard({
 
               {runResult ? (
                 <div className="runResultCard">
-                  <div className="noticeLabel">{proofScenario.ui.resultTitle}</div>
+                  <div className="noticeLabel">{resultScenario.ui.resultTitle}</div>
                   <div className="runResultGrid">
-                    {proofScenario.fields.map((fieldConfig) => {
-                      const field = fieldConfig as MarineServiceFieldConfig;
+                    {resultScenario.fields.map((fieldConfig) => {
+                      const field = fieldConfig as ProofScenarioFieldConfig;
 
                       return (
                         <ResultField
                           key={field.draftKey}
                           label={field.resultLabel}
-                          value={getMarineServiceResultValue(field, latestServiceRecord)}
+                          value={getProofScenarioResultValue(field, latestServiceRecord)}
                         />
                       );
                     })}
@@ -1248,6 +1319,43 @@ export function SystemProofBoard({
             Menlo, monospace;
           font-size: 12px;
           letter-spacing: 0.05em;
+        }
+
+        .scenarioSelector {
+          display: flex;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .scenarioButton {
+          padding: 11px 16px;
+          border: 1px solid rgba(212, 175, 55, 0.16);
+          border-radius: 999px;
+          background: rgba(212, 175, 55, 0.05);
+          color: #d8c696;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 11px;
+          letter-spacing: 0.12em;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition:
+            border-color 140ms ease,
+            background 140ms ease,
+            color 140ms ease;
+        }
+
+        .scenarioButton:hover {
+          border-color: rgba(212, 175, 55, 0.32);
+          color: #fff0c7;
+        }
+
+        .scenarioButtonActive {
+          border-color: rgba(212, 175, 55, 0.34);
+          background:
+            linear-gradient(180deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.08));
+          color: #fff0c7;
         }
 
         .lifecycleStrip {

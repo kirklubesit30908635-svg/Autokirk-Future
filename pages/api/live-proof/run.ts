@@ -3,14 +3,16 @@ import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { serialize } from "cookie";
 import { createClient } from "@supabase/supabase-js";
 import {
-  activeProofScenario,
+  buildProofScenarioEvidence,
+  getProofScenario,
   isValidHttpUrl,
-  type MarineServiceFieldConfig,
-  type MarineServiceRecord,
+  type ProofScenarioConfig,
+  type ProofScenarioFieldConfig,
+  type ProofScenarioId,
+  type ProofScenarioRecord,
 } from "../../../lib/proofScenarios";
 
 const WORKSPACE_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
-const proofScenario = activeProofScenario;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -36,11 +38,12 @@ type LifecycleRow = {
 type ApiResponse =
   | {
       ok: true;
+      scenario_id: ProofScenarioId;
       event: JsonRecord;
       obligation: JsonRecord;
       resolution: JsonRecord;
       receipt: JsonRecord;
-      service_record: MarineServiceRecord;
+      service_record: ProofScenarioRecord;
       lifecycle_state: string;
       entity_id: string | null;
       receipt_entity_id: string | null;
@@ -85,13 +88,32 @@ function optionalTrimmedString(value: unknown): string | null {
   return trimmed ? trimmed : null;
 }
 
-function parseMarineServiceRecord(body: unknown): MarineServiceRecord {
+function parseProofScenarioId(value: unknown): ProofScenarioConfig {
+  if (typeof value === "undefined") {
+    return getProofScenario();
+  }
+
+  if (typeof value !== "string" || !value.trim()) {
+    throw new RequestValidationError("SCENARIO_ID_INVALID");
+  }
+
+  try {
+    return getProofScenario(value.trim());
+  } catch {
+    throw new RequestValidationError("SCENARIO_ID_INVALID");
+  }
+}
+
+function parseProofScenarioRecord(
+  body: unknown,
+  scenario: ProofScenarioConfig
+): ProofScenarioRecord {
   if (!body || typeof body !== "object" || Array.isArray(body)) {
     throw new RequestValidationError("REQUEST_BODY_INVALID");
   }
 
   const payload = body as Record<string, unknown>;
-  const proofPhotoField = proofScenario.fields.find(
+  const proofPhotoField = scenario.fields.find(
     (field) => field.recordKey === "proof_photo_url"
   );
 
@@ -99,9 +121,9 @@ function parseMarineServiceRecord(body: unknown): MarineServiceRecord {
     throw new Error("PROOF_PHOTO_FIELD_MISSING");
   }
 
-  const serviceRecord = {} as MarineServiceRecord;
+  const serviceRecord: ProofScenarioRecord = {};
 
-  for (const field of proofScenario.fields) {
+  for (const field of scenario.fields) {
     const rawValue = payload[field.recordKey];
 
     if (field.recordKey === "proof_photo_url") {
@@ -125,7 +147,7 @@ function parseMarineServiceRecord(body: unknown): MarineServiceRecord {
 }
 
 function requireTrimmedFieldValue(
-  field: MarineServiceFieldConfig,
+  field: ProofScenarioFieldConfig,
   value: unknown
 ): string {
   return requireTrimmedString(
@@ -229,10 +251,16 @@ export default async function handler(
       });
     }
 
-    const serviceRecord = parseMarineServiceRecord(req.body);
-    const runId = `marine-service-${Date.now()}-${Math.random()
+    const requestBody =
+      req.body && typeof req.body === "object" && !Array.isArray(req.body)
+        ? (req.body as Record<string, unknown>)
+        : undefined;
+    const proofScenario = parseProofScenarioId(requestBody?.scenario_id);
+    const serviceRecord = parseProofScenarioRecord(req.body, proofScenario);
+    const runId = `${proofScenario.run.runIdPrefix}-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 10)}`;
+    const evidence = buildProofScenarioEvidence(serviceRecord);
 
     const { data: ingestRaw, error: ingestError } = await serviceSupabase
       .schema("api")
@@ -246,11 +274,7 @@ export default async function handler(
           operator_surface: proofScenario.run.operatorSurface,
           run_id: runId,
           service_type: proofScenario.run.serviceType,
-          boat_name: serviceRecord.boat_name,
-          customer_name: serviceRecord.customer_name,
-          service_event: serviceRecord.service_event,
-          proof_note: serviceRecord.proof_note,
-          proof_photo_url: serviceRecord.proof_photo_url,
+          ...serviceRecord,
         },
         p_obligation_code: proofScenario.run.obligationCode,
       });
@@ -277,11 +301,7 @@ export default async function handler(
           source: proofScenario.run.sourceSystem,
           run_id: runId,
           proof_type: proofScenario.run.proofType,
-          boat_name: serviceRecord.boat_name,
-          customer_name: serviceRecord.customer_name,
-          service_event: serviceRecord.service_event,
-          note: serviceRecord.proof_note,
-          photo_url: serviceRecord.proof_photo_url,
+          ...evidence,
         },
         p_failed_checks: [],
         p_rule_version: proofScenario.run.ruleVersion,
@@ -346,6 +366,7 @@ export default async function handler(
 
     return res.status(200).json({
       ok: true,
+      scenario_id: proofScenario.id,
       event: asRecord(eventResult.data, "EVENT"),
       obligation: asRecord(obligationResult.data, "OBLIGATION"),
       resolution: asRecord(resolutionResult.data, "RESOLUTION"),
