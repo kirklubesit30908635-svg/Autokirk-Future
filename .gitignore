@@ -13,3 +13,6 @@ Autokirk-Future/
 
 .next-dev.log
 .next-dev.err.log
+
+# Local proof screenshots
+*.png
