@@ -26,6 +26,14 @@ type LifecycleRow = {
   receipt_entity_id: string | null;
 };
 
+type MarineServiceRecord = {
+  boat_name: string;
+  customer_name: string;
+  service_event: string;
+  proof_note: string;
+  proof_photo_url: string | null;
+};
+
 type ApiResponse =
   | {
       ok: true;
@@ -33,6 +41,7 @@ type ApiResponse =
       obligation: JsonRecord;
       resolution: JsonRecord;
       receipt: JsonRecord;
+      service_record: MarineServiceRecord;
       lifecycle_state: string;
       entity_id: string | null;
       receipt_entity_id: string | null;
@@ -41,6 +50,8 @@ type ApiResponse =
       ok: false;
       error: string;
     };
+
+class RequestValidationError extends Error {}
 
 function assertEnv(name: string, value: string | undefined): string {
   if (!value || !value.trim()) {
@@ -56,6 +67,52 @@ function asRecord(value: unknown, name: string): JsonRecord {
   }
 
   return value as JsonRecord;
+}
+
+function requireTrimmedString(value: unknown, name: string): string {
+  if (typeof value !== "string" || !value.trim()) {
+    throw new RequestValidationError(`${name}_REQUIRED`);
+  }
+
+  return value.trim();
+}
+
+function optionalTrimmedString(value: unknown): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  return trimmed ? trimmed : null;
+}
+
+function parseMarineServiceRecord(body: unknown): MarineServiceRecord {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new RequestValidationError("REQUEST_BODY_INVALID");
+  }
+
+  const payload = body as Record<string, unknown>;
+  const proofPhotoUrl = optionalTrimmedString(payload.proof_photo_url);
+
+  if (proofPhotoUrl) {
+    try {
+      const parsedUrl = new URL(proofPhotoUrl);
+
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        throw new Error("INVALID_PROTOCOL");
+      }
+    } catch {
+      throw new RequestValidationError("PROOF_PHOTO_URL_INVALID");
+    }
+  }
+
+  return {
+    boat_name: requireTrimmedString(payload.boat_name, "BOAT_NAME"),
+    customer_name: requireTrimmedString(payload.customer_name, "CUSTOMER_NAME"),
+    service_event: requireTrimmedString(payload.service_event, "SERVICE_EVENT"),
+    proof_note: requireTrimmedString(payload.proof_note, "PROOF_NOTE"),
+    proof_photo_url: proofPhotoUrl,
+  };
 }
 
 function appendSetCookie(res: NextApiResponse, cookie: string) {
@@ -153,6 +210,7 @@ export default async function handler(
       });
     }
 
+    const serviceRecord = parseMarineServiceRecord(req.body);
     const runId = `marine-service-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 10)}`;
@@ -169,7 +227,11 @@ export default async function handler(
           operator_surface: "homepage",
           run_id: runId,
           service_type: "marine_service",
-          vessel_name: "AutoKirk demo vessel",
+          boat_name: serviceRecord.boat_name,
+          customer_name: serviceRecord.customer_name,
+          service_event: serviceRecord.service_event,
+          proof_note: serviceRecord.proof_note,
+          proof_photo_url: serviceRecord.proof_photo_url,
         },
         p_obligation_code: "fulfill_service_with_proof",
       });
@@ -196,7 +258,11 @@ export default async function handler(
           source: "marine-service-board",
           run_id: runId,
           proof_type: "operator_attestation",
-          note: "Hull washed, no visible damage",
+          boat_name: serviceRecord.boat_name,
+          customer_name: serviceRecord.customer_name,
+          service_event: serviceRecord.service_event,
+          note: serviceRecord.proof_note,
+          photo_url: serviceRecord.proof_photo_url,
         },
         p_failed_checks: [],
         p_rule_version: "marine-service-proof-v1",
@@ -265,12 +331,15 @@ export default async function handler(
       obligation: asRecord(obligationResult.data, "OBLIGATION"),
       resolution: asRecord(resolutionResult.data, "RESOLUTION"),
       receipt: asRecord(receiptResult.data, "RECEIPT"),
+      service_record: serviceRecord,
       lifecycle_state: lifecycle.lifecycle_state,
       entity_id: lifecycle.entity_id,
       receipt_entity_id: lifecycle.receipt_entity_id,
     });
   } catch (err) {
-    return res.status(500).json({
+    const statusCode = err instanceof RequestValidationError ? 400 : 500;
+
+    return res.status(statusCode).json({
       ok: false,
       error: err instanceof Error ? `${err.name}: ${err.message}` : "UNKNOWN_ERROR",
     });

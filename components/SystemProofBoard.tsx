@@ -45,12 +45,29 @@ export type SystemProofBoardProps = {
   error?: string;
 };
 
+type MarineServiceRecord = {
+  boat_name: string;
+  customer_name: string;
+  service_event: string;
+  proof_note: string;
+  proof_photo_url: string | null;
+};
+
+type MarineServiceDraft = {
+  boatName: string;
+  customerName: string;
+  serviceEvent: string;
+  proofNote: string;
+  proofPhotoUrl: string;
+};
+
 type LiveProofRunSuccess = {
   ok: true;
   event: Record<string, unknown>;
   obligation: Record<string, unknown>;
   resolution: Record<string, unknown>;
   receipt: Record<string, unknown>;
+  service_record?: MarineServiceRecord;
   lifecycle_state: string;
   entity_id: string | null;
   receipt_entity_id: string | null;
@@ -84,7 +101,14 @@ const publicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const publicAppUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 const serviceProofResultStorageKey = "autokirk-service-proof-result";
 const serviceProofType = "operator_attestation";
-const serviceProofNote = "Hull washed, no visible damage";
+const defaultServiceProofNote = "Hull washed, no visible damage";
+const initialMarineServiceDraft: MarineServiceDraft = {
+  boatName: "",
+  customerName: "",
+  serviceEvent: "",
+  proofNote: defaultServiceProofNote,
+  proofPhotoUrl: "",
+};
 
 let browserSupabaseClient: SupabaseClient | null = null;
 
@@ -208,6 +232,55 @@ function getReceiptOutcome(rows: LifecycleRow[]): string {
   return "RECEIPT ABSENT";
 }
 
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function getMarineServiceDraftError(draft: MarineServiceDraft): string | null {
+  if (!draft.boatName.trim()) {
+    return "BOAT_NAME_REQUIRED";
+  }
+
+  if (!draft.customerName.trim()) {
+    return "CUSTOMER_NAME_REQUIRED";
+  }
+
+  if (!draft.serviceEvent.trim()) {
+    return "SERVICE_EVENT_REQUIRED";
+  }
+
+  if (!draft.proofNote.trim()) {
+    return "PROOF_NOTE_REQUIRED";
+  }
+
+  if (draft.proofPhotoUrl.trim() && !isValidHttpUrl(draft.proofPhotoUrl.trim())) {
+    return "PROOF_PHOTO_URL_INVALID";
+  }
+
+  return null;
+}
+
+function toMarineServiceDraft(
+  record?: MarineServiceRecord
+): MarineServiceDraft {
+  if (!record) {
+    return { ...initialMarineServiceDraft };
+  }
+
+  return {
+    boatName: record.boat_name,
+    customerName: record.customer_name,
+    serviceEvent: record.service_event,
+    proofNote: record.proof_note,
+    proofPhotoUrl: record.proof_photo_url ?? "",
+  };
+}
+
 function RowField({
   label,
   value,
@@ -235,6 +308,64 @@ function ResultField({
       <div className="fieldLabel">{label}</div>
       <div className="runResultValue">{value}</div>
     </div>
+  );
+}
+
+function ServiceRecordInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  disabled,
+  fullWidth = false,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+  fullWidth?: boolean;
+}) {
+  return (
+    <label className={fullWidth ? "serviceField serviceFieldFull" : "serviceField"}>
+      <span className="fieldLabel">{label}</span>
+      <input
+        type="text"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="serviceInput"
+        placeholder={placeholder}
+        disabled={disabled}
+      />
+    </label>
+  );
+}
+
+function ServiceRecordTextarea({
+  label,
+  placeholder,
+  value,
+  onChange,
+  disabled,
+}: {
+  label: string;
+  placeholder: string;
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <label className="serviceField serviceFieldFull">
+      <span className="fieldLabel">{label}</span>
+      <textarea
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className="serviceTextarea"
+        placeholder={placeholder}
+        rows={4}
+        disabled={disabled}
+      />
+    </label>
   );
 }
 
@@ -317,11 +448,14 @@ export function SystemProofBoard({
     "Checking for an authenticated operator session..."
   );
   const [operatorSession, setOperatorSession] = useState<Session | null>(null);
+  const [serviceRecord, setServiceRecord] = useState<MarineServiceDraft>(() => ({
+    ...initialMarineServiceDraft,
+  }));
   const [runStatus, setRunStatus] = useState<
     "idle" | "running" | "success" | "error"
   >("idle");
   const [runMessage, setRunMessage] = useState<string>(
-    "Trigger a service-started event and submit operator proof to resolve the obligation."
+    "Record the boat, customer, service event, and proof to resolve the obligation."
   );
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
 
@@ -342,8 +476,9 @@ export function SystemProofBoard({
       const parsed = JSON.parse(stored) as LiveProofRunSuccess;
       setRunStatus("success");
       setRunMessage(
-        "Service proof submitted through kernel authority. Projection truth has been reloaded."
+        "Marine service record resolved through kernel authority. Projection truth has been reloaded."
       );
+      setServiceRecord(toMarineServiceDraft(parsed.service_record));
       setRunResult(parsed);
     } catch {
       window.sessionStorage.removeItem(serviceProofResultStorageKey);
@@ -416,6 +551,7 @@ export function SystemProofBoard({
   const projectionTone = getProjectionTone(projection);
   const lifecycleOutcome = getLifecycleOutcome(lifecycleRows);
   const receiptOutcome = getReceiptOutcome(lifecycleRows);
+  const latestServiceRecord = runResult?.service_record;
 
   const sourceRows = selectRows(lifecycleRows, (row) => Boolean(row.source_event_id));
   const obligationRows = lifecycleRows.slice(0, 4);
@@ -466,8 +602,24 @@ export function SystemProofBoard({
         return;
       }
 
+      const validationError = getMarineServiceDraftError(serviceRecord);
+
+      if (validationError) {
+        setRunStatus("error");
+        setRunMessage(validationError);
+        return;
+      }
+
+      const serviceRecordPayload = {
+        boat_name: serviceRecord.boatName.trim(),
+        customer_name: serviceRecord.customerName.trim(),
+        service_event: serviceRecord.serviceEvent.trim(),
+        proof_note: serviceRecord.proofNote.trim(),
+        proof_photo_url: serviceRecord.proofPhotoUrl.trim() || null,
+      };
+
       setRunStatus("running");
-      setRunMessage("Submitting service proof through the kernel...");
+      setRunMessage("Submitting the marine service record through the kernel...");
       setRunResult(null);
 
       try {
@@ -477,6 +629,7 @@ export function SystemProofBoard({
             "Content-Type": "application/json",
             Authorization: `Bearer ${operatorSession.access_token}`,
           },
+          body: JSON.stringify(serviceRecordPayload),
         });
 
         const payload = (await response.json()) as LiveProofRunResponse;
@@ -489,8 +642,9 @@ export function SystemProofBoard({
 
         setRunStatus("success");
         setRunMessage(
-          "Service resolved. Reloading projection truth from the live read model..."
+          "Marine service resolved. Reloading projection truth from the live read model..."
         );
+        setServiceRecord(toMarineServiceDraft(payload.service_record));
         setRunResult(payload);
 
         if (typeof window !== "undefined") {
@@ -568,7 +722,7 @@ export function SystemProofBoard({
     setRunResult(null);
     setRunStatus("idle");
     setRunMessage(
-      "Trigger a service-started event and submit operator proof to resolve the obligation."
+      "Record the boat, customer, service event, and proof to resolve the obligation."
     );
   }
 
@@ -725,17 +879,79 @@ export function SystemProofBoard({
 
               <div className="runPanel">
                 <div className="runPanelCopy">
-                  <div className="noticeLabel">Service Proof</div>
+                  <div className="noticeLabel">Marine Record</div>
                   <div className="runPanelTitle">Submit Proof To Resolve Service</div>
                   <p className="runPanelText">
-                    Record a marine service start event, open the obligation,
-                    resolve it with operator attestation, and confirm receipt
-                    emission.
+                    Capture one real marine job record: boat, customer, service
+                    event, proof note, optional photo URL, then emit the
+                    receipt-backed resolution.
                   </p>
                   <p className="runPanelText">
-                    Proof submitted: <code>{serviceProofType}</code> | Note:{" "}
-                    {serviceProofNote}
+                    Proof submitted: <code>{serviceProofType}</code>. Photo URL
+                    is optional; the note is always attached to the receipt.
                   </p>
+                  <div className="serviceRecordGrid">
+                    <ServiceRecordInput
+                      label="Boat"
+                      placeholder="Sea Ray 260 Sundancer"
+                      value={serviceRecord.boatName}
+                      onChange={(value) =>
+                        setServiceRecord((current) => ({
+                          ...current,
+                          boatName: value,
+                        }))
+                      }
+                      disabled={isRunning}
+                    />
+                    <ServiceRecordInput
+                      label="Customer"
+                      placeholder="Jordan Ellis"
+                      value={serviceRecord.customerName}
+                      onChange={(value) =>
+                        setServiceRecord((current) => ({
+                          ...current,
+                          customerName: value,
+                        }))
+                      }
+                      disabled={isRunning}
+                    />
+                    <ServiceRecordInput
+                      label="Service Event"
+                      placeholder="Hull wash and condition check"
+                      value={serviceRecord.serviceEvent}
+                      onChange={(value) =>
+                        setServiceRecord((current) => ({
+                          ...current,
+                          serviceEvent: value,
+                        }))
+                      }
+                      disabled={isRunning}
+                    />
+                    <ServiceRecordInput
+                      label="Proof Photo URL (Optional)"
+                      placeholder="https://example.com/proof-photo.jpg"
+                      value={serviceRecord.proofPhotoUrl}
+                      onChange={(value) =>
+                        setServiceRecord((current) => ({
+                          ...current,
+                          proofPhotoUrl: value,
+                        }))
+                      }
+                      disabled={isRunning}
+                    />
+                    <ServiceRecordTextarea
+                      label="Proof Note"
+                      placeholder={defaultServiceProofNote}
+                      value={serviceRecord.proofNote}
+                      onChange={(value) =>
+                        setServiceRecord((current) => ({
+                          ...current,
+                          proofNote: value,
+                        }))
+                      }
+                      disabled={isRunning}
+                    />
+                  </div>
                 </div>
 
                 <div className="runPanelAction">
@@ -758,7 +974,37 @@ export function SystemProofBoard({
                   <div className="noticeLabel">Latest Service Result</div>
                   <div className="runResultGrid">
                     <ResultField
-                      label="EVENT"
+                      label="BOAT"
+                      value={String(
+                        latestServiceRecord?.boat_name ?? "—"
+                      )}
+                    />
+                    <ResultField
+                      label="CUSTOMER"
+                      value={String(
+                        latestServiceRecord?.customer_name ?? "—"
+                      )}
+                    />
+                    <ResultField
+                      label="SERVICE"
+                      value={String(
+                        latestServiceRecord?.service_event ?? "—"
+                      )}
+                    />
+                    <ResultField
+                      label="PROOF NOTE"
+                      value={String(
+                        latestServiceRecord?.proof_note ?? "—"
+                      )}
+                    />
+                    <ResultField
+                      label="PROOF PHOTO"
+                      value={String(
+                        latestServiceRecord?.proof_photo_url ?? "NOTE ONLY"
+                      )}
+                    />
+                    <ResultField
+                      label="EVENT TYPE"
                       value={String(
                         runResult.event["source_event_type"] ??
                           runResult.event["id"] ??
@@ -774,14 +1020,6 @@ export function SystemProofBoard({
                       )}
                     />
                     <ResultField
-                      label="RESOLUTION"
-                      value={String(
-                        runResult.resolution["resolution_type"] ??
-                          runResult.resolution["id"] ??
-                          "—"
-                      )}
-                    />
-                    <ResultField
                       label="RECEIPT"
                       value={String(
                         runResult.receipt["id"] ?? runResult.receipt_entity_id ?? "—"
@@ -790,10 +1028,6 @@ export function SystemProofBoard({
                     <ResultField
                       label="STATE"
                       value={runResult.lifecycle_state.toUpperCase()}
-                    />
-                    <ResultField
-                      label="ENTITY"
-                      value={runResult.entity_id ?? "—"}
                     />
                   </div>
                 </div>
@@ -1323,7 +1557,7 @@ export function SystemProofBoard({
           display: flex;
           justify-content: space-between;
           gap: 18px;
-          align-items: center;
+          align-items: start;
           background:
             linear-gradient(135deg, rgba(212, 175, 55, 0.1), rgba(212, 175, 55, 0.03)),
             rgba(212, 175, 55, 0.04);
@@ -1331,8 +1565,8 @@ export function SystemProofBoard({
 
         .runPanelCopy {
           display: grid;
-          gap: 8px;
-          max-width: 560px;
+          gap: 12px;
+          max-width: 720px;
         }
 
         .runPanelTitle {
@@ -1357,6 +1591,52 @@ export function SystemProofBoard({
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
           font-size: 12px;
+        }
+
+        .serviceRecordGrid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .serviceField {
+          display: grid;
+          gap: 8px;
+          min-width: 0;
+        }
+
+        .serviceFieldFull {
+          grid-column: 1 / -1;
+        }
+
+        .serviceInput,
+        .serviceTextarea {
+          width: 100%;
+          padding: 14px 16px;
+          border-radius: 16px;
+          border: 1px solid rgba(212, 175, 55, 0.16);
+          background: rgba(5, 5, 4, 0.88);
+          color: #fff2cf;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
+          letter-spacing: 0.04em;
+        }
+
+        .serviceTextarea {
+          min-height: 108px;
+          resize: vertical;
+        }
+
+        .serviceInput::placeholder,
+        .serviceTextarea::placeholder {
+          color: #8e7d54;
+        }
+
+        .serviceInput:disabled,
+        .serviceTextarea:disabled {
+          opacity: 0.72;
         }
 
         .runPanelAction {
@@ -1648,10 +1928,15 @@ export function SystemProofBoard({
           .heroStats,
           .fieldGrid,
           .runResultGrid,
+          .serviceRecordGrid,
           .navList,
           .statusStack,
           .lifecycleStrip {
             grid-template-columns: 1fr;
+          }
+
+          .serviceFieldFull {
+            grid-column: auto;
           }
 
           .lifecycleConnector {
