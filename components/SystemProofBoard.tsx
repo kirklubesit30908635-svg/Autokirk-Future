@@ -94,6 +94,7 @@ const leftRail = [
   "FAILURES",
   "WATCHDOG",
 ];
+const serverRenderTimeZone = "UTC";
 const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const publicAppUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
@@ -130,7 +131,10 @@ function formatValue(value: SummaryValue): string {
   return value;
 }
 
-function formatTimestamp(value: string | null): string {
+function formatTimestamp(
+  value: string | null,
+  timeZone = serverRenderTimeZone
+): string {
   if (!value) {
     return "—";
   }
@@ -144,6 +148,7 @@ function formatTimestamp(value: string | null): string {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone,
   }).format(date);
 }
 
@@ -315,7 +320,13 @@ function getServiceDraftValue(
   return draft[field.draftKey] ?? "";
 }
 
-function RowRecord({ row }: { row: LifecycleRow }) {
+function RowRecord({
+  row,
+  timeZone,
+}: {
+  row: LifecycleRow;
+  timeZone: string;
+}) {
   return (
     <article className="record">
       <div className="recordTop">
@@ -339,8 +350,11 @@ function RowRecord({ row }: { row: LifecycleRow }) {
           value={(row.truth_burden ?? "—").toUpperCase()}
         />
         <RowField label="RECEIPT" value={compactId(row.receipt_id)} />
-        <RowField label="OPENED" value={formatTimestamp(row.obligation_created_at)} />
-        <RowField label="DUE" value={formatTimestamp(row.due_at)} />
+        <RowField
+          label="OPENED"
+          value={formatTimestamp(row.obligation_created_at, timeZone)}
+        />
+        <RowField label="DUE" value={formatTimestamp(row.due_at, timeZone)} />
       </div>
     </article>
   );
@@ -351,11 +365,13 @@ function StreamSection({
   value,
   description,
   rows,
+  timeZone,
 }: {
   title: string;
   value: SummaryValue;
   description: string;
   rows: LifecycleRow[];
+  timeZone: string;
 }) {
   return (
     <section className="streamSection">
@@ -369,7 +385,9 @@ function StreamSection({
 
       <div className="recordList">
         {rows.length > 0 ? (
-          rows.map((row) => <RowRecord key={row.obligation_id} row={row} />)
+          rows.map((row) => (
+            <RowRecord key={row.obligation_id} row={row} timeZone={timeZone} />
+          ))
         ) : (
           <div className="emptyState">NO LIVE DATA</div>
         )}
@@ -407,10 +425,21 @@ export function SystemProofBoard({
     activeProofScenario.ui.idleMessage
   );
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
+  const [renderTimeZone, setRenderTimeZone] = useState(serverRenderTimeZone);
   const selectedScenario = getProofScenario(selectedScenarioId);
   const resultScenario = runResult
     ? getProofScenario(runResult.scenario_id)
     : selectedScenario;
+
+  useEffect(() => {
+    const nextTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+    if (nextTimeZone) {
+      setRenderTimeZone((current) =>
+        current === nextTimeZone ? current : nextTimeZone
+      );
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -745,7 +774,9 @@ export function SystemProofBoard({
 
           <div className="railFooter">
             <div className="eyebrow">Generated</div>
-            <div className="railTimestamp">{formatTimestamp(generatedAt)}</div>
+            <div className="railTimestamp">
+              {formatTimestamp(generatedAt, renderTimeZone)}
+            </div>
           </div>
         </aside>
 
@@ -783,7 +814,9 @@ export function SystemProofBoard({
                 <div className="sectionLabel">{selectedScenario.ui.sectionLabel}</div>
                 <p className="proofCopy">{selectedScenario.ui.sectionDescription}</p>
               </div>
-              <div className="proofMeta">{formatTimestamp(generatedAt)}</div>
+              <div className="proofMeta">
+                {formatTimestamp(generatedAt, renderTimeZone)}
+              </div>
             </div>
 
             <div className="scenarioSelector" aria-label="Proof scenarios">
@@ -1014,36 +1047,42 @@ export function SystemProofBoard({
               value={summary.sourceEvents}
               description="Latest recorded events attached to obligation truth."
               rows={sourceRows}
+              timeZone={renderTimeZone}
             />
             <StreamSection
               title="Obligations"
               value={summary.obligations}
               description="Open and recent obligations in the projection stream."
               rows={obligationRows}
+              timeZone={renderTimeZone}
             />
             <StreamSection
               title="Receipts"
               value={summary.receipts}
               description="Receipt-backed lifecycle proofs emitted by the system."
               rows={receiptRows}
+              timeZone={renderTimeZone}
             />
             <StreamSection
               title="Failed"
               value={summary.failed}
               description="Failure states remain visible until doctrine-valid proof exists."
               rows={failedRows}
+              timeZone={renderTimeZone}
             />
             <StreamSection
               title="Overdue"
               value={summary.overdue}
               description="Watchdog rows surfaced from the overdue failure read model."
               rows={overdueRows}
+              timeZone={renderTimeZone}
             />
             <StreamSection
               title="Projection Status"
               value={projection}
               description="Current projection health with unresolved or receipt-absent rows."
               rows={projectionRows}
+              timeZone={renderTimeZone}
             />
           </div>
         </section>
