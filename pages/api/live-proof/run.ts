@@ -153,7 +153,7 @@ export default async function handler(
       });
     }
 
-    const runId = `live-proof-${Date.now()}-${Math.random()
+    const runId = `marine-service-${Date.now()}-${Math.random()
       .toString(36)
       .slice(2, 10)}`;
 
@@ -162,14 +162,16 @@ export default async function handler(
       .rpc("ingest_event_to_obligation", {
         p_workspace_id: WORKSPACE_ID,
         p_actor_id: user.id,
-        p_source_system: "live-proof-ui",
+        p_source_system: "marine-service-board",
         p_source_event_key: runId,
-        p_source_event_type: "autokirk.live_proof_requested",
+        p_source_event_type: "marine.service_started",
         p_payload: {
-          runner: "homepage",
+          operator_surface: "homepage",
           run_id: runId,
+          service_type: "marine_service",
+          vessel_name: "AutoKirk demo vessel",
         },
-        p_obligation_code: "autokirk_live_proof",
+        p_obligation_code: "fulfill_service_with_proof",
       });
 
     if (ingestError) {
@@ -189,14 +191,15 @@ export default async function handler(
       .rpc("resolve_with_proof", {
         p_obligation_id: obligationId,
         p_actor_id: user.id,
-        p_reason: "live proof completed",
+        p_reason: "service proof submitted",
         p_evidence_present: {
-          source: "autokirk-live-proof",
+          source: "marine-service-board",
           run_id: runId,
-          proof: "homepage initiated canonical lifecycle run",
+          proof_type: "operator_attestation",
+          note: "Hull washed, no visible damage",
         },
         p_failed_checks: [],
-        p_rule_version: "live-proof-v1",
+        p_rule_version: "marine-service-proof-v1",
         p_idempotency_key: `${runId}-resolve`,
       });
 

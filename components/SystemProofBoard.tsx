@@ -82,6 +82,9 @@ const leftRail = [
 const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 const publicAppUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
+const serviceProofResultStorageKey = "autokirk-service-proof-result";
+const serviceProofType = "operator_attestation";
+const serviceProofNote = "Hull washed, no visible damage";
 
 let browserSupabaseClient: SupabaseClient | null = null;
 
@@ -318,7 +321,7 @@ export function SystemProofBoard({
     "idle" | "running" | "success" | "error"
   >("idle");
   const [runMessage, setRunMessage] = useState<string>(
-    "Run the canonical event -> obligation -> resolution -> receipt loop through kernel authority."
+    "Trigger a service-started event and submit operator proof to resolve the obligation."
   );
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
 
@@ -327,23 +330,23 @@ export function SystemProofBoard({
       return;
     }
 
-    const stored = window.sessionStorage.getItem("autokirk-live-proof-result");
+    const stored = window.sessionStorage.getItem(serviceProofResultStorageKey);
 
     if (!stored) {
       return;
     }
 
-    window.sessionStorage.removeItem("autokirk-live-proof-result");
+    window.sessionStorage.removeItem(serviceProofResultStorageKey);
 
     try {
       const parsed = JSON.parse(stored) as LiveProofRunSuccess;
       setRunStatus("success");
       setRunMessage(
-        "Full loop completed through kernel authority. Projection truth has been reloaded."
+        "Service proof submitted through kernel authority. Projection truth has been reloaded."
       );
       setRunResult(parsed);
     } catch {
-      window.sessionStorage.removeItem("autokirk-live-proof-result");
+      window.sessionStorage.removeItem(serviceProofResultStorageKey);
     }
   }, []);
 
@@ -375,7 +378,7 @@ export function SystemProofBoard({
         }
       } else {
         setAuthState("signed_out");
-        setAuthMessage("Sign in as a workspace operator to run the live loop.");
+        setAuthMessage("Sign in as a workspace operator to submit service proof.");
       }
     };
 
@@ -464,7 +467,7 @@ export function SystemProofBoard({
       }
 
       setRunStatus("running");
-      setRunMessage("Running the full loop through the kernel...");
+      setRunMessage("Submitting service proof through the kernel...");
       setRunResult(null);
 
       try {
@@ -480,19 +483,19 @@ export function SystemProofBoard({
 
         if (!response.ok || !payload.ok) {
           throw new Error(
-            toApiError(payload, `LIVE_PROOF_REQUEST_FAILED_${response.status}`)
+            toApiError(payload, `SERVICE_PROOF_REQUEST_FAILED_${response.status}`)
           );
         }
 
         setRunStatus("success");
         setRunMessage(
-          "Loop completed. Reloading projection truth from the live read model..."
+          "Service resolved. Reloading projection truth from the live read model..."
         );
         setRunResult(payload);
 
         if (typeof window !== "undefined") {
           window.sessionStorage.setItem(
-            "autokirk-live-proof-result",
+            serviceProofResultStorageKey,
             JSON.stringify(payload)
           );
           window.setTimeout(() => {
@@ -504,7 +507,7 @@ export function SystemProofBoard({
         setRunMessage(
           runError instanceof Error
             ? runError.message
-            : "LIVE_PROOF_REQUEST_FAILED"
+            : "SERVICE_PROOF_REQUEST_FAILED"
         );
       }
     });
@@ -565,7 +568,7 @@ export function SystemProofBoard({
     setRunResult(null);
     setRunStatus("idle");
     setRunMessage(
-      "Run the canonical event -> obligation -> resolution -> receipt loop through kernel authority."
+      "Trigger a service-started event and submit operator proof to resolve the obligation."
     );
   }
 
@@ -629,9 +632,9 @@ export function SystemProofBoard({
           <section className="proofPanel">
             <div className="proofPanelHeader">
               <div>
-                <div className="sectionLabel">Main Proof Block</div>
+                <div className="sectionLabel">Service Resolution</div>
                 <p className="proofCopy">
-                  The lifecycle remains visible until proof or failure is
+                  A service stays unresolved until operator proof or failure is
                   explicitly recorded by the kernel.
                 </p>
               </div>
@@ -641,12 +644,12 @@ export function SystemProofBoard({
             <div className="lifecycleStrip">
               <div className="lifecycleNode">
                 <span className="nodeIndex">01</span>
-                <span className="nodeLabel">EVENT RECORDED</span>
+                <span className="nodeLabel">SERVICE STARTED</span>
               </div>
               <div className="lifecycleConnector" />
               <div className="lifecycleNode">
                 <span className="nodeIndex">02</span>
-                <span className="nodeLabel">OBLIGATION OPENED</span>
+                <span className="nodeLabel">SERVICE OBLIGATION OPENED</span>
               </div>
               <div className="lifecycleConnector" />
               <div className="lifecycleNode lifecycleNodeAccent">
@@ -681,7 +684,7 @@ export function SystemProofBoard({
                 </div>
 
                 <p className="operatorText">
-                  The live loop can only be triggered by an authenticated workspace
+                  Service proof can only be submitted by an authenticated workspace
                   operator.
                 </p>
 
@@ -722,11 +725,16 @@ export function SystemProofBoard({
 
               <div className="runPanel">
                 <div className="runPanelCopy">
-                  <div className="noticeLabel">Operator Loop</div>
-                  <div className="runPanelTitle">Run The Full Loop</div>
+                  <div className="noticeLabel">Service Proof</div>
+                  <div className="runPanelTitle">Submit Proof To Resolve Service</div>
                   <p className="runPanelText">
-                    Emit a live source event, open the obligation, resolve it
-                    through kernel authority, and confirm receipt emission.
+                    Record a marine service start event, open the obligation,
+                    resolve it with operator attestation, and confirm receipt
+                    emission.
+                  </p>
+                  <p className="runPanelText">
+                    Proof submitted: <code>{serviceProofType}</code> | Note:{" "}
+                    {serviceProofNote}
                   </p>
                 </div>
 
@@ -737,7 +745,7 @@ export function SystemProofBoard({
                     onClick={handleRunLoop}
                     disabled={isRunning || authState !== "ready"}
                   >
-                    {isRunning ? "RUNNING LOOP..." : "RUN FULL LOOP"}
+                    {isRunning ? "SUBMITTING PROOF..." : "SUBMIT SERVICE PROOF"}
                   </button>
                   <div className={`runStatus runStatus-${runStatus}`}>
                     {runMessage}
@@ -747,7 +755,7 @@ export function SystemProofBoard({
 
               {runResult ? (
                 <div className="runResultCard">
-                  <div className="noticeLabel">Latest Loop Result</div>
+                  <div className="noticeLabel">Latest Service Result</div>
                   <div className="runResultGrid">
                     <ResultField
                       label="EVENT"
@@ -1338,6 +1346,17 @@ export function SystemProofBoard({
           color: #cbbd96;
           font-size: 14px;
           line-height: 1.7;
+        }
+
+        .runPanelText code {
+          padding: 2px 8px;
+          border-radius: 999px;
+          background: rgba(212, 175, 55, 0.12);
+          color: #f7edcf;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
         }
 
         .runPanelAction {
