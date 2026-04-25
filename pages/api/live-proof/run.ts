@@ -1,4 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { createServerClient } from "@supabase/auth-helpers-nextjs";
+import { serialize } from "cookie";
 import { createClient } from "@supabase/supabase-js";
 
 const WORKSPACE_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
@@ -56,6 +58,17 @@ function asRecord(value: unknown, name: string): JsonRecord {
   return value as JsonRecord;
 }
 
+function appendSetCookie(res: NextApiResponse, cookie: string) {
+  const existing = res.getHeader("Set-Cookie");
+  const cookies = existing
+    ? Array.isArray(existing)
+      ? existing
+      : [String(existing)]
+    : [];
+
+  res.setHeader("Set-Cookie", [...cookies, cookie]);
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>
@@ -66,38 +79,52 @@ export default async function handler(
   }
 
   try {
-    const authHeader = req.headers.authorization;
-    const accessToken =
-      typeof authHeader === "string" && authHeader.startsWith("Bearer ")
-        ? authHeader.slice("Bearer ".length)
-        : null;
     const url = assertEnv(
       "NEXT_PUBLIC_SUPABASE_URL",
       process.env.NEXT_PUBLIC_SUPABASE_URL
+    );
+    const anonKey = assertEnv(
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     );
     const key = assertEnv(
       "SUPABASE_SERVICE_ROLE_KEY",
       process.env.SUPABASE_SERVICE_ROLE_KEY
     );
 
-    const supabase = createClient(url, key, {
+    const userSupabase = createServerClient(url, anonKey, {
+      cookies: {
+        get(name) {
+          return req.cookies[name];
+        },
+        set(name, value, options) {
+          appendSetCookie(
+            res,
+            serialize(name, value, { path: "/", ...options })
+          );
+        },
+        remove(name, options) {
+          appendSetCookie(
+            res,
+            serialize(name, "", { path: "/", maxAge: 0, ...options })
+          );
+        },
+      },
+    });
+    const serviceSupabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-
-    if (!accessToken) {
-      return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
-    }
 
     const {
       data: { user },
       error: userError,
-    } = await supabase.auth.getUser(accessToken);
+    } = await userSupabase.auth.getUser();
 
     if (userError || !user) {
-      return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+      return res.status(401).json({ ok: false, error: "NOT_AUTHENTICATED" });
     }
 
-    const { data: membership, error: membershipError } = await supabase
+    const { data: membership, error: membershipError } = await serviceSupabase
       .schema("core")
       .from("workspace_members")
       .select("workspace_id,user_id")
@@ -123,7 +150,7 @@ export default async function handler(
       .toString(36)
       .slice(2, 10)}`;
 
-    const { data: ingestRaw, error: ingestError } = await supabase
+    const { data: ingestRaw, error: ingestError } = await serviceSupabase
       .schema("api")
       .rpc("ingest_event_to_obligation", {
         p_workspace_id: WORKSPACE_ID,
@@ -150,7 +177,7 @@ export default async function handler(
       throw new Error("INGEST_RESULT_INCOMPLETE");
     }
 
-    const { data: resolveRaw, error: resolveError } = await supabase
+    const { data: resolveRaw, error: resolveError } = await serviceSupabase
       .schema("api")
       .rpc("resolve_with_proof", {
         p_obligation_id: obligationId,
@@ -177,31 +204,31 @@ export default async function handler(
 
     const [eventResult, obligationResult, resolutionResult, receiptResult, lifecycleResult] =
       await Promise.all([
-        supabase
+        serviceSupabase
           .schema("ingest")
           .from("source_events")
           .select("*")
           .eq("id", sourceEventId)
           .single(),
-        supabase
+        serviceSupabase
           .schema("core")
           .from("obligations")
           .select("*")
           .eq("id", obligationId)
           .single(),
-        supabase
+        serviceSupabase
           .schema("ledger")
           .from("events")
           .select("*")
           .eq("id", resolve.event_id)
           .single(),
-        supabase
+        serviceSupabase
           .schema("receipts")
           .from("receipts")
           .select("*")
           .eq("id", resolve.receipt_id)
           .single(),
-        supabase
+        serviceSupabase
           .schema("projection")
           .from("obligation_lifecycle")
           .select("lifecycle_state, entity_id, receipt_entity_id")

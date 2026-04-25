@@ -1,6 +1,7 @@
 import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/router";
-import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
+import type { Session, SupabaseClient } from "@supabase/supabase-js";
 
 type LifecycleRow = {
   obligation_id: string;
@@ -89,7 +90,7 @@ function getBrowserSupabaseClient(): SupabaseClient | null {
   }
 
   if (!browserSupabaseClient) {
-    browserSupabaseClient = createClient(publicSupabaseUrl, publicSupabaseAnonKey, {
+    browserSupabaseClient = createBrowserClient(publicSupabaseUrl, publicSupabaseAnonKey, {
       auth: {
         persistSession: true,
         autoRefreshToken: true,
