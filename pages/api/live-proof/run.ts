@@ -152,10 +152,9 @@ export default async function handler(
 
     const { data: resolveRaw, error: resolveError } = await supabase
       .schema("api")
-      .rpc("resolve_obligation", {
+      .rpc("resolve_with_proof", {
         p_obligation_id: obligationId,
         p_actor_id: user.id,
-        p_resolution_type: "resolve_with_proof",
         p_reason: "live proof completed",
         p_evidence_present: {
           source: "autokirk-live-proof",
