@@ -2,8 +2,15 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createServerClient } from "@supabase/auth-helpers-nextjs";
 import { serialize } from "cookie";
 import { createClient } from "@supabase/supabase-js";
+import {
+  activeProofScenario,
+  isValidHttpUrl,
+  type MarineServiceFieldConfig,
+  type MarineServiceRecord,
+} from "../../../lib/proofScenarios";
 
 const WORKSPACE_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
+const proofScenario = activeProofScenario;
 
 type JsonRecord = Record<string, unknown>;
 
@@ -24,14 +31,6 @@ type LifecycleRow = {
   lifecycle_state: string;
   entity_id: string | null;
   receipt_entity_id: string | null;
-};
-
-type MarineServiceRecord = {
-  boat_name: string;
-  customer_name: string;
-  service_event: string;
-  proof_note: string;
-  proof_photo_url: string | null;
 };
 
 type ApiResponse =
@@ -69,9 +68,9 @@ function asRecord(value: unknown, name: string): JsonRecord {
   return value as JsonRecord;
 }
 
-function requireTrimmedString(value: unknown, name: string): string {
+function requireTrimmedString(value: unknown, errorCode: string): string {
   if (typeof value !== "string" || !value.trim()) {
-    throw new RequestValidationError(`${name}_REQUIRED`);
+    throw new RequestValidationError(errorCode);
   }
 
   return value.trim();
@@ -92,27 +91,47 @@ function parseMarineServiceRecord(body: unknown): MarineServiceRecord {
   }
 
   const payload = body as Record<string, unknown>;
-  const proofPhotoUrl = optionalTrimmedString(payload.proof_photo_url);
+  const proofPhotoField = proofScenario.fields.find(
+    (field) => field.recordKey === "proof_photo_url"
+  );
+
+  if (!proofPhotoField) {
+    throw new Error("PROOF_PHOTO_FIELD_MISSING");
+  }
+
+  const serviceRecord = {} as MarineServiceRecord;
+
+  for (const field of proofScenario.fields) {
+    const rawValue = payload[field.recordKey];
+
+    if (field.recordKey === "proof_photo_url") {
+      continue;
+    }
+
+    serviceRecord[field.recordKey] = requireTrimmedFieldValue(field, rawValue);
+  }
+
+  const proofPhotoUrl = optionalTrimmedString(payload[proofPhotoField.recordKey]);
 
   if (proofPhotoUrl) {
-    try {
-      const parsedUrl = new URL(proofPhotoUrl);
-
-      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-        throw new Error("INVALID_PROTOCOL");
-      }
-    } catch {
+    if (!isValidHttpUrl(proofPhotoUrl)) {
       throw new RequestValidationError("PROOF_PHOTO_URL_INVALID");
     }
   }
 
-  return {
-    boat_name: requireTrimmedString(payload.boat_name, "BOAT_NAME"),
-    customer_name: requireTrimmedString(payload.customer_name, "CUSTOMER_NAME"),
-    service_event: requireTrimmedString(payload.service_event, "SERVICE_EVENT"),
-    proof_note: requireTrimmedString(payload.proof_note, "PROOF_NOTE"),
-    proof_photo_url: proofPhotoUrl,
-  };
+  serviceRecord.proof_photo_url = proofPhotoUrl;
+
+  return serviceRecord;
+}
+
+function requireTrimmedFieldValue(
+  field: MarineServiceFieldConfig,
+  value: unknown
+): string {
+  return requireTrimmedString(
+    value,
+    field.requiredError ?? `${field.recordKey.toUpperCase()}_REQUIRED`
+  );
 }
 
 function appendSetCookie(res: NextApiResponse, cookie: string) {
@@ -220,20 +239,20 @@ export default async function handler(
       .rpc("ingest_event_to_obligation", {
         p_workspace_id: WORKSPACE_ID,
         p_actor_id: user.id,
-        p_source_system: "marine-service-board",
+        p_source_system: proofScenario.run.sourceSystem,
         p_source_event_key: runId,
-        p_source_event_type: "marine.service_started",
+        p_source_event_type: proofScenario.run.eventType,
         p_payload: {
-          operator_surface: "homepage",
+          operator_surface: proofScenario.run.operatorSurface,
           run_id: runId,
-          service_type: "marine_service",
+          service_type: proofScenario.run.serviceType,
           boat_name: serviceRecord.boat_name,
           customer_name: serviceRecord.customer_name,
           service_event: serviceRecord.service_event,
           proof_note: serviceRecord.proof_note,
           proof_photo_url: serviceRecord.proof_photo_url,
         },
-        p_obligation_code: "fulfill_service_with_proof",
+        p_obligation_code: proofScenario.run.obligationCode,
       });
 
     if (ingestError) {
@@ -253,11 +272,11 @@ export default async function handler(
       .rpc("resolve_with_proof", {
         p_obligation_id: obligationId,
         p_actor_id: user.id,
-        p_reason: "service proof submitted",
+        p_reason: proofScenario.run.resolutionReason,
         p_evidence_present: {
-          source: "marine-service-board",
+          source: proofScenario.run.sourceSystem,
           run_id: runId,
-          proof_type: "operator_attestation",
+          proof_type: proofScenario.run.proofType,
           boat_name: serviceRecord.boat_name,
           customer_name: serviceRecord.customer_name,
           service_event: serviceRecord.service_event,
@@ -265,7 +284,7 @@ export default async function handler(
           photo_url: serviceRecord.proof_photo_url,
         },
         p_failed_checks: [],
-        p_rule_version: "marine-service-proof-v1",
+        p_rule_version: proofScenario.run.ruleVersion,
         p_idempotency_key: `${runId}-resolve`,
       });
 
