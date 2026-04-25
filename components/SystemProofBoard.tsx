@@ -81,6 +81,7 @@ const leftRail = [
 
 const publicSupabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const publicSupabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+const publicAppUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
 
 let browserSupabaseClient: SupabaseClient | null = null;
 
@@ -163,6 +164,20 @@ function getProjectionTone(
   }
 
   return "projectionOffline";
+}
+
+function getOperatorRedirectUrl(): string | undefined {
+  if (typeof window === "undefined") {
+    return publicAppUrl ? new URL("/", publicAppUrl).toString() : undefined;
+  }
+
+  const callbackOrigin =
+    publicAppUrl ||
+    (window.location.hostname.endsWith(".vercel.app")
+      ? "https://autokirk.com"
+      : window.location.origin);
+
+  return new URL(window.location.pathname || "/", callbackOrigin).toString();
 }
 
 function getLifecycleOutcome(rows: LifecycleRow[]): string {
@@ -520,10 +535,7 @@ export function SystemProofBoard({
     const { error: signInError } = await client.auth.signInWithOtp({
       email,
       options: {
-        emailRedirectTo:
-          typeof window !== "undefined"
-            ? `${window.location.origin}${router.asPath}`
-            : undefined,
+        emailRedirectTo: getOperatorRedirectUrl(),
       },
     });
 
