@@ -554,6 +554,78 @@ export function SystemProofBoard({
   const lifecycleOutcome = getLifecycleOutcome(lifecycleRows);
   const receiptOutcome = getReceiptOutcome(lifecycleRows);
   const latestServiceRecord = runResult?.service_record;
+  const latestLifecycleRow = lifecycleRows[0] ?? watchdogRows[0] ?? null;
+  const latestVisibleEventType = String(
+    runResult?.event["source_event_type"] ??
+      latestLifecycleRow?.source_event_type ??
+      "NO SOURCE EVENT TYPE"
+  );
+  const latestVisibleObligation = String(
+    runResult?.obligation["obligation_code"] ??
+      latestLifecycleRow?.obligation_code ??
+      "NO OBLIGATION LOADED"
+  );
+  const latestVisibleReceipt =
+    String(
+      runResult?.receipt["id"] ??
+        latestLifecycleRow?.receipt_id ??
+        latestLifecycleRow?.receipt_entity_id ??
+        ""
+    ) || "RECEIPT NOT EMITTED";
+  const latestVisibleResolution =
+    latestLifecycleRow?.resolution_type?.replaceAll("_", " ").toUpperCase() ??
+    (runResult ? "RESOLVE WITH PROOF" : "NO RESOLUTION RECORDED");
+  const latestProofStatus =
+    latestLifecycleRow?.proof_status?.replaceAll("_", " ").toUpperCase() ??
+    (runResult ? "SUFFICIENT" : "PROOF NOT VISIBLE");
+  const latestLifecycleState =
+    runResult?.lifecycle_state ?? latestLifecycleRow?.lifecycle_state ?? "open";
+  const operatorStateLabel =
+    latestLifecycleState === "resolved"
+      ? "RESOLVED"
+      : latestLifecycleState === "failed"
+      ? "FAILED"
+      : latestLifecycleState === "open"
+      ? "AWAITING PROOF"
+      : "OPEN";
+  const operatorStateTone =
+    latestLifecycleState === "resolved"
+      ? "resolved"
+      : latestLifecycleState === "failed"
+      ? "failed"
+      : "open";
+  const operatorHeadline =
+    latestLifecycleState === "resolved"
+      ? "Latest work item is proven and receipt-backed."
+      : latestLifecycleState === "failed"
+      ? "Latest work item is failed until valid proof is supplied."
+      : latestLifecycleRow
+      ? "Latest work item is still open and waiting for proof."
+      : "No work item is loaded in the current projection snapshot.";
+  const operatorSummary =
+    latestLifecycleState === "resolved"
+      ? `${latestVisibleEventType} opened ${latestVisibleObligation}, and the system emitted ${latestVisibleReceipt}.`
+      : latestLifecycleState === "failed"
+      ? `${latestVisibleEventType} opened ${latestVisibleObligation}, but the current truth is failed and still visible.`
+      : latestLifecycleRow
+      ? `${latestVisibleEventType} opened ${latestVisibleObligation}, and the system has not emitted a receipt yet.`
+      : "The board is live, but no current event and obligation pair is available to summarize.";
+  const missingSummary =
+    latestLifecycleState === "resolved"
+      ? "Nothing missing. Proof is accepted and the receipt is already emitted."
+      : latestLifecycleState === "failed"
+      ? "Accepted proof is missing or rejected. The failed state remains until doctrine-valid proof exists."
+      : latestLifecycleRow
+      ? "Accepted proof and receipt are still missing from the latest work item."
+      : "A live obligation row is missing from the current projection snapshot.";
+  const nextOperatorAction =
+    authState !== "ready"
+      ? selectedScenario.ui.signInRequiredMessage
+      : latestLifecycleState === "failed"
+      ? "Inspect the failed item in the system trace, then resubmit doctrine-valid proof if the work is complete."
+      : latestLifecycleState === "resolved"
+      ? "Review the receipt or switch scenarios to handle the next work item."
+      : selectedScenario.ui.idleMessage;
 
   const sourceRows = selectRows(lifecycleRows, (row) => Boolean(row.source_event_id));
   const obligationRows = lifecycleRows.slice(0, 4);
@@ -862,6 +934,83 @@ export function SystemProofBoard({
               </div>
             </div>
 
+            <div className={`operatorSummaryCard operatorSummaryCard-${operatorStateTone}`}>
+              <div className="operatorSummaryHeader">
+                <div>
+                  <div className="noticeLabel">Operator Answer</div>
+                  <div className="operatorSummaryTitle">{operatorHeadline}</div>
+                </div>
+                <div className={`operatorSummaryBadge operatorSummaryBadge-${operatorStateTone}`}>
+                  {operatorStateLabel}
+                </div>
+              </div>
+              <p className="operatorSummaryText">{operatorSummary}</p>
+              <div className="operatorSummaryGrid">
+                <div className="operatorSummaryItem">
+                  <div className="fieldLabel">What Happened</div>
+                  <div className="operatorSummaryValue">
+                    {latestVisibleEventType}
+                    {" -> "}
+                    {latestVisibleObligation}
+                  </div>
+                </div>
+                <div className="operatorSummaryItem">
+                  <div className="fieldLabel">Was It Proven</div>
+                  <div className="operatorSummaryValue">
+                    {latestLifecycleState === "resolved"
+                      ? "Yes. Receipt emitted."
+                      : latestLifecycleState === "failed"
+                      ? "No. Failure remains visible."
+                      : "Not yet."}
+                  </div>
+                </div>
+                <div className="operatorSummaryItem">
+                  <div className="fieldLabel">What Is Missing</div>
+                  <div className="operatorSummaryValue">{missingSummary}</div>
+                </div>
+                <div className="operatorSummaryItem">
+                  <div className="fieldLabel">Next Operator Action</div>
+                  <div className="operatorSummaryValue">{nextOperatorAction}</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="explanationPanel">
+              <div className="noticeLabel">Current Proof Story</div>
+              <div className="explanationGrid">
+                <div className="explanationCard">
+                  <div className="fieldLabel">Event</div>
+                  <div className="explanationValue">{latestVisibleEventType}</div>
+                  <p className="explanationCopy">
+                    This is the latest source event currently visible to the board.
+                  </p>
+                </div>
+                <div className="explanationCard">
+                  <div className="fieldLabel">Obligation</div>
+                  <div className="explanationValue">{latestVisibleObligation}</div>
+                  <p className="explanationCopy">
+                    This is the governed obligation opened from that event.
+                  </p>
+                </div>
+                <div className="explanationCard">
+                  <div className="fieldLabel">Resolution</div>
+                  <div className="explanationValue">{latestVisibleResolution}</div>
+                  <p className="explanationCopy">
+                    Proof status: {latestProofStatus}.
+                  </p>
+                </div>
+                <div className="explanationCard">
+                  <div className="fieldLabel">Receipt</div>
+                  <div className="explanationValue">{latestVisibleReceipt}</div>
+                  <p className="explanationCopy">
+                    {latestLifecycleState === "resolved"
+                      ? "Receipt identity is present."
+                      : "Receipt identity is still missing from the current work item."}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="noticeStack">
               <div className="operatorCard">
                 <div className="operatorHeader">
@@ -1026,7 +1175,20 @@ export function SystemProofBoard({
                     />
                   </div>
                 </div>
-              ) : null}
+              ) : (
+                <div className="runResultCard">
+                  <div className="noticeLabel">Visible Proof On This Surface</div>
+                  <p className="runPanelText">
+                    Proof note and photo are only visible here after an operator
+                    submission on this surface. The read model currently shows{" "}
+                    {latestLifecycleState === "resolved"
+                      ? "the receipt-backed state, but not the note/photo payload."
+                      : latestLifecycleState === "failed"
+                      ? "a failed or rejected state without accepted proof."
+                      : "an unresolved item that still needs proof."}
+                  </p>
+                </div>
+              )}
 
               <div className="noticeCard">
                 <div className="noticeLabel">READ MODEL</div>
@@ -1041,50 +1203,59 @@ export function SystemProofBoard({
             </div>
           </section>
 
-          <div className="sections">
-            <StreamSection
-              title="Source Events"
-              value={summary.sourceEvents}
-              description="Latest recorded events attached to obligation truth."
-              rows={sourceRows}
-              timeZone={renderTimeZone}
-            />
-            <StreamSection
-              title="Obligations"
-              value={summary.obligations}
-              description="Open and recent obligations in the projection stream."
-              rows={obligationRows}
-              timeZone={renderTimeZone}
-            />
-            <StreamSection
-              title="Receipts"
-              value={summary.receipts}
-              description="Receipt-backed lifecycle proofs emitted by the system."
-              rows={receiptRows}
-              timeZone={renderTimeZone}
-            />
-            <StreamSection
-              title="Failed"
-              value={summary.failed}
-              description="Failure states remain visible until doctrine-valid proof exists."
-              rows={failedRows}
-              timeZone={renderTimeZone}
-            />
-            <StreamSection
-              title="Overdue"
-              value={summary.overdue}
-              description="Watchdog rows surfaced from the overdue failure read model."
-              rows={overdueRows}
-              timeZone={renderTimeZone}
-            />
-            <StreamSection
-              title="Projection Status"
-              value={projection}
-              description="Current projection health with unresolved or receipt-absent rows."
-              rows={projectionRows}
-              timeZone={renderTimeZone}
-            />
-          </div>
+          <details className="traceDetails">
+            <summary className="traceSummary">
+              <span>View System Trace</span>
+              <span className="traceSummaryMeta">
+                {formatValue(summary.obligations)} obligations · {formatValue(summary.failed)} failed ·{" "}
+                {formatValue(summary.receipts)} receipts
+              </span>
+            </summary>
+            <div className="sections">
+              <StreamSection
+                title="Source Events"
+                value={summary.sourceEvents}
+                description="Latest recorded events attached to obligation truth."
+                rows={sourceRows}
+                timeZone={renderTimeZone}
+              />
+              <StreamSection
+                title="Obligations"
+                value={summary.obligations}
+                description="Open and recent obligations in the projection stream."
+                rows={obligationRows}
+                timeZone={renderTimeZone}
+              />
+              <StreamSection
+                title="Receipts"
+                value={summary.receipts}
+                description="Receipt-backed lifecycle proofs emitted by the system."
+                rows={receiptRows}
+                timeZone={renderTimeZone}
+              />
+              <StreamSection
+                title="Failed"
+                value={summary.failed}
+                description="Failure states remain visible until doctrine-valid proof exists."
+                rows={failedRows}
+                timeZone={renderTimeZone}
+              />
+              <StreamSection
+                title="Overdue"
+                value={summary.overdue}
+                description="Watchdog rows surfaced from the overdue failure read model."
+                rows={overdueRows}
+                timeZone={renderTimeZone}
+              />
+              <StreamSection
+                title="Projection Status"
+                value={projection}
+                description="Current projection health with unresolved or receipt-absent rows."
+                rows={projectionRows}
+                timeZone={renderTimeZone}
+              />
+            </div>
+          </details>
         </section>
 
         <aside className="rightRail">
@@ -1441,6 +1612,104 @@ export function SystemProofBoard({
           background: linear-gradient(90deg, rgba(212, 175, 55, 0.2), rgba(212, 175, 55, 0.7), rgba(212, 175, 55, 0.2));
         }
 
+        .operatorSummaryCard,
+        .explanationPanel {
+          padding: 18px;
+          border-radius: 20px;
+          border: 1px solid rgba(212, 175, 55, 0.12);
+          background:
+            linear-gradient(180deg, rgba(212, 175, 55, 0.1), rgba(12, 10, 7, 0.7));
+          display: grid;
+          gap: 14px;
+        }
+
+        .operatorSummaryCard-resolved {
+          border-color: rgba(135, 211, 143, 0.22);
+        }
+
+        .operatorSummaryCard-failed {
+          border-color: rgba(245, 155, 125, 0.22);
+        }
+
+        .operatorSummaryCard-open {
+          border-color: rgba(212, 175, 55, 0.2);
+        }
+
+        .operatorSummaryHeader {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: start;
+          flex-wrap: wrap;
+        }
+
+        .operatorSummaryTitle {
+          color: #fff2cf;
+          font-size: clamp(1.35rem, 3.3vw, 2rem);
+          line-height: 1.1;
+        }
+
+        .operatorSummaryText,
+        .explanationCopy {
+          margin: 0;
+          color: #d6c59c;
+          font-size: 14px;
+          line-height: 1.7;
+        }
+
+        .operatorSummaryBadge {
+          padding: 8px 12px;
+          border-radius: 999px;
+          border: 1px solid rgba(212, 175, 55, 0.18);
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 10px;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+        }
+
+        .operatorSummaryBadge-resolved {
+          color: #87d38f;
+        }
+
+        .operatorSummaryBadge-failed {
+          color: #f59b7d;
+        }
+
+        .operatorSummaryBadge-open {
+          color: #edcb72;
+        }
+
+        .operatorSummaryGrid,
+        .explanationGrid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .operatorSummaryItem,
+        .explanationCard {
+          display: grid;
+          gap: 8px;
+          min-width: 0;
+          padding: 14px;
+          border-radius: 16px;
+          border: 1px solid rgba(212, 175, 55, 0.1);
+          background: rgba(5, 5, 4, 0.5);
+        }
+
+        .operatorSummaryValue,
+        .explanationValue {
+          color: #fff0c7;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
+          line-height: 1.7;
+          overflow-wrap: anywhere;
+        }
+
         .noticeStack {
           display: grid;
           gap: 12px;
@@ -1786,6 +2055,48 @@ export function SystemProofBoard({
           gap: 18px;
         }
 
+        .traceDetails {
+          border: 1px solid rgba(212, 175, 55, 0.08);
+          border-radius: 24px;
+          background:
+            linear-gradient(180deg, rgba(19, 16, 12, 0.94), rgba(8, 7, 5, 0.94));
+          box-shadow:
+            inset 0 1px 0 rgba(255, 245, 215, 0.04),
+            0 18px 60px rgba(0, 0, 0, 0.28);
+          overflow: hidden;
+        }
+
+        .traceSummary {
+          list-style: none;
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: center;
+          padding: 20px 24px;
+          cursor: pointer;
+          color: #fff0c7;
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 12px;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .traceSummary::-webkit-details-marker {
+          display: none;
+        }
+
+        .traceSummaryMeta {
+          color: #bca871;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+        }
+
+        .traceDetails .sections {
+          padding: 0 0 24px;
+        }
+
         .streamSection {
           padding: 24px;
           display: grid;
@@ -1964,6 +2275,8 @@ export function SystemProofBoard({
 
         @media (max-width: 1024px) {
           .heroStats,
+          .operatorSummaryGrid,
+          .explanationGrid,
           .fieldGrid,
           .runResultGrid,
           .serviceRecordGrid,
@@ -1984,10 +2297,12 @@ export function SystemProofBoard({
           }
 
           .heroTop,
+          .operatorSummaryHeader,
           .operatorHeader,
           .runPanel,
           .streamHeader,
-          .proofPanelHeader {
+          .proofPanelHeader,
+          .traceSummary {
             flex-direction: column;
           }
 
