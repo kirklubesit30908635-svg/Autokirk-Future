@@ -212,18 +212,11 @@ export default async function handler(
     const serviceSupabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
-    const authHeader = req.headers.authorization;
-    const accessToken =
-      typeof authHeader === "string" && authHeader.startsWith("Bearer ")
-        ? authHeader.slice("Bearer ".length)
-        : null;
 
     const {
       data: { user },
       error: userError,
-    } = accessToken
-      ? await serviceSupabase.auth.getUser(accessToken)
-      : await userSupabase.auth.getUser();
+    } = await userSupabase.auth.getUser();
 
     if (userError || !user) {
       return res.status(401).json({ ok: false, error: "NOT_AUTHENTICATED" });

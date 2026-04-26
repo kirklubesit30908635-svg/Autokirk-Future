@@ -188,11 +188,18 @@ function getProjectionTone(
 
 function getOperatorRedirectUrl(): string | undefined {
   if (typeof window !== "undefined") {
-    const callbackPath = `${window.location.pathname || "/"}${
-      window.location.search || ""
-    }`;
+    const hostname = window.location.hostname;
+    const isLocalhost =
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]";
+    const siteUrl = publicAppUrl || (isLocalhost ? window.location.origin : undefined);
 
-    return new URL(callbackPath || "/", window.location.origin).toString();
+    if (!siteUrl) {
+      return undefined;
+    }
+
+    return new URL(window.location.pathname || "/", siteUrl).toString();
   }
 
   return publicAppUrl ? new URL("/", publicAppUrl).toString() : undefined;
@@ -701,7 +708,6 @@ export function SystemProofBoard({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${operatorSession.access_token}`,
           },
           body: JSON.stringify({
             scenario_id: selectedScenario.id,
