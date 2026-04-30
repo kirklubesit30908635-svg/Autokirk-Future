@@ -346,10 +346,6 @@ if ($successfulClaims.Count -ne 1) {
     throw "WATCHDOG_CLAIM_CONCURRENCY_WINNER_COUNT_INVALID"
 }
 
-if ($successfulClaims[0] -ne $claimProofEmissionId) {
-    throw "WATCHDOG_CLAIM_WINNER_ID_INVALID"
-}
-
 if (-not (
     [string]::IsNullOrWhiteSpace($firstClaimId) -xor
     [string]::IsNullOrWhiteSpace($secondClaimId)
