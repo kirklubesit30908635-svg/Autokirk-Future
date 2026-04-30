@@ -346,12 +346,15 @@ if ($successfulClaims.Count -ne 1) {
     throw "WATCHDOG_CLAIM_CONCURRENCY_WINNER_COUNT_INVALID"
 }
 
-if ($firstClaimId -ne $claimProofEmissionId) {
-    throw "WATCHDOG_CLAIM_PRIMARY_CLAIM_FAILED"
+if ($successfulClaims[0] -ne $claimProofEmissionId) {
+    throw "WATCHDOG_CLAIM_WINNER_ID_INVALID"
 }
 
-if (-not [string]::IsNullOrWhiteSpace($secondClaimId)) {
-    throw "WATCHDOG_CLAIM_SECONDARY_CLAIM_SHOULD_BE_EMPTY"
+if (-not (
+    [string]::IsNullOrWhiteSpace($firstClaimId) -xor
+    [string]::IsNullOrWhiteSpace($secondClaimId)
+)) {
+    throw "WATCHDOG_CLAIM_CONCURRENCY_LOSER_COUNT_INVALID"
 }
 
 $leaseStateAfterClaim = Get-PsqlScalar -ContainerName $dbContainerName -Sql "
