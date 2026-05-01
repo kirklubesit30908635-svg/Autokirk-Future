@@ -1,4 +1,4 @@
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/router";
 import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
@@ -330,12 +330,14 @@ function getServiceDraftValue(
 function RowRecord({
   row,
   timeZone,
+  highlighted = false,
 }: {
   row: LifecycleRow;
   timeZone: string;
+  highlighted?: boolean;
 }) {
   return (
-    <article className="record">
+    <article className={highlighted ? "record recordHighlight" : "record"}>
       <div className="recordTop">
         <div className="recordIdentity">
           <div className="recordCode">{row.obligation_code}</div>
@@ -373,12 +375,14 @@ function StreamSection({
   description,
   rows,
   timeZone,
+  highlightedRowIds = new Set<string>(),
 }: {
   title: string;
   value: SummaryValue;
   description: string;
   rows: LifecycleRow[];
   timeZone: string;
+  highlightedRowIds?: Set<string>;
 }) {
   return (
     <section className="streamSection">
@@ -393,7 +397,12 @@ function StreamSection({
       <div className="recordList">
         {rows.length > 0 ? (
           rows.map((row) => (
-            <RowRecord key={row.obligation_id} row={row} timeZone={timeZone} />
+            <RowRecord
+              key={row.obligation_id}
+              row={row}
+              timeZone={timeZone}
+              highlighted={highlightedRowIds.has(row.obligation_id)}
+            />
           ))
         ) : (
           <div className="emptyState">NO LIVE DATA</div>
@@ -433,6 +442,10 @@ export function SystemProofBoard({
   );
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
   const [renderTimeZone, setRenderTimeZone] = useState(serverRenderTimeZone);
+  const [highlightedRowIds, setHighlightedRowIds] = useState<Set<string>>(
+    () => new Set<string>()
+  );
+  const [timelinePhase, setTimelinePhase] = useState<1 | 2 | 3 | 4>(2);
   const selectedScenario = getProofScenario(selectedScenarioId);
   const resultScenario = runResult
     ? getProofScenario(runResult.scenario_id)
@@ -649,12 +662,78 @@ export function SystemProofBoard({
       row.lifecycle_state === "failed" ||
       !row.receipt_id
   );
+  const missedCounter = useMemo(() => {
+    const openCount = typeof summary.open === "number" ? summary.open : 0;
+    const failedCount = typeof summary.failed === "number" ? summary.failed : 0;
+    return openCount + failedCount;
+  }, [summary.open, summary.failed]);
 
   const heroStats = [
     { label: "Source Events", value: summary.sourceEvents },
     { label: "Obligations", value: summary.obligations },
     { label: "Receipts", value: summary.receipts },
   ];
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const snapshotKey = "autokirk:lifecycle-obligation-ids";
+    const previousRaw = window.sessionStorage.getItem(snapshotKey);
+    const previousIds = new Set<string>(
+      previousRaw ? (JSON.parse(previousRaw) as string[]) : []
+    );
+    const currentIds = lifecycleRows.map((row) => row.obligation_id);
+    const freshIds = currentIds.filter((id) => !previousIds.has(id));
+
+    window.sessionStorage.setItem(snapshotKey, JSON.stringify(currentIds));
+
+    if (!freshIds.length) {
+      return;
+    }
+
+    const next = new Set(freshIds);
+    setHighlightedRowIds(next);
+    const timer = window.setTimeout(() => {
+      setHighlightedRowIds(new Set<string>());
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [lifecycleRows]);
+
+  useEffect(() => {
+    if (runStatus === "running") {
+      setTimelinePhase(2);
+      return;
+    }
+
+    if (runStatus !== "success") {
+      setTimelinePhase(2);
+      return;
+    }
+
+    let cancelled = false;
+    setTimelinePhase(2);
+
+    const first = window.setTimeout(() => {
+      if (!cancelled) {
+        setTimelinePhase(3);
+      }
+    }, 250);
+
+    const second = window.setTimeout(() => {
+      if (!cancelled) {
+        setTimelinePhase(4);
+      }
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(first);
+      window.clearTimeout(second);
+    };
+  }, [runStatus]);
 
   const rightRail = [
     { label: "OPEN", value: summary.open },
@@ -883,6 +962,10 @@ export function SystemProofBoard({
                   <div className="heroStatValue">{formatValue(item.value)}</div>
                 </div>
               ))}
+              <div className="heroStatCard heroStatCardAlert">
+                <div className="heroStatLabel">This Would Have Been Missed</div>
+                <div className="heroStatValue">{formatValue(missedCounter)}</div>
+              </div>
             </div>
           </header>
 
@@ -915,26 +998,38 @@ export function SystemProofBoard({
             </div>
 
             <div className="lifecycleStrip">
-              <div className="lifecycleNode">
+              <div className={timelinePhase >= 1 ? "lifecycleNode lifecycleNodeLive" : "lifecycleNode"}>
                 <span className="nodeIndex">01</span>
                 <span className="nodeLabel">
                   {selectedScenario.ui.lifecycleStartLabel}
                 </span>
               </div>
               <div className="lifecycleConnector" />
-              <div className="lifecycleNode">
+              <div className={timelinePhase >= 2 ? "lifecycleNode lifecycleNodeLive" : "lifecycleNode"}>
                 <span className="nodeIndex">02</span>
                 <span className="nodeLabel">
                   {selectedScenario.ui.lifecycleOpenLabel}
                 </span>
               </div>
               <div className="lifecycleConnector" />
-              <div className="lifecycleNode lifecycleNodeAccent">
+              <div
+                className={
+                  timelinePhase >= 3
+                    ? "lifecycleNode lifecycleNodeAccent lifecycleNodeLive"
+                    : "lifecycleNode lifecycleNodeAccent"
+                }
+              >
                 <span className="nodeIndex">03</span>
                 <span className="nodeLabel">{lifecycleOutcome}</span>
               </div>
               <div className="lifecycleConnector" />
-              <div className="lifecycleNode lifecycleNodeAccent">
+              <div
+                className={
+                  timelinePhase >= 4
+                    ? "lifecycleNode lifecycleNodeAccent lifecycleNodeLive"
+                    : "lifecycleNode lifecycleNodeAccent"
+                }
+              >
                 <span className="nodeIndex">04</span>
                 <span className="nodeLabel">{receiptOutcome}</span>
               </div>
@@ -1222,6 +1317,7 @@ export function SystemProofBoard({
                 description="Latest recorded events attached to obligation truth."
                 rows={sourceRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
               />
               <StreamSection
                 title="Obligations"
@@ -1229,6 +1325,7 @@ export function SystemProofBoard({
                 description="Open and recent obligations in the projection stream."
                 rows={obligationRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
               />
               <StreamSection
                 title="Receipts"
@@ -1236,6 +1333,7 @@ export function SystemProofBoard({
                 description="Receipt-backed lifecycle proofs emitted by the system."
                 rows={receiptRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
               />
               <StreamSection
                 title="Failed"
@@ -1243,6 +1341,7 @@ export function SystemProofBoard({
                 description="Failure states remain visible until doctrine-valid proof exists."
                 rows={failedRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
               />
               <StreamSection
                 title="Overdue"
@@ -1250,6 +1349,7 @@ export function SystemProofBoard({
                 description="Watchdog rows surfaced from the overdue failure read model."
                 rows={overdueRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
               />
               <StreamSection
                 title="Projection Status"
@@ -1257,6 +1357,7 @@ export function SystemProofBoard({
                 description="Current projection health with unresolved or receipt-absent rows."
                 rows={projectionRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
               />
             </div>
           </details>
@@ -1487,9 +1588,31 @@ export function SystemProofBoard({
           color: #d8bb67;
         }
 
+        @keyframes nodePulse {
+          0% {
+            transform: translateY(2px);
+            opacity: 0.76;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes recordReveal {
+          0% {
+            transform: translateY(4px);
+            opacity: 0.7;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
         .heroStats {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 14px;
         }
 
@@ -1498,6 +1621,11 @@ export function SystemProofBoard({
           border-radius: 20px;
           border: 1px solid rgba(212, 175, 55, 0.1);
           background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.02));
+        }
+
+        .heroStatCardAlert {
+          border-color: rgba(245, 185, 95, 0.45);
+          background: linear-gradient(180deg, rgba(245, 185, 95, 0.18), rgba(245, 185, 95, 0.05));
         }
 
         .heroStatValue {
@@ -1593,6 +1721,12 @@ export function SystemProofBoard({
         .lifecycleNodeAccent {
           background: linear-gradient(180deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.03));
           border-color: rgba(212, 175, 55, 0.2);
+        }
+
+        .lifecycleNodeLive {
+          animation: nodePulse 440ms ease-out;
+          border-color: rgba(245, 185, 95, 0.52);
+          box-shadow: 0 0 0 1px rgba(245, 185, 95, 0.18) inset;
         }
 
         .nodeIndex {
@@ -2128,6 +2262,14 @@ export function SystemProofBoard({
           border: 1px solid rgba(212, 175, 55, 0.08);
           background:
             linear-gradient(180deg, rgba(18, 16, 12, 0.92), rgba(13, 11, 8, 0.92));
+        }
+
+        .recordHighlight {
+          border-color: rgba(245, 185, 95, 0.45);
+          box-shadow:
+            0 0 0 1px rgba(245, 185, 95, 0.16) inset,
+            0 0 24px rgba(245, 185, 95, 0.16);
+          animation: recordReveal 700ms ease-out;
         }
 
         .recordTop {
