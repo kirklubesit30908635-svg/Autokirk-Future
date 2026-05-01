@@ -1,4 +1,4 @@
-import type { NextApiRequest, NextApiResponse } from 'next'
+﻿import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
 type ResponseBody = { ok: true } | { ok: false; error: string }
@@ -19,7 +19,6 @@ export default async function handler(
   }
 
   try {
-    // --- AUTH ---
     const expected = assertEnv('WATCHDOG_SHARED_SECRET', process.env.WATCHDOG_SHARED_SECRET)
     const provided = req.headers['x-autokirk-signature']
 
@@ -27,7 +26,6 @@ export default async function handler(
       return res.status(401).json({ ok: false, error: 'UNAUTHORIZED' })
     }
 
-    // --- ENV ---
     const url = assertEnv('NEXT_PUBLIC_SUPABASE_URL', process.env.NEXT_PUBLIC_SUPABASE_URL)
     const key = assertEnv('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY)
 
@@ -37,17 +35,32 @@ export default async function handler(
 
     const body = req.body
 
-    // --- VALIDATION ---
     if (!body?.event_key || !body?.data?.obligation_id) {
       return res.status(400).json({ ok: false, error: 'INVALID_PAYLOAD' })
     }
 
     const obligationId = body.data.obligation_id
 
-    // --- IDEMPOTENCY (optional but important) ---
-    // you can later back this with a table if needed
+    const { data: existing, error: fetchError } = await supabase
+      .from('overdue_failure_watchdog')
+      .select('lifecycle_state')
+      .eq('obligation_id', obligationId)
+      .maybeSingle()
 
-    // --- ENFORCEMENT ---
+    if (fetchError) {
+      return res.status(500).json({ ok: false, error: fetchError.message })
+    }
+
+    if (existing?.lifecycle_state === 'failed') {
+      console.log(JSON.stringify({
+        type: 'watchdog_receiver_skip_terminal',
+        obligation_id: obligationId,
+        event_key: body.event_key,
+      }))
+
+      return res.status(200).json({ ok: true })
+    }
+
     const { error: rpcError } = await supabase.rpc('record_obligation_transition', {
       p_obligation_id: obligationId,
       p_next_state: 'failed_enforced',
@@ -63,7 +76,6 @@ export default async function handler(
     }
 
     return res.status(200).json({ ok: true })
-
   } catch (err) {
     return res.status(500).json({
       ok: false,
