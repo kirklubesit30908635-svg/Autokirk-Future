@@ -376,6 +376,7 @@ function StreamSection({
   rows,
   timeZone,
   highlightedRowIds = new Set<string>(),
+  highlightedReceipt = null,
 }: {
   title: string;
   value: SummaryValue;
@@ -383,6 +384,7 @@ function StreamSection({
   rows: LifecycleRow[];
   timeZone: string;
   highlightedRowIds?: Set<string>;
+  highlightedReceipt?: string | null;
 }) {
   return (
     <section className="streamSection">
@@ -396,14 +398,19 @@ function StreamSection({
 
       <div className="recordList">
         {rows.length > 0 ? (
-          rows.map((row) => (
-            <RowRecord
-              key={row.obligation_id}
-              row={row}
-              timeZone={timeZone}
-              highlighted={highlightedRowIds.has(row.obligation_id)}
-            />
-          ))
+          rows.map((row) => {
+            const isNew =
+              row.receipt_id === highlightedReceipt ||
+              highlightedRowIds.has(row.obligation_id);
+            return (
+              <RowRecord
+                key={row.obligation_id}
+                row={row}
+                timeZone={timeZone}
+                highlighted={isNew}
+              />
+            );
+          })
         ) : (
           <div className="emptyState">NO LIVE DATA</div>
         )}
@@ -442,6 +449,10 @@ export function SystemProofBoard({
   );
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
   const [renderTimeZone, setRenderTimeZone] = useState(serverRenderTimeZone);
+  const [highlightedReceipt, setHighlightedReceipt] = useState<string | null>(null);
+  const [runState, setRunState] = useState<
+    "idle" | "opening" | "resolving" | "receipted"
+  >("idle");
   const [highlightedRowIds, setHighlightedRowIds] = useState<Set<string>>(
     () => new Set<string>()
   );
@@ -492,6 +503,10 @@ export function SystemProofBoard({
       setRunMessage(restoredScenario.ui.restoredMessage);
       setServiceRecord(toProofScenarioDraft(parsed.service_record, restoredScenario));
       setRunResult(parsed);
+      setHighlightedReceipt(
+        typeof parsed.receipt?.id === "string" ? parsed.receipt.id : null
+      );
+      setRunState("receipted");
     } catch {
       window.sessionStorage.removeItem(storedScenario.run.resultStorageKey);
     }
@@ -759,6 +774,7 @@ export function SystemProofBoard({
       if (!operatorSession?.access_token) {
         setRunStatus("error");
         setRunMessage("OPERATOR_SIGN_IN_REQUIRED");
+        setRunState("idle");
         return;
       }
 
@@ -770,6 +786,7 @@ export function SystemProofBoard({
       if (validationError) {
         setRunStatus("error");
         setRunMessage(validationError);
+        setRunState("idle");
         return;
       }
 
@@ -781,6 +798,7 @@ export function SystemProofBoard({
       setRunStatus("running");
       setRunMessage(selectedScenario.ui.runningMessage);
       setRunResult(null);
+      setRunState("opening");
 
       try {
         const response = await fetch("/api/live-proof/run", {
@@ -810,15 +828,18 @@ export function SystemProofBoard({
           toProofScenarioDraft(payload.service_record, responseScenario)
         );
         setRunResult(payload);
+        setHighlightedReceipt(
+          typeof payload.receipt?.id === "string" ? payload.receipt.id : null
+        );
+        setRunState("resolving");
 
         if (typeof window !== "undefined") {
           window.sessionStorage.setItem(
             responseScenario.run.resultStorageKey,
             JSON.stringify(payload)
           );
-          window.setTimeout(() => {
-            router.reload();
-          }, 500);
+          window.setTimeout(() => setRunState("receipted"), 300);
+          window.setTimeout(() => router.reload(), 1200);
         }
       } catch (runError) {
         setRunStatus("error");
@@ -827,6 +848,7 @@ export function SystemProofBoard({
             ? runError.message
             : "SERVICE_PROOF_REQUEST_FAILED"
         );
+        setRunState("idle");
       }
     });
   }
@@ -886,6 +908,7 @@ export function SystemProofBoard({
     setRunResult(null);
     setRunStatus("idle");
     setRunMessage(selectedScenario.ui.idleMessage);
+    setRunState("idle");
   }
 
   function handleScenarioSelect(nextScenarioId: ProofScenarioId) {
@@ -900,6 +923,7 @@ export function SystemProofBoard({
     setRunResult(null);
     setRunStatus("idle");
     setRunMessage(nextScenario.ui.idleMessage);
+    setRunState("idle");
 
     if (authState === "signed_out") {
       setAuthMessage(nextScenario.ui.signInRequiredMessage);
@@ -966,6 +990,10 @@ export function SystemProofBoard({
                 <div className="heroStatLabel">This Would Have Been Missed</div>
                 <div className="heroStatValue">{formatValue(missedCounter)}</div>
               </div>
+            </div>
+            <div className="caughtBanner">
+              {formatValue(missedCounter)} missed actions caught and forced to
+              resolution
             </div>
           </header>
 
@@ -1225,6 +1253,27 @@ export function SystemProofBoard({
                   >
                     {isRunning ? "RUNNING..." : "RUN PROOF DEMO"}
                   </button>
+                  <div className="demoProgress">
+                    <div className={`step ${runState !== "idle" ? "active" : ""}`}>
+                      OPEN
+                    </div>
+                    <div
+                      className={`step ${
+                        runState === "resolving" || runState === "receipted"
+                          ? "active"
+                          : ""
+                      }`}
+                    >
+                      RESOLVE
+                    </div>
+                    <div
+                      className={`step ${
+                        runState === "receipted" ? "active" : ""
+                      }`}
+                    >
+                      RECEIPT
+                    </div>
+                  </div>
                   <div className={`runStatus runStatus-${runStatus}`}>
                     {runMessage}
                   </div>
@@ -1318,6 +1367,7 @@ export function SystemProofBoard({
                 rows={sourceRows}
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
               />
               <StreamSection
                 title="Obligations"
@@ -1326,6 +1376,7 @@ export function SystemProofBoard({
                 rows={obligationRows}
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
               />
               <StreamSection
                 title="Receipts"
@@ -1334,6 +1385,7 @@ export function SystemProofBoard({
                 rows={receiptRows}
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
               />
               <StreamSection
                 title="Failed"
@@ -1342,6 +1394,7 @@ export function SystemProofBoard({
                 rows={failedRows}
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
               />
               <StreamSection
                 title="Overdue"
@@ -1350,6 +1403,7 @@ export function SystemProofBoard({
                 rows={overdueRows}
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
               />
               <StreamSection
                 title="Projection Status"
@@ -1358,6 +1412,7 @@ export function SystemProofBoard({
                 rows={projectionRows}
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
               />
             </div>
           </details>
@@ -1610,6 +1665,17 @@ export function SystemProofBoard({
           }
         }
 
+        @keyframes flashIn {
+          0% {
+            background: rgba(245, 185, 95, 0.35);
+            transform: scale(1.02);
+          }
+          100% {
+            background: transparent;
+            transform: scale(1);
+          }
+        }
+
         .heroStats {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -1626,6 +1692,16 @@ export function SystemProofBoard({
         .heroStatCardAlert {
           border-color: rgba(245, 185, 95, 0.45);
           background: linear-gradient(180deg, rgba(245, 185, 95, 0.18), rgba(245, 185, 95, 0.05));
+        }
+
+        .caughtBanner {
+          margin: 20px 0;
+          padding: 16px;
+          border-radius: 12px;
+          background: rgba(245, 185, 95, 0.12);
+          border: 1px solid rgba(245, 185, 95, 0.4);
+          font-weight: 700;
+          text-align: center;
         }
 
         .heroStatValue {
@@ -2107,6 +2183,30 @@ export function SystemProofBoard({
           cursor: not-allowed;
         }
 
+        .demoProgress {
+          display: flex;
+          gap: 10px;
+          margin-top: 14px;
+          width: 100%;
+        }
+
+        .step {
+          flex: 1;
+          padding: 8px;
+          text-align: center;
+          border-radius: 8px;
+          background: #222;
+          opacity: 0.4;
+          font-size: 12px;
+        }
+
+        .step.active {
+          background: #f5b95f;
+          color: #050403;
+          opacity: 1;
+          transition: all 0.3s ease;
+        }
+
         .runStatus {
           max-width: 320px;
           text-align: right;
@@ -2270,6 +2370,12 @@ export function SystemProofBoard({
             0 0 0 1px rgba(245, 185, 95, 0.16) inset,
             0 0 24px rgba(245, 185, 95, 0.16);
           animation: recordReveal 700ms ease-out;
+        }
+
+        .rowHighlight {
+          animation: flashIn 1.2s ease-out;
+          border: 1px solid #f5b95f;
+          box-shadow: 0 0 18px rgba(245, 185, 95, 0.45);
         }
 
         .recordTop {
