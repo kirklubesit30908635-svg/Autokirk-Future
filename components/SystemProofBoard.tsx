@@ -1124,13 +1124,11 @@ export function SystemProofBoard({
                 <div className="runPanelAction">
                   <button
                     type="button"
-                    className="runButton"
+                    className="proofRunButton"
                     onClick={handleRunLoop}
                     disabled={isRunning || authState !== "ready"}
                   >
-                    {isRunning
-                      ? selectedScenario.ui.submittingLabel
-                      : selectedScenario.ui.submitLabel}
+                    {isRunning ? "RUNNING..." : "RUN PROOF DEMO"}
                   </button>
                   <div className={`runStatus runStatus-${runStatus}`}>
                     {runMessage}
@@ -1959,37 +1957,20 @@ export function SystemProofBoard({
           justify-items: end;
         }
 
-        .runButton {
-          min-width: 220px;
-          padding: 14px 18px;
-          border: 1px solid rgba(212, 175, 55, 0.28);
-          border-radius: 999px;
-          background:
-            linear-gradient(180deg, rgba(212, 175, 55, 0.26), rgba(212, 175, 55, 0.12));
-          color: #fff4d5;
-          font-family:
-            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
-            Menlo, monospace;
-          font-size: 12px;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
+        .proofRunButton {
+          margin-top: 20px;
+          padding: 14px 20px;
+          border-radius: 12px;
+          border: none;
+          background: #f5b95f;
+          color: #050403;
+          font-weight: 800;
           cursor: pointer;
-          transition:
-            transform 140ms ease,
-            border-color 140ms ease,
-            background 140ms ease;
         }
 
-        .runButton:hover:not(:disabled) {
-          transform: translateY(-1px);
-          border-color: rgba(212, 175, 55, 0.45);
-          background:
-            linear-gradient(180deg, rgba(212, 175, 55, 0.34), rgba(212, 175, 55, 0.16));
-        }
-
-        .runButton:disabled {
-          opacity: 0.72;
-          cursor: wait;
+        .proofRunButton:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
         .runStatus {
@@ -2318,7 +2299,7 @@ export function SystemProofBoard({
             justify-items: stretch;
           }
 
-          .runButton,
+          .proofRunButton,
           .runStatus {
             max-width: none;
             width: 100%;
