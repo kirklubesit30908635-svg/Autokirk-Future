@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/router";
-import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
+import { createBrowserClient } from "@supabase/ssr";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import {
   activeProofScenario,
@@ -9,6 +9,7 @@ import {
   getProofScenario,
   getProofScenarioDraftError,
   getProofScenarioResultValue,
+  isValidHttpUrl,
   toProofScenarioDraft,
   toProofScenarioPayload,
   type ProofScenarioDraft,
@@ -78,6 +79,26 @@ type LiveProofRunFailure = {
 };
 
 type LiveProofRunResponse = LiveProofRunSuccess | LiveProofRunFailure;
+
+type ResolveExistingObligationSuccess = {
+  ok: true;
+  obligation: Record<string, unknown>;
+  resolution: Record<string, unknown>;
+  receipt: Record<string, unknown>;
+  lifecycle_state: string;
+  entity_id: string | null;
+  receipt_entity_id: string | null;
+  replayed: boolean;
+};
+
+type ResolveExistingObligationFailure = {
+  ok: false;
+  error: string;
+};
+
+type ResolveExistingObligationResponse =
+  | ResolveExistingObligationSuccess
+  | ResolveExistingObligationFailure;
 
 type AuthState =
   | "loading"
@@ -459,7 +480,11 @@ export function SystemProofBoard({
 }: SystemProofBoardProps) {
   const router = useRouter();
   const [isRunning, startRunTransition] = useTransition();
+  const [isResolvingExistingObligation, startResolveExistingObligationTransition] =
+    useTransition();
   const [operatorEmail, setOperatorEmail] = useState("");
+  const [selectedProofNote, setSelectedProofNote] = useState("");
+  const [selectedProofPhotoUrl, setSelectedProofPhotoUrl] = useState("");
   const [selectedScenarioId, setSelectedScenarioId] = useState<ProofScenarioId>(
     activeProofScenario.id
   );
@@ -480,6 +505,10 @@ export function SystemProofBoard({
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
   const [renderTimeZone, setRenderTimeZone] = useState(serverRenderTimeZone);
   const [highlightedReceipt, setHighlightedReceipt] = useState<string | null>(null);
+  const [selectedResolveStatus, setSelectedResolveStatus] = useState<
+    "idle" | "running" | "success" | "error"
+  >("idle");
+  const [selectedResolveMessage, setSelectedResolveMessage] = useState("");
   const [runState, setRunState] = useState<
     "idle" | "opening" | "resolving" | "receipted"
   >("idle");
@@ -502,6 +531,13 @@ export function SystemProofBoard({
       );
     }
   }, []);
+
+  useEffect(() => {
+    setSelectedResolveStatus("idle");
+    setSelectedResolveMessage("");
+    setSelectedProofNote("");
+    setSelectedProofPhotoUrl("");
+  }, [selectedObligationId]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -652,6 +688,13 @@ export function SystemProofBoard({
   const stripeIngressDetected =
     latestSourceSystem.toLowerCase().includes("stripe") ||
     latestVisibleEventType.toLowerCase().startsWith("stripe.");
+  const ingressStepLabel = stripeIngressDetected ? "Stripe Event" : "Source Event";
+  const ingressStepValue =
+    latestVisibleEventType === "NO SOURCE EVENT TYPE"
+      ? "MISSING"
+      : stripeIngressDetected
+      ? "INGRESSED"
+      : "INGRESSED (NON-STRIPE)";
   const operatorStateLabel =
     latestLifecycleState === "resolved"
       ? "RESOLVED"
@@ -800,6 +843,30 @@ export function SystemProofBoard({
       null,
     [lifecycleRows, selectedObligationId]
   );
+  const selectedProofPhotoUrlError =
+    selectedProofPhotoUrl.trim() && !isValidHttpUrl(selectedProofPhotoUrl.trim())
+      ? "PROOF_PHOTO_URL_INVALID"
+      : null;
+  const selectedObligationNeedsProof = selectedObligationRow
+    ? !selectedObligationRow.receipt_id
+    : false;
+  const selectedResolveIdleMessage = !selectedObligationRow
+    ? "Select an obligation from the system trace, then attach proof through the governed resolution path."
+    : selectedObligationRow.receipt_id
+    ? "Selected obligation already has a receipt. Choose a row without a receipt to submit proof."
+    : authState !== "ready"
+    ? selectedScenario.ui.signInRequiredMessage
+    : "Attach proof to the selected obligation. The board will call the governed resolution API and then reload projection truth.";
+  const selectedResolveDisplayMessage =
+    selectedResolveStatus === "idle"
+      ? selectedResolveIdleMessage
+      : selectedResolveMessage || selectedResolveIdleMessage;
+  const canSubmitSelectedResolution =
+    authState === "ready" &&
+    selectedObligationNeedsProof &&
+    Boolean(selectedProofNote.trim()) &&
+    !selectedProofPhotoUrlError &&
+    !isResolvingExistingObligation;
 
   function toApiError(payload: unknown, fallback: string): string {
     if (!payload || typeof payload !== "object") {
@@ -892,6 +959,95 @@ export function SystemProofBoard({
             : "SERVICE_PROOF_REQUEST_FAILED"
         );
         setRunState("idle");
+      }
+    });
+  }
+
+  function handleResolveSelectedObligation() {
+    startResolveExistingObligationTransition(async () => {
+      if (!selectedObligationRow) {
+        setSelectedResolveStatus("error");
+        setSelectedResolveMessage("SELECTED_OBLIGATION_REQUIRED");
+        return;
+      }
+
+      if (selectedObligationRow.receipt_id) {
+        setSelectedResolveStatus("error");
+        setSelectedResolveMessage("SELECTED_OBLIGATION_ALREADY_RESOLVED");
+        return;
+      }
+
+      if (!operatorSession?.access_token) {
+        setSelectedResolveStatus("error");
+        setSelectedResolveMessage("OPERATOR_SIGN_IN_REQUIRED");
+        return;
+      }
+
+      const proofNote = selectedProofNote.trim();
+      const proofPhotoUrl = selectedProofPhotoUrl.trim();
+
+      if (!proofNote) {
+        setSelectedResolveStatus("error");
+        setSelectedResolveMessage("PROOF_NOTE_REQUIRED");
+        return;
+      }
+
+      if (proofPhotoUrl && !isValidHttpUrl(proofPhotoUrl)) {
+        setSelectedResolveStatus("error");
+        setSelectedResolveMessage("PROOF_PHOTO_URL_INVALID");
+        return;
+      }
+
+      setSelectedResolveStatus("running");
+      setSelectedResolveMessage("Submitting proof for the selected obligation...");
+
+      try {
+        const response = await fetch("/api/obligations/resolve-with-proof", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            obligation_id: selectedObligationRow.obligation_id,
+            proof_note: proofNote,
+            proof_photo_url: proofPhotoUrl || null,
+          }),
+        });
+
+        const payload =
+          (await response.json()) as ResolveExistingObligationResponse;
+
+        if (!response.ok || !payload.ok) {
+          throw new Error(
+            toApiError(
+              payload,
+              `SELECTED_OBLIGATION_RESOLVE_FAILED_${response.status}`
+            )
+          );
+        }
+
+        setSelectedResolveStatus("success");
+        setSelectedResolveMessage(
+          payload.replayed
+            ? "Resolution already existed. Reloading projection truth..."
+            : "Proof accepted. Reloading projection truth..."
+        );
+        setHighlightedReceipt(
+          typeof payload.receipt?.id === "string" ? payload.receipt.id : null
+        );
+        setSelectedProofNote("");
+        setSelectedProofPhotoUrl("");
+
+        if (typeof window !== "undefined") {
+          window.setTimeout(() => router.reload(), 1200);
+        }
+      } catch (resolveError) {
+        setSelectedResolveStatus("error");
+        setSelectedResolveMessage(
+          resolveError instanceof Error
+            ? resolveError.message
+            : "SELECTED_OBLIGATION_RESOLVE_FAILED"
+        );
       }
     });
   }
@@ -1203,12 +1359,14 @@ export function SystemProofBoard({
             </div>
 
             <div className="explanationPanel">
-              <div className="noticeLabel">Live Stripe Flow</div>
+              <div className="noticeLabel">
+                {stripeIngressDetected ? "Live Stripe Flow" : "Live Ingress Flow"}
+              </div>
               <div className="flowLine">
                 <div className="flowStep">
-                  <div className="fieldLabel">Stripe Event</div>
-                  <div className={stripeIngressDetected ? "flowValue flowValueOn" : "flowValue"}>
-                    {stripeIngressDetected ? "INGRESSED" : "NOT DETECTED"}
+                  <div className="fieldLabel">{ingressStepLabel}</div>
+                  <div className={ingressStepValue === "MISSING" ? "flowValue" : "flowValue flowValueOn"}>
+                    {ingressStepValue}
                   </div>
                 </div>
                 <div className="flowArrow">→</div>
@@ -1324,6 +1482,60 @@ export function SystemProofBoard({
 
                 <div className={`operatorMessage operatorMessage-${authState}`}>
                   {authMessage}
+                </div>
+              </div>
+
+              <div className="runPanel">
+                <div className="runPanelCopy">
+                  <div className="noticeLabel">Existing Obligation</div>
+                  <div className="runPanelTitle">Resolve Selected Obligation</div>
+                  <p className="runPanelText">
+                    Select a row from System Trace with no receipt, attach proof,
+                    and submit it through the governed resolution API.
+                  </p>
+                  <p className="runPanelText">
+                    Selected:{" "}
+                    <code>
+                      {selectedObligationRow
+                        ? `${selectedObligationRow.obligation_code} / ${compactId(
+                            selectedObligationRow.obligation_id
+                          )} / ${selectedObligationRow.lifecycle_state.toUpperCase()}`
+                        : "NONE"}
+                    </code>
+                  </p>
+                  <div className="serviceRecordGrid">
+                    <ServiceRecordTextarea
+                      label="Proof Note"
+                      placeholder="Describe the work completed and the proof you are attaching."
+                      value={selectedProofNote}
+                      onChange={setSelectedProofNote}
+                      disabled={isResolvingExistingObligation}
+                    />
+                    <ServiceRecordInput
+                      label="Proof Photo URL (Optional)"
+                      placeholder="https://example.com/proof-photo.jpg"
+                      value={selectedProofPhotoUrl}
+                      onChange={setSelectedProofPhotoUrl}
+                      disabled={isResolvingExistingObligation}
+                      fullWidth
+                    />
+                  </div>
+                </div>
+
+                <div className="runPanelAction">
+                  <button
+                    type="button"
+                    className="proofRunButton"
+                    onClick={handleResolveSelectedObligation}
+                    disabled={!canSubmitSelectedResolution}
+                  >
+                    {isResolvingExistingObligation
+                      ? "SUBMITTING..."
+                      : "RESOLVE SELECTED OBLIGATION"}
+                  </button>
+                  <div className={`runStatus runStatus-${selectedResolveStatus}`}>
+                    {selectedResolveDisplayMessage}
+                  </div>
                 </div>
               </div>
 
