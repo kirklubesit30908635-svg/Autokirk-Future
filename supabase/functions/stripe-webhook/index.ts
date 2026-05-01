@@ -23,6 +23,21 @@ const WORKSPACE_ID = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
 const ACTOR_ID = "11111111-1111-1111-1111-111111111111";
 
 Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") {
+    return new Response("ok", {
+      status: 200,
+      headers: {
+        "access-control-allow-origin": "*",
+        "access-control-allow-methods": "POST, OPTIONS",
+        "access-control-allow-headers": "content-type, stripe-signature",
+      },
+    });
+  }
+
+  if (request.method !== "POST") {
+    return new Response("Method not allowed", { status: 405 });
+  }
+
   try {
     const signature = request.headers.get("Stripe-Signature");
     if (!signature) {
@@ -76,7 +91,10 @@ Deno.serve(async (request) => {
 
     return new Response(JSON.stringify({ ok: true }), {
       status: 200,
-      headers: { "content-type": "application/json" },
+      headers: {
+        "content-type": "application/json",
+        "access-control-allow-origin": "*",
+      },
     });
   } catch (err) {
     console.error("Unhandled webhook error:", err);
