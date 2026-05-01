@@ -331,13 +331,37 @@ function RowRecord({
   row,
   timeZone,
   highlighted = false,
+  onSelect,
+  selected = false,
 }: {
   row: LifecycleRow;
   timeZone: string;
   highlighted?: boolean;
+  onSelect?: (row: LifecycleRow) => void;
+  selected?: boolean;
 }) {
+  const className = [
+    "record",
+    highlighted ? "recordHighlight" : "",
+    selected ? "recordSelected" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <article className={highlighted ? "record recordHighlight" : "record"}>
+    <article
+      className={className}
+      onClick={() => onSelect?.(row)}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (!onSelect) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(row);
+        }
+      }}
+    >
       <div className="recordTop">
         <div className="recordIdentity">
           <div className="recordCode">{row.obligation_code}</div>
@@ -377,6 +401,8 @@ function StreamSection({
   timeZone,
   highlightedRowIds = new Set<string>(),
   highlightedReceipt = null,
+  selectedObligationId = null,
+  onSelectObligation,
 }: {
   title: string;
   value: SummaryValue;
@@ -385,6 +411,8 @@ function StreamSection({
   timeZone: string;
   highlightedRowIds?: Set<string>;
   highlightedReceipt?: string | null;
+  selectedObligationId?: string | null;
+  onSelectObligation?: (row: LifecycleRow) => void;
 }) {
   return (
     <section className="streamSection">
@@ -408,6 +436,8 @@ function StreamSection({
                 row={row}
                 timeZone={timeZone}
                 highlighted={isNew}
+                selected={row.obligation_id === selectedObligationId}
+                onSelect={onSelectObligation}
               />
             );
           })
@@ -457,6 +487,7 @@ export function SystemProofBoard({
     () => new Set<string>()
   );
   const [timelinePhase, setTimelinePhase] = useState<1 | 2 | 3 | 4>(2);
+  const [selectedObligationId, setSelectedObligationId] = useState<string | null>(null);
   const selectedScenario = getProofScenario(selectedScenarioId);
   const resultScenario = runResult
     ? getProofScenario(runResult.scenario_id)
@@ -615,6 +646,12 @@ export function SystemProofBoard({
     (runResult ? "SUFFICIENT" : "PROOF NOT VISIBLE");
   const latestLifecycleState =
     runResult?.lifecycle_state ?? latestLifecycleRow?.lifecycle_state ?? "open";
+  const latestSourceSystem = String(
+    runResult?.event["source_system"] ?? latestLifecycleRow?.source_system ?? "—"
+  );
+  const stripeIngressDetected =
+    latestSourceSystem.toLowerCase().includes("stripe") ||
+    latestVisibleEventType.toLowerCase().startsWith("stripe.");
   const operatorStateLabel =
     latestLifecycleState === "resolved"
       ? "RESOLVED"
@@ -757,6 +794,12 @@ export function SystemProofBoard({
     { label: "RETRIES", value: summary.retries },
     { label: "PROJECTION", value: projection },
   ];
+  const selectedObligationRow = useMemo(
+    () =>
+      lifecycleRows.find((row) => row.obligation_id === selectedObligationId) ??
+      null,
+    [lifecycleRows, selectedObligationId]
+  );
 
   function toApiError(payload: unknown, fallback: string): string {
     if (!payload || typeof payload !== "object") {
@@ -995,6 +1038,25 @@ export function SystemProofBoard({
               {formatValue(missedCounter)} missed actions caught and forced to
               resolution
             </div>
+            <section className="consequencePanel" aria-label="Before and after simulation">
+              <div className="consequenceBlock consequenceBlockWithout">
+                <div className="noticeLabel">Without Proof</div>
+                <ul className="consequenceList">
+                  <li>Obligation remains open</li>
+                  <li>Marked overdue</li>
+                  <li>Escalated by watchdog</li>
+                </ul>
+              </div>
+              <div className="consequenceArrow">→</div>
+              <div className="consequenceBlock consequenceBlockWith">
+                <div className="noticeLabel">With AutoKirk</div>
+                <ul className="consequenceList">
+                  <li>Obligation created</li>
+                  <li>Proof required</li>
+                  <li>Receipt emitted</li>
+                </ul>
+              </div>
+            </section>
           </header>
 
           <section className="proofPanel">
@@ -1140,7 +1202,75 @@ export function SystemProofBoard({
               </div>
             </div>
 
+            <div className="explanationPanel">
+              <div className="noticeLabel">Live Stripe Flow</div>
+              <div className="flowLine">
+                <div className="flowStep">
+                  <div className="fieldLabel">Stripe Event</div>
+                  <div className={stripeIngressDetected ? "flowValue flowValueOn" : "flowValue"}>
+                    {stripeIngressDetected ? "INGRESSED" : "NOT DETECTED"}
+                  </div>
+                </div>
+                <div className="flowArrow">→</div>
+                <div className="flowStep">
+                  <div className="fieldLabel">Obligation</div>
+                  <div className={latestVisibleObligation !== "NO OBLIGATION LOADED" ? "flowValue flowValueOn" : "flowValue"}>
+                    {latestVisibleObligation !== "NO OBLIGATION LOADED" ? "OPENED" : "MISSING"}
+                  </div>
+                </div>
+                <div className="flowArrow">→</div>
+                <div className="flowStep">
+                  <div className="fieldLabel">Proof</div>
+                  <div className={latestLifecycleState === "resolved" ? "flowValue flowValueOn" : "flowValue"}>
+                    {latestLifecycleState === "resolved" ? "ACCEPTED" : "REQUIRED"}
+                  </div>
+                </div>
+                <div className="flowArrow">→</div>
+                <div className="flowStep">
+                  <div className="fieldLabel">Receipt</div>
+                  <div className={latestLifecycleState === "resolved" ? "flowValue flowValueOn" : "flowValue"}>
+                    {latestLifecycleState === "resolved" ? "EMITTED" : "PENDING"}
+                  </div>
+                </div>
+              </div>
+              <p className="explanationCopy">
+                Source: {latestSourceSystem} | Event: {latestVisibleEventType}
+              </p>
+            </div>
+
             <div className="noticeStack">
+              {selectedObligationRow ? (
+                <div className="runResultCard">
+                  <div className="noticeLabel">Obligation Verification</div>
+                  <div className="runResultGrid">
+                    <ResultField
+                      label="OBLIGATION ID"
+                      value={selectedObligationRow.obligation_id}
+                    />
+                    <ResultField
+                      label="OBLIGATION CODE"
+                      value={selectedObligationRow.obligation_code}
+                    />
+                    <ResultField
+                      label="LIFECYCLE STATE"
+                      value={selectedObligationRow.lifecycle_state.toUpperCase()}
+                    />
+                    <ResultField
+                      label="PROOF STATUS"
+                      value={(selectedObligationRow.proof_status ?? "—").toUpperCase()}
+                    />
+                    <ResultField
+                      label="RECEIPT ID"
+                      value={selectedObligationRow.receipt_id ?? "—"}
+                    />
+                    <ResultField
+                      label="ENTITY ID"
+                      value={selectedObligationRow.entity_id ?? "—"}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               <div className="operatorCard">
                 <div className="operatorHeader">
                   <div>
@@ -1368,6 +1498,8 @@ export function SystemProofBoard({
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
                 highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Obligations"
@@ -1377,6 +1509,8 @@ export function SystemProofBoard({
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
                 highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Receipts"
@@ -1386,6 +1520,8 @@ export function SystemProofBoard({
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
                 highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Failed"
@@ -1395,6 +1531,8 @@ export function SystemProofBoard({
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
                 highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Overdue"
@@ -1404,6 +1542,8 @@ export function SystemProofBoard({
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
                 highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Projection Status"
@@ -1413,6 +1553,8 @@ export function SystemProofBoard({
                 timeZone={renderTimeZone}
                 highlightedRowIds={highlightedRowIds}
                 highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
             </div>
           </details>
@@ -1724,6 +1866,48 @@ export function SystemProofBoard({
           text-align: center;
         }
 
+        .consequencePanel {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          gap: 14px;
+          align-items: stretch;
+        }
+
+        .consequenceBlock {
+          border-radius: 16px;
+          padding: 16px;
+          border: 1px solid var(--line);
+          background: rgba(5, 24, 36, 0.55);
+        }
+
+        .consequenceBlockWithout {
+          border-color: rgba(255, 142, 142, 0.35);
+          background: rgba(60, 14, 14, 0.3);
+        }
+
+        .consequenceBlockWith {
+          border-color: rgba(123, 240, 173, 0.35);
+          background: rgba(8, 52, 35, 0.36);
+        }
+
+        .consequenceList {
+          margin: 10px 0 0;
+          padding-left: 18px;
+          display: grid;
+          gap: 8px;
+          color: var(--text);
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+
+        .consequenceArrow {
+          align-self: center;
+          color: var(--accent);
+          font-size: 28px;
+          font-weight: 800;
+          line-height: 1;
+        }
+
         .heroStatValue {
           margin-top: 10px;
           color: #fff2cf;
@@ -1920,6 +2104,41 @@ export function SystemProofBoard({
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
+        }
+
+        .flowLine {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .flowStep {
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          padding: 10px;
+          background: rgba(5, 5, 4, 0.5);
+        }
+
+        .flowValue {
+          margin-top: 6px;
+          color: var(--warning);
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .flowValueOn {
+          color: var(--ok);
+        }
+
+        .flowArrow {
+          color: var(--accent);
+          font-size: 18px;
+          font-weight: 800;
         }
 
         .operatorSummaryItem,
@@ -2384,12 +2603,23 @@ export function SystemProofBoard({
             linear-gradient(180deg, rgba(18, 16, 12, 0.92), rgba(13, 11, 8, 0.92));
         }
 
+        .record[role="button"] {
+          cursor: pointer;
+        }
+
         .recordHighlight {
           border-color: rgba(245, 185, 95, 0.45);
           box-shadow:
             0 0 0 1px rgba(245, 185, 95, 0.16) inset,
             0 0 24px rgba(245, 185, 95, 0.16);
           animation: recordReveal 700ms ease-out;
+        }
+
+        .recordSelected {
+          border-color: rgba(95, 208, 255, 0.65);
+          box-shadow:
+            0 0 0 1px rgba(95, 208, 255, 0.3) inset,
+            0 0 22px rgba(95, 208, 255, 0.24);
         }
 
         .rowHighlight {
@@ -2535,8 +2765,10 @@ export function SystemProofBoard({
 
         @media (max-width: 1024px) {
           .heroStats,
+          .consequencePanel,
           .operatorSummaryGrid,
           .explanationGrid,
+          .flowLine,
           .fieldGrid,
           .runResultGrid,
           .serviceRecordGrid,
