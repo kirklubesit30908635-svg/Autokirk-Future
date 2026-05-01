@@ -1438,14 +1438,27 @@ export function SystemProofBoard({
 
       <style jsx>{`
         .surface {
+          --bg-0: #06131b;
+          --bg-1: #0b1f2a;
+          --panel-0: rgba(8, 25, 35, 0.94);
+          --panel-1: rgba(6, 18, 26, 0.94);
+          --line: rgba(115, 210, 255, 0.16);
+          --line-strong: rgba(115, 210, 255, 0.32);
+          --text: #e8f6ff;
+          --text-muted: #9dc1d2;
+          --accent: #5fd0ff;
+          --accent-strong: #21b7f3;
+          --warning: #ffcc66;
+          --fail: #ff8e8e;
+          --ok: #7bf0ad;
           min-height: 100vh;
           position: relative;
           overflow: hidden;
           background:
-            radial-gradient(circle at top left, rgba(212, 175, 55, 0.16), transparent 30%),
-            radial-gradient(circle at 85% 0%, rgba(212, 175, 55, 0.08), transparent 24%),
-            linear-gradient(180deg, #050403 0%, #090705 48%, #040302 100%);
-          color: #f3ead3;
+            radial-gradient(circle at top left, rgba(95, 208, 255, 0.18), transparent 34%),
+            radial-gradient(circle at 85% 0%, rgba(58, 176, 224, 0.12), transparent 26%),
+            linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 58%, #081923 100%);
+          color: var(--text);
           font-family:
             "Söhne", "Avenir Next", "Segoe UI", system-ui, sans-serif;
         }
@@ -1463,13 +1476,13 @@ export function SystemProofBoard({
         .ambientGlowLeft {
           top: -14rem;
           left: -10rem;
-          background: #d4af37;
+          background: #3bb7e8;
         }
 
         .ambientGlowRight {
           top: 14rem;
           right: -14rem;
-          background: #8b6a17;
+          background: #1a6f94;
         }
 
         .frame {
@@ -1477,9 +1490,14 @@ export function SystemProofBoard({
           z-index: 1;
           min-height: 100vh;
           display: grid;
-          grid-template-columns: 248px minmax(0, 1fr) 220px;
+          grid-template-columns: 280px minmax(0, 1fr);
+          grid-template-areas:
+            "left workspace"
+            "right workspace";
           gap: 24px;
           padding: 24px;
+          max-width: 1560px;
+          margin: 0 auto;
         }
 
         .leftRail,
@@ -1487,15 +1505,16 @@ export function SystemProofBoard({
         .proofPanel,
         .streamSection,
         .statusCard {
-          border: 1px solid rgba(243, 234, 211, 0.08);
+          border: 1px solid var(--line);
           background:
-            linear-gradient(180deg, rgba(19, 16, 12, 0.94), rgba(8, 7, 5, 0.94));
+            linear-gradient(180deg, var(--panel-0), var(--panel-1));
           box-shadow:
-            inset 0 1px 0 rgba(255, 245, 215, 0.04),
-            0 18px 60px rgba(0, 0, 0, 0.28);
+            inset 0 1px 0 rgba(200, 241, 255, 0.06),
+            0 18px 60px rgba(1, 11, 18, 0.38);
         }
 
         .leftRail {
+          grid-area: left;
           display: grid;
           align-content: start;
           gap: 22px;
@@ -1510,7 +1529,7 @@ export function SystemProofBoard({
         .statusLabel,
         .fieldLabel,
         .noticeLabel {
-          color: #d4af37;
+          color: var(--accent);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1525,7 +1544,7 @@ export function SystemProofBoard({
         .sectionDescription,
         .noticeBody,
         .railTimestamp {
-          color: #cbbd96;
+          color: var(--text-muted);
           line-height: 1.75;
         }
 
@@ -1548,9 +1567,9 @@ export function SystemProofBoard({
           gap: 12px;
           padding: 14px 14px;
           border-radius: 16px;
-          border: 1px solid rgba(212, 175, 55, 0.08);
-          background: rgba(212, 175, 55, 0.04);
-          color: #f6eed5;
+          border: 1px solid var(--line);
+          background: rgba(38, 132, 171, 0.16);
+          color: var(--text);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1562,11 +1581,12 @@ export function SystemProofBoard({
           width: 8px;
           height: 8px;
           border-radius: 999px;
-          background: #d4af37;
-          box-shadow: 0 0 18px rgba(212, 175, 55, 0.6);
+          background: var(--accent);
+          box-shadow: 0 0 18px rgba(95, 208, 255, 0.6);
         }
 
         .workspace {
+          grid-area: workspace;
           display: grid;
           gap: 20px;
           align-content: start;
@@ -1595,7 +1615,7 @@ export function SystemProofBoard({
         h1 {
           margin: 8px 0 14px;
           max-width: 10ch;
-          color: #fff5da;
+          color: #eefaff;
           font-size: clamp(2.8rem, 5.2vw, 5.6rem);
           line-height: 0.94;
           letter-spacing: -0.04em;
@@ -1613,8 +1633,8 @@ export function SystemProofBoard({
           gap: 8px;
           padding: 16px 18px;
           border-radius: 20px;
-          border: 1px solid rgba(212, 175, 55, 0.12);
-          background: rgba(212, 175, 55, 0.05);
+          border: 1px solid var(--line-strong);
+          background: rgba(33, 183, 243, 0.12);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1632,15 +1652,15 @@ export function SystemProofBoard({
         }
 
         .projectionOk {
-          color: #87d38f;
+          color: var(--ok);
         }
 
         .projectionFailing {
-          color: #f59b7d;
+          color: var(--fail);
         }
 
         .projectionOffline {
-          color: #d8bb67;
+          color: var(--warning);
         }
 
         @keyframes nodePulse {
@@ -1685,21 +1705,21 @@ export function SystemProofBoard({
         .heroStatCard {
           padding: 18px;
           border-radius: 20px;
-          border: 1px solid rgba(212, 175, 55, 0.1);
-          background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.02));
+          border: 1px solid var(--line);
+          background: linear-gradient(180deg, rgba(95, 208, 255, 0.14), rgba(95, 208, 255, 0.04));
         }
 
         .heroStatCardAlert {
-          border-color: rgba(245, 185, 95, 0.45);
-          background: linear-gradient(180deg, rgba(245, 185, 95, 0.18), rgba(245, 185, 95, 0.05));
+          border-color: rgba(255, 204, 102, 0.52);
+          background: linear-gradient(180deg, rgba(255, 204, 102, 0.24), rgba(255, 204, 102, 0.08));
         }
 
         .caughtBanner {
           margin: 20px 0;
           padding: 16px;
           border-radius: 12px;
-          background: rgba(245, 185, 95, 0.12);
-          border: 1px solid rgba(245, 185, 95, 0.4);
+          background: rgba(95, 208, 255, 0.15);
+          border: 1px solid rgba(95, 208, 255, 0.45);
           font-weight: 700;
           text-align: center;
         }
@@ -1747,10 +1767,10 @@ export function SystemProofBoard({
 
         .scenarioButton {
           padding: 11px 16px;
-          border: 1px solid rgba(212, 175, 55, 0.16);
+          border: 1px solid var(--line);
           border-radius: 999px;
-          background: rgba(212, 175, 55, 0.05);
-          color: #d8c696;
+          background: rgba(95, 208, 255, 0.08);
+          color: var(--text-muted);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1765,15 +1785,15 @@ export function SystemProofBoard({
         }
 
         .scenarioButton:hover {
-          border-color: rgba(212, 175, 55, 0.32);
-          color: #fff0c7;
+          border-color: var(--line-strong);
+          color: var(--text);
         }
 
         .scenarioButtonActive {
-          border-color: rgba(212, 175, 55, 0.34);
+          border-color: var(--line-strong);
           background:
-            linear-gradient(180deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.08));
-          color: #fff0c7;
+            linear-gradient(180deg, rgba(95, 208, 255, 0.28), rgba(95, 208, 255, 0.12));
+          color: var(--text);
         }
 
         .lifecycleStrip {
@@ -2172,8 +2192,8 @@ export function SystemProofBoard({
           padding: 14px 20px;
           border-radius: 12px;
           border: none;
-          background: #f5b95f;
-          color: #050403;
+          background: linear-gradient(180deg, #84defd, #21b7f3);
+          color: #052031;
           font-weight: 800;
           cursor: pointer;
         }
@@ -2201,8 +2221,8 @@ export function SystemProofBoard({
         }
 
         .step.active {
-          background: #f5b95f;
-          color: #050403;
+          background: linear-gradient(180deg, #84defd, #21b7f3);
+          color: #052031;
           opacity: 1;
           transition: all 0.3s ease;
         }
@@ -2277,10 +2297,10 @@ export function SystemProofBoard({
         }
 
         .traceDetails {
-          border: 1px solid rgba(212, 175, 55, 0.08);
+          border: 1px solid var(--line);
           border-radius: 24px;
           background:
-            linear-gradient(180deg, rgba(19, 16, 12, 0.94), rgba(8, 7, 5, 0.94));
+            linear-gradient(180deg, var(--panel-0), var(--panel-1));
           box-shadow:
             inset 0 1px 0 rgba(255, 245, 215, 0.04),
             0 18px 60px rgba(0, 0, 0, 0.28);
@@ -2468,6 +2488,7 @@ export function SystemProofBoard({
         }
 
         .rightRail {
+          grid-area: right;
           display: grid;
           align-content: start;
         }
@@ -2495,6 +2516,10 @@ export function SystemProofBoard({
         @media (max-width: 1260px) {
           .frame {
             grid-template-columns: 1fr;
+            grid-template-areas:
+              "left"
+              "workspace"
+              "right";
           }
 
           .leftRail,
