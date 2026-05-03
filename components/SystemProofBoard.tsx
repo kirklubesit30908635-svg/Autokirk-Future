@@ -1,4 +1,4 @@
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/router";
 import { createBrowserClient } from "@supabase/auth-helpers-nextjs";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
@@ -330,12 +330,38 @@ function getServiceDraftValue(
 function RowRecord({
   row,
   timeZone,
+  highlighted = false,
+  onSelect,
+  selected = false,
 }: {
   row: LifecycleRow;
   timeZone: string;
+  highlighted?: boolean;
+  onSelect?: (row: LifecycleRow) => void;
+  selected?: boolean;
 }) {
+  const className = [
+    "record",
+    highlighted ? "recordHighlight" : "",
+    selected ? "recordSelected" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
-    <article className="record">
+    <article
+      className={className}
+      onClick={() => onSelect?.(row)}
+      role={onSelect ? "button" : undefined}
+      tabIndex={onSelect ? 0 : undefined}
+      onKeyDown={(event) => {
+        if (!onSelect) return;
+        if (event.key === "Enter" || event.key === " ") {
+          event.preventDefault();
+          onSelect(row);
+        }
+      }}
+    >
       <div className="recordTop">
         <div className="recordIdentity">
           <div className="recordCode">{row.obligation_code}</div>
@@ -373,12 +399,20 @@ function StreamSection({
   description,
   rows,
   timeZone,
+  highlightedRowIds = new Set<string>(),
+  highlightedReceipt = null,
+  selectedObligationId = null,
+  onSelectObligation,
 }: {
   title: string;
   value: SummaryValue;
   description: string;
   rows: LifecycleRow[];
   timeZone: string;
+  highlightedRowIds?: Set<string>;
+  highlightedReceipt?: string | null;
+  selectedObligationId?: string | null;
+  onSelectObligation?: (row: LifecycleRow) => void;
 }) {
   return (
     <section className="streamSection">
@@ -392,9 +426,21 @@ function StreamSection({
 
       <div className="recordList">
         {rows.length > 0 ? (
-          rows.map((row) => (
-            <RowRecord key={row.obligation_id} row={row} timeZone={timeZone} />
-          ))
+          rows.map((row) => {
+            const isNew =
+              row.receipt_id === highlightedReceipt ||
+              highlightedRowIds.has(row.obligation_id);
+            return (
+              <RowRecord
+                key={row.obligation_id}
+                row={row}
+                timeZone={timeZone}
+                highlighted={isNew}
+                selected={row.obligation_id === selectedObligationId}
+                onSelect={onSelectObligation}
+              />
+            );
+          })
         ) : (
           <div className="emptyState">NO LIVE DATA</div>
         )}
@@ -433,6 +479,15 @@ export function SystemProofBoard({
   );
   const [runResult, setRunResult] = useState<LiveProofRunSuccess | null>(null);
   const [renderTimeZone, setRenderTimeZone] = useState(serverRenderTimeZone);
+  const [highlightedReceipt, setHighlightedReceipt] = useState<string | null>(null);
+  const [runState, setRunState] = useState<
+    "idle" | "opening" | "resolving" | "receipted"
+  >("idle");
+  const [highlightedRowIds, setHighlightedRowIds] = useState<Set<string>>(
+    () => new Set<string>()
+  );
+  const [timelinePhase, setTimelinePhase] = useState<1 | 2 | 3 | 4>(2);
+  const [selectedObligationId, setSelectedObligationId] = useState<string | null>(null);
   const selectedScenario = getProofScenario(selectedScenarioId);
   const resultScenario = runResult
     ? getProofScenario(runResult.scenario_id)
@@ -479,6 +534,10 @@ export function SystemProofBoard({
       setRunMessage(restoredScenario.ui.restoredMessage);
       setServiceRecord(toProofScenarioDraft(parsed.service_record, restoredScenario));
       setRunResult(parsed);
+      setHighlightedReceipt(
+        typeof parsed.receipt?.id === "string" ? parsed.receipt.id : null
+      );
+      setRunState("receipted");
     } catch {
       window.sessionStorage.removeItem(storedScenario.run.resultStorageKey);
     }
@@ -587,6 +646,12 @@ export function SystemProofBoard({
     (runResult ? "SUFFICIENT" : "PROOF NOT VISIBLE");
   const latestLifecycleState =
     runResult?.lifecycle_state ?? latestLifecycleRow?.lifecycle_state ?? "open";
+  const latestSourceSystem = String(
+    runResult?.event["source_system"] ?? latestLifecycleRow?.source_system ?? "—"
+  );
+  const stripeIngressDetected =
+    latestSourceSystem.toLowerCase().includes("stripe") ||
+    latestVisibleEventType.toLowerCase().startsWith("stripe.");
   const operatorStateLabel =
     latestLifecycleState === "resolved"
       ? "RESOLVED"
@@ -649,12 +714,78 @@ export function SystemProofBoard({
       row.lifecycle_state === "failed" ||
       !row.receipt_id
   );
+  const missedCounter = useMemo(() => {
+    const openCount = typeof summary.open === "number" ? summary.open : 0;
+    const failedCount = typeof summary.failed === "number" ? summary.failed : 0;
+    return openCount + failedCount;
+  }, [summary.open, summary.failed]);
 
   const heroStats = [
     { label: "Source Events", value: summary.sourceEvents },
     { label: "Obligations", value: summary.obligations },
     { label: "Receipts", value: summary.receipts },
   ];
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const snapshotKey = "autokirk:lifecycle-obligation-ids";
+    const previousRaw = window.sessionStorage.getItem(snapshotKey);
+    const previousIds = new Set<string>(
+      previousRaw ? (JSON.parse(previousRaw) as string[]) : []
+    );
+    const currentIds = lifecycleRows.map((row) => row.obligation_id);
+    const freshIds = currentIds.filter((id) => !previousIds.has(id));
+
+    window.sessionStorage.setItem(snapshotKey, JSON.stringify(currentIds));
+
+    if (!freshIds.length) {
+      return;
+    }
+
+    const next = new Set(freshIds);
+    setHighlightedRowIds(next);
+    const timer = window.setTimeout(() => {
+      setHighlightedRowIds(new Set<string>());
+    }, 5000);
+
+    return () => window.clearTimeout(timer);
+  }, [lifecycleRows]);
+
+  useEffect(() => {
+    if (runStatus === "running") {
+      setTimelinePhase(2);
+      return;
+    }
+
+    if (runStatus !== "success") {
+      setTimelinePhase(2);
+      return;
+    }
+
+    let cancelled = false;
+    setTimelinePhase(2);
+
+    const first = window.setTimeout(() => {
+      if (!cancelled) {
+        setTimelinePhase(3);
+      }
+    }, 250);
+
+    const second = window.setTimeout(() => {
+      if (!cancelled) {
+        setTimelinePhase(4);
+      }
+    }, 600);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(first);
+      window.clearTimeout(second);
+    };
+  }, [runStatus]);
 
   const rightRail = [
     { label: "OPEN", value: summary.open },
@@ -663,6 +794,12 @@ export function SystemProofBoard({
     { label: "RETRIES", value: summary.retries },
     { label: "PROJECTION", value: projection },
   ];
+  const selectedObligationRow = useMemo(
+    () =>
+      lifecycleRows.find((row) => row.obligation_id === selectedObligationId) ??
+      null,
+    [lifecycleRows, selectedObligationId]
+  );
 
   function toApiError(payload: unknown, fallback: string): string {
     if (!payload || typeof payload !== "object") {
@@ -680,6 +817,7 @@ export function SystemProofBoard({
       if (!operatorSession?.access_token) {
         setRunStatus("error");
         setRunMessage("OPERATOR_SIGN_IN_REQUIRED");
+        setRunState("idle");
         return;
       }
 
@@ -691,6 +829,7 @@ export function SystemProofBoard({
       if (validationError) {
         setRunStatus("error");
         setRunMessage(validationError);
+        setRunState("idle");
         return;
       }
 
@@ -702,6 +841,7 @@ export function SystemProofBoard({
       setRunStatus("running");
       setRunMessage(selectedScenario.ui.runningMessage);
       setRunResult(null);
+      setRunState("opening");
 
       try {
         const response = await fetch("/api/live-proof/run", {
@@ -731,15 +871,18 @@ export function SystemProofBoard({
           toProofScenarioDraft(payload.service_record, responseScenario)
         );
         setRunResult(payload);
+        setHighlightedReceipt(
+          typeof payload.receipt?.id === "string" ? payload.receipt.id : null
+        );
+        setRunState("resolving");
 
         if (typeof window !== "undefined") {
           window.sessionStorage.setItem(
             responseScenario.run.resultStorageKey,
             JSON.stringify(payload)
           );
-          window.setTimeout(() => {
-            router.reload();
-          }, 500);
+          window.setTimeout(() => setRunState("receipted"), 300);
+          window.setTimeout(() => router.reload(), 1200);
         }
       } catch (runError) {
         setRunStatus("error");
@@ -748,6 +891,7 @@ export function SystemProofBoard({
             ? runError.message
             : "SERVICE_PROOF_REQUEST_FAILED"
         );
+        setRunState("idle");
       }
     });
   }
@@ -807,6 +951,7 @@ export function SystemProofBoard({
     setRunResult(null);
     setRunStatus("idle");
     setRunMessage(selectedScenario.ui.idleMessage);
+    setRunState("idle");
   }
 
   function handleScenarioSelect(nextScenarioId: ProofScenarioId) {
@@ -821,6 +966,7 @@ export function SystemProofBoard({
     setRunResult(null);
     setRunStatus("idle");
     setRunMessage(nextScenario.ui.idleMessage);
+    setRunState("idle");
 
     if (authState === "signed_out") {
       setAuthMessage(nextScenario.ui.signInRequiredMessage);
@@ -883,7 +1029,34 @@ export function SystemProofBoard({
                   <div className="heroStatValue">{formatValue(item.value)}</div>
                 </div>
               ))}
+              <div className="heroStatCard heroStatCardAlert">
+                <div className="heroStatLabel">This Would Have Been Missed</div>
+                <div className="heroStatValue">{formatValue(missedCounter)}</div>
+              </div>
             </div>
+            <div className="caughtBanner">
+              {formatValue(missedCounter)} missed actions caught and forced to
+              resolution
+            </div>
+            <section className="consequencePanel" aria-label="Before and after simulation">
+              <div className="consequenceBlock consequenceBlockWithout">
+                <div className="noticeLabel">Without Proof</div>
+                <ul className="consequenceList">
+                  <li>Obligation remains open</li>
+                  <li>Marked overdue</li>
+                  <li>Escalated by watchdog</li>
+                </ul>
+              </div>
+              <div className="consequenceArrow">→</div>
+              <div className="consequenceBlock consequenceBlockWith">
+                <div className="noticeLabel">With AutoKirk</div>
+                <ul className="consequenceList">
+                  <li>Obligation created</li>
+                  <li>Proof required</li>
+                  <li>Receipt emitted</li>
+                </ul>
+              </div>
+            </section>
           </header>
 
           <section className="proofPanel">
@@ -915,26 +1088,38 @@ export function SystemProofBoard({
             </div>
 
             <div className="lifecycleStrip">
-              <div className="lifecycleNode">
+              <div className={timelinePhase >= 1 ? "lifecycleNode lifecycleNodeLive" : "lifecycleNode"}>
                 <span className="nodeIndex">01</span>
                 <span className="nodeLabel">
                   {selectedScenario.ui.lifecycleStartLabel}
                 </span>
               </div>
               <div className="lifecycleConnector" />
-              <div className="lifecycleNode">
+              <div className={timelinePhase >= 2 ? "lifecycleNode lifecycleNodeLive" : "lifecycleNode"}>
                 <span className="nodeIndex">02</span>
                 <span className="nodeLabel">
                   {selectedScenario.ui.lifecycleOpenLabel}
                 </span>
               </div>
               <div className="lifecycleConnector" />
-              <div className="lifecycleNode lifecycleNodeAccent">
+              <div
+                className={
+                  timelinePhase >= 3
+                    ? "lifecycleNode lifecycleNodeAccent lifecycleNodeLive"
+                    : "lifecycleNode lifecycleNodeAccent"
+                }
+              >
                 <span className="nodeIndex">03</span>
                 <span className="nodeLabel">{lifecycleOutcome}</span>
               </div>
               <div className="lifecycleConnector" />
-              <div className="lifecycleNode lifecycleNodeAccent">
+              <div
+                className={
+                  timelinePhase >= 4
+                    ? "lifecycleNode lifecycleNodeAccent lifecycleNodeLive"
+                    : "lifecycleNode lifecycleNodeAccent"
+                }
+              >
                 <span className="nodeIndex">04</span>
                 <span className="nodeLabel">{receiptOutcome}</span>
               </div>
@@ -1017,7 +1202,75 @@ export function SystemProofBoard({
               </div>
             </div>
 
+            <div className="explanationPanel">
+              <div className="noticeLabel">Live Stripe Flow</div>
+              <div className="flowLine">
+                <div className="flowStep">
+                  <div className="fieldLabel">Stripe Event</div>
+                  <div className={stripeIngressDetected ? "flowValue flowValueOn" : "flowValue"}>
+                    {stripeIngressDetected ? "INGRESSED" : "NOT DETECTED"}
+                  </div>
+                </div>
+                <div className="flowArrow">→</div>
+                <div className="flowStep">
+                  <div className="fieldLabel">Obligation</div>
+                  <div className={latestVisibleObligation !== "NO OBLIGATION LOADED" ? "flowValue flowValueOn" : "flowValue"}>
+                    {latestVisibleObligation !== "NO OBLIGATION LOADED" ? "OPENED" : "MISSING"}
+                  </div>
+                </div>
+                <div className="flowArrow">→</div>
+                <div className="flowStep">
+                  <div className="fieldLabel">Proof</div>
+                  <div className={latestLifecycleState === "resolved" ? "flowValue flowValueOn" : "flowValue"}>
+                    {latestLifecycleState === "resolved" ? "ACCEPTED" : "REQUIRED"}
+                  </div>
+                </div>
+                <div className="flowArrow">→</div>
+                <div className="flowStep">
+                  <div className="fieldLabel">Receipt</div>
+                  <div className={latestLifecycleState === "resolved" ? "flowValue flowValueOn" : "flowValue"}>
+                    {latestLifecycleState === "resolved" ? "EMITTED" : "PENDING"}
+                  </div>
+                </div>
+              </div>
+              <p className="explanationCopy">
+                Source: {latestSourceSystem} | Event: {latestVisibleEventType}
+              </p>
+            </div>
+
             <div className="noticeStack">
+              {selectedObligationRow ? (
+                <div className="runResultCard">
+                  <div className="noticeLabel">Obligation Verification</div>
+                  <div className="runResultGrid">
+                    <ResultField
+                      label="OBLIGATION ID"
+                      value={selectedObligationRow.obligation_id}
+                    />
+                    <ResultField
+                      label="OBLIGATION CODE"
+                      value={selectedObligationRow.obligation_code}
+                    />
+                    <ResultField
+                      label="LIFECYCLE STATE"
+                      value={selectedObligationRow.lifecycle_state.toUpperCase()}
+                    />
+                    <ResultField
+                      label="PROOF STATUS"
+                      value={(selectedObligationRow.proof_status ?? "—").toUpperCase()}
+                    />
+                    <ResultField
+                      label="RECEIPT ID"
+                      value={selectedObligationRow.receipt_id ?? "—"}
+                    />
+                    <ResultField
+                      label="ENTITY ID"
+                      value={selectedObligationRow.entity_id ?? "—"}
+                    />
+                  </div>
+                </div>
+              ) : null}
+
               <div className="operatorCard">
                 <div className="operatorHeader">
                   <div>
@@ -1124,14 +1377,33 @@ export function SystemProofBoard({
                 <div className="runPanelAction">
                   <button
                     type="button"
-                    className="runButton"
+                    className="proofRunButton"
                     onClick={handleRunLoop}
                     disabled={isRunning || authState !== "ready"}
                   >
-                    {isRunning
-                      ? selectedScenario.ui.submittingLabel
-                      : selectedScenario.ui.submitLabel}
+                    {isRunning ? "RUNNING..." : "RUN PROOF DEMO"}
                   </button>
+                  <div className="demoProgress">
+                    <div className={`step ${runState !== "idle" ? "active" : ""}`}>
+                      OPEN
+                    </div>
+                    <div
+                      className={`step ${
+                        runState === "resolving" || runState === "receipted"
+                          ? "active"
+                          : ""
+                      }`}
+                    >
+                      RESOLVE
+                    </div>
+                    <div
+                      className={`step ${
+                        runState === "receipted" ? "active" : ""
+                      }`}
+                    >
+                      RECEIPT
+                    </div>
+                  </div>
                   <div className={`runStatus runStatus-${runStatus}`}>
                     {runMessage}
                   </div>
@@ -1224,6 +1496,10 @@ export function SystemProofBoard({
                 description="Latest recorded events attached to obligation truth."
                 rows={sourceRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Obligations"
@@ -1231,6 +1507,10 @@ export function SystemProofBoard({
                 description="Open and recent obligations in the projection stream."
                 rows={obligationRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Receipts"
@@ -1238,6 +1518,10 @@ export function SystemProofBoard({
                 description="Receipt-backed lifecycle proofs emitted by the system."
                 rows={receiptRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Failed"
@@ -1245,6 +1529,10 @@ export function SystemProofBoard({
                 description="Failure states remain visible until doctrine-valid proof exists."
                 rows={failedRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Overdue"
@@ -1252,6 +1540,10 @@ export function SystemProofBoard({
                 description="Watchdog rows surfaced from the overdue failure read model."
                 rows={overdueRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
               <StreamSection
                 title="Projection Status"
@@ -1259,6 +1551,10 @@ export function SystemProofBoard({
                 description="Current projection health with unresolved or receipt-absent rows."
                 rows={projectionRows}
                 timeZone={renderTimeZone}
+                highlightedRowIds={highlightedRowIds}
+                highlightedReceipt={highlightedReceipt}
+                selectedObligationId={selectedObligationId}
+                onSelectObligation={(row) => setSelectedObligationId(row.obligation_id)}
               />
             </div>
           </details>
@@ -1284,14 +1580,27 @@ export function SystemProofBoard({
 
       <style jsx>{`
         .surface {
+          --bg-0: #06131b;
+          --bg-1: #0b1f2a;
+          --panel-0: rgba(8, 25, 35, 0.94);
+          --panel-1: rgba(6, 18, 26, 0.94);
+          --line: rgba(115, 210, 255, 0.16);
+          --line-strong: rgba(115, 210, 255, 0.32);
+          --text: #e8f6ff;
+          --text-muted: #9dc1d2;
+          --accent: #5fd0ff;
+          --accent-strong: #21b7f3;
+          --warning: #ffcc66;
+          --fail: #ff8e8e;
+          --ok: #7bf0ad;
           min-height: 100vh;
           position: relative;
           overflow: hidden;
           background:
-            radial-gradient(circle at top left, rgba(212, 175, 55, 0.16), transparent 30%),
-            radial-gradient(circle at 85% 0%, rgba(212, 175, 55, 0.08), transparent 24%),
-            linear-gradient(180deg, #050403 0%, #090705 48%, #040302 100%);
-          color: #f3ead3;
+            radial-gradient(circle at top left, rgba(95, 208, 255, 0.18), transparent 34%),
+            radial-gradient(circle at 85% 0%, rgba(58, 176, 224, 0.12), transparent 26%),
+            linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 58%, #081923 100%);
+          color: var(--text);
           font-family:
             "Söhne", "Avenir Next", "Segoe UI", system-ui, sans-serif;
         }
@@ -1309,13 +1618,13 @@ export function SystemProofBoard({
         .ambientGlowLeft {
           top: -14rem;
           left: -10rem;
-          background: #d4af37;
+          background: #3bb7e8;
         }
 
         .ambientGlowRight {
           top: 14rem;
           right: -14rem;
-          background: #8b6a17;
+          background: #1a6f94;
         }
 
         .frame {
@@ -1323,9 +1632,14 @@ export function SystemProofBoard({
           z-index: 1;
           min-height: 100vh;
           display: grid;
-          grid-template-columns: 248px minmax(0, 1fr) 220px;
+          grid-template-columns: 280px minmax(0, 1fr);
+          grid-template-areas:
+            "left workspace"
+            "right workspace";
           gap: 24px;
           padding: 24px;
+          max-width: 1560px;
+          margin: 0 auto;
         }
 
         .leftRail,
@@ -1333,15 +1647,16 @@ export function SystemProofBoard({
         .proofPanel,
         .streamSection,
         .statusCard {
-          border: 1px solid rgba(243, 234, 211, 0.08);
+          border: 1px solid var(--line);
           background:
-            linear-gradient(180deg, rgba(19, 16, 12, 0.94), rgba(8, 7, 5, 0.94));
+            linear-gradient(180deg, var(--panel-0), var(--panel-1));
           box-shadow:
-            inset 0 1px 0 rgba(255, 245, 215, 0.04),
-            0 18px 60px rgba(0, 0, 0, 0.28);
+            inset 0 1px 0 rgba(200, 241, 255, 0.06),
+            0 18px 60px rgba(1, 11, 18, 0.38);
         }
 
         .leftRail {
+          grid-area: left;
           display: grid;
           align-content: start;
           gap: 22px;
@@ -1356,7 +1671,7 @@ export function SystemProofBoard({
         .statusLabel,
         .fieldLabel,
         .noticeLabel {
-          color: #d4af37;
+          color: var(--accent);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1371,7 +1686,7 @@ export function SystemProofBoard({
         .sectionDescription,
         .noticeBody,
         .railTimestamp {
-          color: #cbbd96;
+          color: var(--text-muted);
           line-height: 1.75;
         }
 
@@ -1394,9 +1709,9 @@ export function SystemProofBoard({
           gap: 12px;
           padding: 14px 14px;
           border-radius: 16px;
-          border: 1px solid rgba(212, 175, 55, 0.08);
-          background: rgba(212, 175, 55, 0.04);
-          color: #f6eed5;
+          border: 1px solid var(--line);
+          background: rgba(38, 132, 171, 0.16);
+          color: var(--text);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1408,11 +1723,12 @@ export function SystemProofBoard({
           width: 8px;
           height: 8px;
           border-radius: 999px;
-          background: #d4af37;
-          box-shadow: 0 0 18px rgba(212, 175, 55, 0.6);
+          background: var(--accent);
+          box-shadow: 0 0 18px rgba(95, 208, 255, 0.6);
         }
 
         .workspace {
+          grid-area: workspace;
           display: grid;
           gap: 20px;
           align-content: start;
@@ -1441,7 +1757,7 @@ export function SystemProofBoard({
         h1 {
           margin: 8px 0 14px;
           max-width: 10ch;
-          color: #fff5da;
+          color: #eefaff;
           font-size: clamp(2.8rem, 5.2vw, 5.6rem);
           line-height: 0.94;
           letter-spacing: -0.04em;
@@ -1459,8 +1775,8 @@ export function SystemProofBoard({
           gap: 8px;
           padding: 16px 18px;
           border-radius: 20px;
-          border: 1px solid rgba(212, 175, 55, 0.12);
-          background: rgba(212, 175, 55, 0.05);
+          border: 1px solid var(--line-strong);
+          background: rgba(33, 183, 243, 0.12);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1478,28 +1794,118 @@ export function SystemProofBoard({
         }
 
         .projectionOk {
-          color: #87d38f;
+          color: var(--ok);
         }
 
         .projectionFailing {
-          color: #f59b7d;
+          color: var(--fail);
         }
 
         .projectionOffline {
-          color: #d8bb67;
+          color: var(--warning);
+        }
+
+        @keyframes nodePulse {
+          0% {
+            transform: translateY(2px);
+            opacity: 0.76;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes recordReveal {
+          0% {
+            transform: translateY(4px);
+            opacity: 0.7;
+          }
+          100% {
+            transform: translateY(0);
+            opacity: 1;
+          }
+        }
+
+        @keyframes flashIn {
+          0% {
+            background: rgba(245, 185, 95, 0.35);
+            transform: scale(1.02);
+          }
+          100% {
+            background: transparent;
+            transform: scale(1);
+          }
         }
 
         .heroStats {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 14px;
         }
 
         .heroStatCard {
           padding: 18px;
           border-radius: 20px;
-          border: 1px solid rgba(212, 175, 55, 0.1);
-          background: linear-gradient(180deg, rgba(212, 175, 55, 0.08), rgba(212, 175, 55, 0.02));
+          border: 1px solid var(--line);
+          background: linear-gradient(180deg, rgba(95, 208, 255, 0.14), rgba(95, 208, 255, 0.04));
+        }
+
+        .heroStatCardAlert {
+          border-color: rgba(255, 204, 102, 0.52);
+          background: linear-gradient(180deg, rgba(255, 204, 102, 0.24), rgba(255, 204, 102, 0.08));
+        }
+
+        .caughtBanner {
+          margin: 20px 0;
+          padding: 16px;
+          border-radius: 12px;
+          background: rgba(95, 208, 255, 0.15);
+          border: 1px solid rgba(95, 208, 255, 0.45);
+          font-weight: 700;
+          text-align: center;
+        }
+
+        .consequencePanel {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr;
+          gap: 14px;
+          align-items: stretch;
+        }
+
+        .consequenceBlock {
+          border-radius: 16px;
+          padding: 16px;
+          border: 1px solid var(--line);
+          background: rgba(5, 24, 36, 0.55);
+        }
+
+        .consequenceBlockWithout {
+          border-color: rgba(255, 142, 142, 0.35);
+          background: rgba(60, 14, 14, 0.3);
+        }
+
+        .consequenceBlockWith {
+          border-color: rgba(123, 240, 173, 0.35);
+          background: rgba(8, 52, 35, 0.36);
+        }
+
+        .consequenceList {
+          margin: 10px 0 0;
+          padding-left: 18px;
+          display: grid;
+          gap: 8px;
+          color: var(--text);
+          font-weight: 700;
+          letter-spacing: 0.02em;
+        }
+
+        .consequenceArrow {
+          align-self: center;
+          color: var(--accent);
+          font-size: 28px;
+          font-weight: 800;
+          line-height: 1;
         }
 
         .heroStatValue {
@@ -1545,10 +1951,10 @@ export function SystemProofBoard({
 
         .scenarioButton {
           padding: 11px 16px;
-          border: 1px solid rgba(212, 175, 55, 0.16);
+          border: 1px solid var(--line);
           border-radius: 999px;
-          background: rgba(212, 175, 55, 0.05);
-          color: #d8c696;
+          background: rgba(95, 208, 255, 0.08);
+          color: var(--text-muted);
           font-family:
             "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
             Menlo, monospace;
@@ -1563,15 +1969,15 @@ export function SystemProofBoard({
         }
 
         .scenarioButton:hover {
-          border-color: rgba(212, 175, 55, 0.32);
-          color: #fff0c7;
+          border-color: var(--line-strong);
+          color: var(--text);
         }
 
         .scenarioButtonActive {
-          border-color: rgba(212, 175, 55, 0.34);
+          border-color: var(--line-strong);
           background:
-            linear-gradient(180deg, rgba(212, 175, 55, 0.18), rgba(212, 175, 55, 0.08));
-          color: #fff0c7;
+            linear-gradient(180deg, rgba(95, 208, 255, 0.28), rgba(95, 208, 255, 0.12));
+          color: var(--text);
         }
 
         .lifecycleStrip {
@@ -1595,6 +2001,12 @@ export function SystemProofBoard({
         .lifecycleNodeAccent {
           background: linear-gradient(180deg, rgba(212, 175, 55, 0.12), rgba(212, 175, 55, 0.03));
           border-color: rgba(212, 175, 55, 0.2);
+        }
+
+        .lifecycleNodeLive {
+          animation: nodePulse 440ms ease-out;
+          border-color: rgba(245, 185, 95, 0.52);
+          box-shadow: 0 0 0 1px rgba(245, 185, 95, 0.18) inset;
         }
 
         .nodeIndex {
@@ -1692,6 +2104,41 @@ export function SystemProofBoard({
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 12px;
+        }
+
+        .flowLine {
+          display: grid;
+          grid-template-columns: 1fr auto 1fr auto 1fr auto 1fr;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .flowStep {
+          border: 1px solid var(--line);
+          border-radius: 12px;
+          padding: 10px;
+          background: rgba(5, 5, 4, 0.5);
+        }
+
+        .flowValue {
+          margin-top: 6px;
+          color: var(--warning);
+          font-family:
+            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
+            Menlo, monospace;
+          font-size: 11px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .flowValueOn {
+          color: var(--ok);
+        }
+
+        .flowArrow {
+          color: var(--accent);
+          font-size: 18px;
+          font-weight: 800;
         }
 
         .operatorSummaryItem,
@@ -1959,37 +2406,44 @@ export function SystemProofBoard({
           justify-items: end;
         }
 
-        .runButton {
-          min-width: 220px;
-          padding: 14px 18px;
-          border: 1px solid rgba(212, 175, 55, 0.28);
-          border-radius: 999px;
-          background:
-            linear-gradient(180deg, rgba(212, 175, 55, 0.26), rgba(212, 175, 55, 0.12));
-          color: #fff4d5;
-          font-family:
-            "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono",
-            Menlo, monospace;
-          font-size: 12px;
-          letter-spacing: 0.16em;
-          text-transform: uppercase;
+        .proofRunButton {
+          margin-top: 20px;
+          padding: 14px 20px;
+          border-radius: 12px;
+          border: none;
+          background: linear-gradient(180deg, #84defd, #21b7f3);
+          color: #052031;
+          font-weight: 800;
           cursor: pointer;
-          transition:
-            transform 140ms ease,
-            border-color 140ms ease,
-            background 140ms ease;
         }
 
-        .runButton:hover:not(:disabled) {
-          transform: translateY(-1px);
-          border-color: rgba(212, 175, 55, 0.45);
-          background:
-            linear-gradient(180deg, rgba(212, 175, 55, 0.34), rgba(212, 175, 55, 0.16));
+        .proofRunButton:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
 
-        .runButton:disabled {
-          opacity: 0.72;
-          cursor: wait;
+        .demoProgress {
+          display: flex;
+          gap: 10px;
+          margin-top: 14px;
+          width: 100%;
+        }
+
+        .step {
+          flex: 1;
+          padding: 8px;
+          text-align: center;
+          border-radius: 8px;
+          background: #222;
+          opacity: 0.4;
+          font-size: 12px;
+        }
+
+        .step.active {
+          background: linear-gradient(180deg, #84defd, #21b7f3);
+          color: #052031;
+          opacity: 1;
+          transition: all 0.3s ease;
         }
 
         .runStatus {
@@ -2062,10 +2516,10 @@ export function SystemProofBoard({
         }
 
         .traceDetails {
-          border: 1px solid rgba(212, 175, 55, 0.08);
+          border: 1px solid var(--line);
           border-radius: 24px;
           background:
-            linear-gradient(180deg, rgba(19, 16, 12, 0.94), rgba(8, 7, 5, 0.94));
+            linear-gradient(180deg, var(--panel-0), var(--panel-1));
           box-shadow:
             inset 0 1px 0 rgba(255, 245, 215, 0.04),
             0 18px 60px rgba(0, 0, 0, 0.28);
@@ -2147,6 +2601,31 @@ export function SystemProofBoard({
           border: 1px solid rgba(212, 175, 55, 0.08);
           background:
             linear-gradient(180deg, rgba(18, 16, 12, 0.92), rgba(13, 11, 8, 0.92));
+        }
+
+        .record[role="button"] {
+          cursor: pointer;
+        }
+
+        .recordHighlight {
+          border-color: rgba(245, 185, 95, 0.45);
+          box-shadow:
+            0 0 0 1px rgba(245, 185, 95, 0.16) inset,
+            0 0 24px rgba(245, 185, 95, 0.16);
+          animation: recordReveal 700ms ease-out;
+        }
+
+        .recordSelected {
+          border-color: rgba(95, 208, 255, 0.65);
+          box-shadow:
+            0 0 0 1px rgba(95, 208, 255, 0.3) inset,
+            0 0 22px rgba(95, 208, 255, 0.24);
+        }
+
+        .rowHighlight {
+          animation: flashIn 1.2s ease-out;
+          border: 1px solid #f5b95f;
+          box-shadow: 0 0 18px rgba(245, 185, 95, 0.45);
         }
 
         .recordTop {
@@ -2239,6 +2718,7 @@ export function SystemProofBoard({
         }
 
         .rightRail {
+          grid-area: right;
           display: grid;
           align-content: start;
         }
@@ -2266,6 +2746,10 @@ export function SystemProofBoard({
         @media (max-width: 1260px) {
           .frame {
             grid-template-columns: 1fr;
+            grid-template-areas:
+              "left"
+              "workspace"
+              "right";
           }
 
           .leftRail,
@@ -2281,8 +2765,10 @@ export function SystemProofBoard({
 
         @media (max-width: 1024px) {
           .heroStats,
+          .consequencePanel,
           .operatorSummaryGrid,
           .explanationGrid,
+          .flowLine,
           .fieldGrid,
           .runResultGrid,
           .serviceRecordGrid,
@@ -2318,7 +2804,7 @@ export function SystemProofBoard({
             justify-items: stretch;
           }
 
-          .runButton,
+          .proofRunButton,
           .runStatus {
             max-width: none;
             width: 100%;
