@@ -1,0 +1,69 @@
+# AutoKirk Future — Sealed Proof Gate
+#
+# Target path in repo: .github/workflows/proof.yml
+#
+# Triggers `npm run prove` on every push and PR against main, plus pushes to
+# the active recovery branch. Any failure of a sealed marker fails the workflow,
+# which (when wired as a Vercel required check) blocks deployment.
+#
+# Sealed markers exercised by `npm run prove`:
+#   TERMINAL_STATE_VERIFICATION_OK
+#   OVERDUE_FAILURE_VERIFICATION_MANUAL_OK
+#   SYSTEM_TRUTH_VERIFICATION_OK
+#   GUARD_VERIFICATION_OK
+#   SIGNALS_VERIFICATION_OK
+
+name: AutoKirk Future Proof Gate
+
+on:
+  push:
+    branches:
+      - main
+      - recover/local-work-after-sync
+  pull_request:
+    branches:
+      - main
+
+# Avoid stacked runs on rapid pushes — newer push cancels older job
+concurrency:
+  group: prove-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  prove:
+    name: Run sealed proof markers
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      # Local Supabase boots Postgres + Edge runtime in Docker.
+      # GitHub-hosted runners include Docker by default.
+      - name: Start local Supabase stack
+        run: supabase start
+
+      - name: Apply all migrations to local DB
+        run: supabase db reset --local
+
+      - name: Run sealed proof markers (npm run prove)
+        run: npm run prove
+
+      - name: Stop local Supabase stack
+        if: always()
+        run: supabase stop --no-backup

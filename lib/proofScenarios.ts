@@ -31,6 +31,7 @@ export type ProofScenarioConfig = {
     resolutionReason: string;
     ruleVersion: string;
     runIdPrefix: string;
+    requiredProofRecordKeys: readonly string[];
   };
   ui: {
     selectorLabel: string;
@@ -131,11 +132,11 @@ const constructionTaskFields = [
   {
     draftKey: "proofPhotoUrl",
     recordKey: "proof_photo_url",
-    label: "Proof Photo URL (Optional)",
+    label: "Proof Photo URL",
     placeholder: "https://example.com/task-photo.jpg",
-    required: false,
+    required: true,
+    requiredError: "PROOF_PHOTO_REQUIRED",
     resultLabel: "PROOF PHOTO",
-    emptyResultValue: "NOTE ONLY",
   },
   {
     draftKey: "proofNote",
@@ -166,6 +167,7 @@ export const proofScenarios = {
       resolutionReason: "service proof submitted",
       ruleVersion: "marine-service-proof-v1",
       runIdPrefix: "marine-service",
+      requiredProofRecordKeys: ["proof_note"],
     },
     ui: {
       selectorLabel: "Marine Service",
@@ -211,10 +213,11 @@ export const proofScenarios = {
       serviceType: "construction_task",
       eventType: "construction.task_started",
       obligationCode: "complete_task_with_proof",
-      proofType: "operator_attestation",
+      proofType: "photo_attestation",
       resolutionReason: "construction task proof submitted",
       ruleVersion: "construction-task-proof-v1",
       runIdPrefix: "construction-task",
+      requiredProofRecordKeys: ["proof_note", "proof_photo_url"],
     },
     ui: {
       selectorLabel: "Construction Task",
@@ -232,9 +235,9 @@ export const proofScenarios = {
       recordEyebrow: "Construction Record",
       recordTitle: "Submit Proof To Complete Task",
       recordDescription:
-        "Capture one construction task record: task name, location, proof note, optional photo URL, then emit the receipt-backed resolution.",
+        "Capture one construction task record: task name, location, proof note, and required photo URL, then emit the receipt-backed resolution.",
       proofDescription:
-        "Photo URL is optional; the note is always attached to the receipt.",
+        "Photo URL is required for this proof contract and attached to the receipt.",
       idleMessage:
         "Record the task, location, and proof to resolve the obligation.",
       runningMessage:
@@ -348,6 +351,20 @@ export function getProofScenarioDraftError(
 
   if (proofPhotoUrl && !isValidHttpUrl(proofPhotoUrl)) {
     return "PROOF_PHOTO_URL_INVALID";
+  }
+
+  for (const requiredRecordKey of scenario.run.requiredProofRecordKeys) {
+    const field = scenario.fields.find((entry) => entry.recordKey === requiredRecordKey);
+
+    if (!field) {
+      continue;
+    }
+
+    const value = draft[field.draftKey]?.trim() ?? "";
+
+    if (!value) {
+      return "Resolution blocked: proof required.";
+    }
   }
 
   return null;

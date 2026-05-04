@@ -51,13 +51,13 @@ type EmitResult = {
 
 type ApiResponse =
   | {
-    ok: true
-    scanned_count: number
-    emitted_count: number
-    delivered_count: number
-    failed_count: number
-    results: EmitResult[]
-  }
+      ok: true
+      scanned_count: number
+      emitted_count: number
+      delivered_count: number
+      failed_count: number
+      results: EmitResult[]
+    }
   | { ok: false; error: string }
 
 function assertEnv(name: string, value: string | undefined): string {
@@ -98,8 +98,6 @@ async function getOrCreateEmission(
   supabase: any,
   row: WatchdogDeliveryCandidate
 ): Promise<{ emission: InsertedEmission | null; skipped?: string; error?: string }> {
-  const controlClient = supabase.schema('control') as any
-
   if (row.emission_id) {
     return {
       emission: {
@@ -113,36 +111,16 @@ async function getOrCreateEmission(
     }
   }
 
-  const { data: inserted, error: insertError } = await controlClient
-    .from('watchdog_emissions')
-    .insert({
-      obligation_id: row.obligation_id,
-      delivery_target: row.delivery_target,
-      delivery_status: 'pending',
-    })
-    .select('id, obligation_id, delivery_status, next_retry_at, attempt_count, max_attempts')
-    .single()
+  const { data, error } = await supabase.rpc('create_watchdog_emission', {
+    p_obligation_id: row.obligation_id,
+    p_delivery_target: row.delivery_target,
+  })
 
-  if (!insertError) {
-    return { emission: inserted as InsertedEmission }
+  if (error) {
+    return { emission: null, error: error.message }
   }
 
-  if (insertError.code !== '23505') {
-    return { emission: null, error: insertError.message }
-  }
-
-  const { data: existing, error: existingError } = await controlClient
-    .from('watchdog_emissions')
-    .select('id, obligation_id, delivery_status, next_retry_at, attempt_count, max_attempts')
-    .eq('obligation_id', row.obligation_id)
-    .eq('delivery_target', row.delivery_target)
-    .single()
-
-  if (existingError) {
-    return { emission: null, error: existingError.message }
-  }
-
-  return { emission: existing as InsertedEmission }
+  return { emission: data as InsertedEmission }
 }
 
 async function claimEmission(
@@ -204,6 +182,7 @@ export default async function handler(
     const key = assertEnv('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY)
     const webhookUrl = assertEnv('WATCHDOG_OUTBOUND_WEBHOOK_URL', process.env.WATCHDOG_OUTBOUND_WEBHOOK_URL)
     const watchdogSharedSecret = assertEnv('WATCHDOG_SHARED_SECRET', process.env.WATCHDOG_SHARED_SECRET)
+    const receiverSecret = assertEnv('WATCHDOG_RECEIVER_SECRET', process.env.WATCHDOG_RECEIVER_SECRET)
 
     const supabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -288,6 +267,7 @@ export default async function handler(
             'x-autokirk-event-key': eventKey,
             'x-autokirk-event-type': 'watchdog.overdue_failure.detected',
             'x-autokirk-signature': watchdogSharedSecret,
+            'x-watchdog-secret': receiverSecret,
           },
           body: JSON.stringify({
             event_type: 'watchdog.overdue_failure.detected',
@@ -386,4 +366,4 @@ export default async function handler(
       error: err instanceof Error ? err.message : 'UNKNOWN_ERROR',
     })
   }
-}
+  }

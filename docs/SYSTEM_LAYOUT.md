@@ -65,6 +65,10 @@ Responsibilities:
 
 ### 3. Resolution path
 
+Canonical operator path:
+
+`UI/request -> pages/api/obligations/resolve-with-proof -> api.resolve_with_proof() -> kernel.resolve_obligation_internal()`
+
 Resolution authority lives in database functions:
 
 - `api.resolve_with_proof()`

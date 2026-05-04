@@ -16,3 +16,17 @@ Autokirk-Future/
 
 # Local proof screenshots
 *.png
+
+# Never commit credential files
+github_pat_*
+*.pat
+*.token
+.env
+.env.local
+*.pem
+*.key
+secrets/
+
+# local log exports
+logs_after*.json
+logs_after*.txt
