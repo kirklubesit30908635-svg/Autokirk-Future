@@ -26,3 +26,7 @@ github_pat_*
 *.pem
 *.key
 secrets/
+
+# local log exports
+logs_after*.json
+logs_after*.txt
