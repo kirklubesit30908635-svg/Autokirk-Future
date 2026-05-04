@@ -98,8 +98,6 @@ async function getOrCreateEmission(
   supabase: any,
   row: WatchdogDeliveryCandidate
 ): Promise<{ emission: InsertedEmission | null; skipped?: string; error?: string }> {
-  const controlClient = supabase.schema('control') as any
-
   if (row.emission_id) {
     return {
       emission: {
@@ -113,36 +111,16 @@ async function getOrCreateEmission(
     }
   }
 
-  const { data: inserted, error: insertError } = await controlClient
-    .from('watchdog_emissions')
-    .insert({
-      obligation_id: row.obligation_id,
-      delivery_target: row.delivery_target,
-      delivery_status: 'pending',
-    })
-    .select('id, obligation_id, delivery_status, next_retry_at, attempt_count, max_attempts')
-    .single()
+  const { data, error } = await supabase.rpc('create_watchdog_emission', {
+    p_obligation_id: row.obligation_id,
+    p_delivery_target: row.delivery_target,
+  })
 
-  if (!insertError) {
-    return { emission: inserted as InsertedEmission }
+  if (error) {
+    return { emission: null, error: error.message }
   }
 
-  if (insertError.code !== '23505') {
-    return { emission: null, error: insertError.message }
-  }
-
-  const { data: existing, error: existingError } = await controlClient
-    .from('watchdog_emissions')
-    .select('id, obligation_id, delivery_status, next_retry_at, attempt_count, max_attempts')
-    .eq('obligation_id', row.obligation_id)
-    .eq('delivery_target', row.delivery_target)
-    .single()
-
-  if (existingError) {
-    return { emission: null, error: existingError.message }
-  }
-
-  return { emission: existing as InsertedEmission }
+  return { emission: data as InsertedEmission }
 }
 
 async function claimEmission(
