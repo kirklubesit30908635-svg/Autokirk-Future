@@ -25,14 +25,14 @@ export default function ProofDemoPage({
         <title>AutoKirk Proof Demo</title>
         <meta
           name="description"
-          content="Operator-facing proof demo: revenue action cannot be dropped."
+          content="Operator-facing proof demo: obligation cannot be dropped."
         />
       </Head>
 
       <section className="proofDemoBrief" aria-labelledby="proof-demo-title">
         <div className="proofDemoShell">
           <p className="proofDemoKicker">OPERATOR PROOF DEMO</p>
-          <h1 id="proof-demo-title">Revenue action cannot be dropped.</h1>
+          <h1 id="proof-demo-title">Obligation cannot be dropped.</h1>
           <p className="proofDemoCopy">
             This route packages the existing AutoKirk lifecycle into a two-minute operator proof:
             payment creates an obligation, the obligation remains visible, and closure requires a receipt.
