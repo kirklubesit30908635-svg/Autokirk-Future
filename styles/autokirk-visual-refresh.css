@@ -1,0 +1,278 @@
+:root {
+  --ak-bg: #070a12;
+  --ak-panel: rgba(11, 18, 32, 0.86);
+  --ak-panel-soft: rgba(15, 23, 42, 0.72);
+  --ak-border: rgba(148, 163, 184, 0.18);
+  --ak-text: #f8fafc;
+  --ak-muted: #94a3b8;
+  --ak-blue: #38bdf8;
+  --ak-green: #22c55e;
+  --ak-amber: #f59e0b;
+  --ak-red: #ef4444;
+}
+
+html,
+body {
+  background:
+    radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 34%),
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.12), transparent 30%),
+    var(--ak-bg) !important;
+}
+
+.surface {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(2, 6, 23, 0.98)) !important;
+  color: var(--ak-text) !important;
+}
+
+.ambientGlowLeft {
+  background: rgba(56, 189, 248, 0.22) !important;
+}
+
+.ambientGlowRight {
+  background: rgba(34, 197, 94, 0.18) !important;
+}
+
+.frame {
+  max-width: 1440px !important;
+  gap: 22px !important;
+}
+
+.leftRail,
+.rightRail,
+.heroPanel,
+.proofPanel,
+.operatorSummaryCard,
+.explanationPanel,
+.authPanel,
+.servicePanel,
+.runResultPanel,
+.readModelNote,
+.streamSection,
+.proofDemoShell,
+.proofDemoCard,
+.record {
+  background: var(--ak-panel) !important;
+  border: 1px solid var(--ak-border) !important;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34) !important;
+  backdrop-filter: blur(18px) saturate(1.15) !important;
+}
+
+.leftRail,
+.rightRail {
+  position: sticky !important;
+  top: 18px !important;
+  height: calc(100vh - 36px) !important;
+}
+
+.heroPanel {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(8, 47, 73, 0.46)),
+    radial-gradient(circle at 82% 20%, rgba(56, 189, 248, 0.16), transparent 34%) !important;
+}
+
+.heroEyebrow,
+.eyebrow,
+.sectionLabel,
+.sectionTitle,
+.noticeLabel,
+.heroStatLabel,
+.fieldLabel,
+.proofDemoKicker {
+  color: var(--ak-blue) !important;
+  letter-spacing: 0.16em !important;
+}
+
+.heroPanel h1,
+.proofDemoShell h1 {
+  color: var(--ak-text) !important;
+  letter-spacing: -0.075em !important;
+  text-shadow: 0 12px 42px rgba(56, 189, 248, 0.18) !important;
+}
+
+.heroCopy,
+.proofCopy,
+.sectionDescription,
+.railCopy,
+.proofDemoCopy,
+.explanationCopy,
+.operatorSummaryText,
+.proofDescription,
+.recordDescription,
+.readModelNote,
+.fieldValue,
+.runResultValue {
+  color: var(--ak-muted) !important;
+}
+
+.heroStats {
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+}
+
+.heroStatCard,
+.railMetric,
+.operatorSummaryItem,
+.explanationCard,
+.lifecycleNode,
+.runResultField {
+  background: rgba(2, 6, 23, 0.62) !important;
+  border: 1px solid rgba(148, 163, 184, 0.16) !important;
+}
+
+.heroStatCardAlert,
+.caughtBanner {
+  border-color: rgba(245, 158, 11, 0.52) !important;
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.18), rgba(2, 6, 23, 0.72)) !important;
+}
+
+.heroStatValue,
+.sectionValue,
+.railMetricValue,
+.operatorSummaryTitle,
+.explanationValue {
+  color: var(--ak-text) !important;
+}
+
+.projectionChip,
+.operatorSummaryBadge-resolved,
+.state-resolved,
+.scenarioButtonActive {
+  border-color: rgba(34, 197, 94, 0.45) !important;
+  background: rgba(34, 197, 94, 0.12) !important;
+  color: #bbf7d0 !important;
+}
+
+.projectionFailing,
+.operatorSummaryBadge-failed,
+.state-failed {
+  border-color: rgba(239, 68, 68, 0.45) !important;
+  background: rgba(239, 68, 68, 0.12) !important;
+  color: #fecaca !important;
+}
+
+.lifecycleNodeAccent,
+.step.active,
+.runResultPanel {
+  border-color: rgba(56, 189, 248, 0.5) !important;
+  background: rgba(56, 189, 248, 0.12) !important;
+}
+
+.servicePanel {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.92), rgba(8, 47, 73, 0.38)) !important;
+}
+
+.serviceInput,
+.serviceTextarea,
+.authInput {
+  background: rgba(2, 6, 23, 0.74) !important;
+  border: 1px solid rgba(148, 163, 184, 0.26) !important;
+  color: var(--ak-text) !important;
+  border-radius: 12px !important;
+  padding: 12px 14px !important;
+  font: inherit !important;
+  min-height: 44px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
+}
+
+.serviceInput:focus,
+.serviceTextarea:focus,
+.authInput:focus {
+  outline: none !important;
+  border-color: rgba(56, 189, 248, 0.72) !important;
+  box-shadow: 0 0 0 4px rgba(56, 189, 248, 0.14) !important;
+}
+
+.runButton,
+.authButton,
+.proofRunButton {
+  background: linear-gradient(135deg, var(--ak-blue), #60a5fa) !important;
+  color: #020617 !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: 0 18px 40px rgba(56, 189, 248, 0.26) !important;
+  transition: transform 160ms ease, box-shadow 160ms ease, opacity 160ms ease !important;
+}
+
+.runButton:hover,
+.authButton:hover,
+.proofRunButton:hover {
+  transform: translateY(-1px) !important;
+  box-shadow: 0 24px 54px rgba(56, 189, 248, 0.34) !important;
+}
+
+.runButton:disabled,
+.authButton:disabled,
+.proofRunButton:disabled {
+  opacity: 0.58 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+
+.recordHighlight {
+  border-color: rgba(56, 189, 248, 0.82) !important;
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.42), 0 0 36px rgba(56, 189, 248, 0.32) !important;
+  animation: akPulse 1.4s ease-out 0s 2 !important;
+}
+
+@keyframes akPulse {
+  0% {
+    transform: scale(1);
+    background: rgba(56, 189, 248, 0.22);
+  }
+  48% {
+    transform: scale(1.015);
+    background: rgba(34, 197, 94, 0.18);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+.proofDemoBrief {
+  background: transparent !important;
+}
+
+.proofDemoShell {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.94), rgba(8, 47, 73, 0.42)),
+    radial-gradient(circle at top right, rgba(34, 197, 94, 0.14), transparent 36%) !important;
+}
+
+.proofDemoScript {
+  border-left-color: var(--ak-blue) !important;
+  background: rgba(56, 189, 248, 0.1) !important;
+  color: #dbeafe !important;
+}
+
+@media (max-width: 1180px) {
+  .frame {
+    grid-template-columns: 1fr !important;
+  }
+
+  .leftRail,
+  .rightRail {
+    position: relative !important;
+    height: auto !important;
+  }
+
+  .heroStats {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 720px) {
+  .heroStats,
+  .fieldGrid,
+  .operatorSummaryGrid,
+  .explanationGrid,
+  .proofDemoGrid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .heroPanel h1,
+  .proofDemoShell h1 {
+    font-size: 48px !important;
+  }
+}

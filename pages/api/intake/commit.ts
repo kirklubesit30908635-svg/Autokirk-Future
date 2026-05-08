@@ -52,7 +52,8 @@ export default async function handler(
     }
 
     const { data: membership, error: membershipError } = await supabase
-      .from('core.workspace_members')
+      .schema('core')
+      .from('workspace_members')
       .select('workspace_id,user_id')
       .eq('user_id', user.id)
       .eq('workspace_id', body.workspace_id)

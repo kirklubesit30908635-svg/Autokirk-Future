@@ -57,19 +57,46 @@ Invoke-SqlFile -Path $proveRejectedPath
 
 $projectionSql = @"
 select
-  entity_id::text as entity_id,
-  receipt_id,
-  receipt_entity_id::text as receipt_entity_id,
-  resolution_type,
-  proof_status,
-  lifecycle_state
-from projection.obligation_lifecycle
-where resolution_type in (
-  'resolve_with_proof',
-  'resolve_with_insufficient_proof',
-  'resolve_rejected'
-)
-order by obligation_created_at desc;
+  count(*) filter (
+    where resolution_type in (
+      'resolve_with_proof',
+      'resolve_with_insufficient_proof',
+      'resolve_rejected'
+    )
+  ) as terminal_row_count,
+  count(*) filter (
+    where resolution_type in (
+      'resolve_with_proof',
+      'resolve_with_insufficient_proof',
+      'resolve_rejected'
+    )
+    and entity_id is null
+  ) as missing_entity_count,
+  count(*) filter (
+    where resolution_type in (
+      'resolve_with_proof',
+      'resolve_with_insufficient_proof',
+      'resolve_rejected'
+    )
+    and receipt_id is not null
+    and receipt_entity_id is distinct from entity_id
+  ) as receipt_entity_mismatch_count,
+  count(*) filter (
+    where resolution_type = 'resolve_with_proof'
+      and proof_status = 'sufficient'
+      and lifecycle_state = 'resolved'
+  ) as sufficient_resolved_count,
+  count(*) filter (
+    where resolution_type = 'resolve_with_insufficient_proof'
+      and proof_status = 'insufficient'
+      and lifecycle_state = 'failed'
+  ) as insufficient_failed_count,
+  count(*) filter (
+    where resolution_type = 'resolve_rejected'
+      and proof_status = 'rejected'
+      and lifecycle_state = 'failed'
+  ) as rejected_failed_count
+from projection.obligation_lifecycle;
 "@
 
 $json = supabase db query $projectionSql --output json
@@ -83,52 +110,37 @@ if (-not $rows) {
     throw "PROJECTION_QUERY_RETURNED_NO_ROWS"
 }
 
-$hasSufficient = $false
-$hasInsufficient = $false
-$hasRejected = $false
+$summary = @($rows | Where-Object { $null -ne $_ })[0]
 
-foreach ($row in $rows) {
-    if ([string]::IsNullOrWhiteSpace([string]$row.entity_id)) {
-        throw "MISSING_ENTITY_ID_IN_LIFECYCLE_PROJECTION"
-    }
-
-    if (-not [string]::IsNullOrWhiteSpace([string]$row.receipt_id) -and
-        ([string]$row.receipt_entity_id -ne [string]$row.entity_id)) {
-        throw "RECEIPT_ENTITY_MISMATCH"
-    }
-
-    if ($row.resolution_type -eq "resolve_with_proof" -and
-        $row.proof_status -eq "sufficient" -and
-        $row.lifecycle_state -eq "resolved") {
-        $hasSufficient = $true
-    }
-
-    if ($row.resolution_type -eq "resolve_with_insufficient_proof" -and
-        $row.proof_status -eq "insufficient" -and
-        $row.lifecycle_state -eq "failed") {
-        $hasInsufficient = $true
-    }
-
-    if ($row.resolution_type -eq "resolve_rejected" -and
-        $row.proof_status -eq "rejected" -and
-        $row.lifecycle_state -eq "failed") {
-        $hasRejected = $true
-    }
+if ($null -eq $summary) {
+    throw "PROJECTION_QUERY_RETURNED_NO_ROWS"
 }
 
 Write-Host ""
 Write-Host "==> Terminal state summary" -ForegroundColor Cyan
-$rows | Format-Table entity_id, receipt_entity_id, resolution_type, proof_status, lifecycle_state -AutoSize
+$summary | Format-Table terminal_row_count, missing_entity_count, receipt_entity_mismatch_count, sufficient_resolved_count, insufficient_failed_count, rejected_failed_count -AutoSize
 
-if (-not $hasSufficient) {
+if ([int]$summary.terminal_row_count -lt 3) {
+    throw "MISSING_TERMINAL_STATE_ROWS"
+}
+
+if ([int]$summary.missing_entity_count -gt 0) {
+    throw "MISSING_ENTITY_ID_IN_LIFECYCLE_PROJECTION"
+}
+
+if ([int]$summary.receipt_entity_mismatch_count -gt 0) {
+    throw "RECEIPT_ENTITY_MISMATCH"
+}
+
+if ([int]$summary.sufficient_resolved_count -lt 1) {
     throw "MISSING_TERMINAL_STATE: resolve_with_proof / sufficient / resolved"
 }
 
-if (-not $hasInsufficient) {
+if ([int]$summary.insufficient_failed_count -lt 1) {
     throw "MISSING_TERMINAL_STATE: resolve_with_insufficient_proof / insufficient / failed"
 }
 
-if (-not $hasRejected) {
+if ([int]$summary.rejected_failed_count -lt 1) {
     throw "MISSING_TERMINAL_STATE: resolve_rejected / rejected / failed"
 }
 
