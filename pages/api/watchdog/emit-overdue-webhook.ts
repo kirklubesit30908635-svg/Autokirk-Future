@@ -94,6 +94,7 @@ function buildWebhookData(row: WatchdogDeliveryCandidate) {
   }
 }
 
+// Task 0C: routes through api.create_watchdog_emission() — no direct control.* writes
 async function getOrCreateEmission(
   supabase: any,
   row: WatchdogDeliveryCandidate
@@ -146,10 +147,7 @@ function computeRetryOutcome(emission: InsertedEmission) {
   const nextAttemptCount = currentAttempts + 1
 
   if (nextAttemptCount >= maxAttempts) {
-    return {
-      deliveryStatus: 'exhausted',
-      nextRetryAt: null,
-    }
+    return { deliveryStatus: 'exhausted', nextRetryAt: null }
   }
 
   return {
@@ -207,55 +205,23 @@ export default async function handler(
 
       const emissionResult = await getOrCreateEmission(supabase, row)
       if (emissionResult.error) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: emissionResult.error,
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: emissionResult.error })
         continue
       }
 
       if (!emissionResult.emission) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: emissionResult.skipped ?? 'EMISSION_NOT_ELIGIBLE',
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: emissionResult.skipped ?? 'EMISSION_NOT_ELIGIBLE' })
         continue
       }
 
       const claimResult = await claimEmission(supabase, emissionResult.emission.id)
       if (claimResult.error) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: claimResult.error,
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: claimResult.error })
         continue
       }
 
       if (!claimResult.emission) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: 'EMISSION_ALREADY_CLAIMED',
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: 'EMISSION_ALREADY_CLAIMED' })
         continue
       }
 
@@ -284,86 +250,37 @@ export default async function handler(
             p_delivery_status: 'delivered',
             p_next_retry_at: null,
           })
-
-          if (rpcError) {
-            results.push({
-              obligation_id: row.obligation_id,
-              entity_id: row.entity_id,
-              delivered: false,
-              status: response.status,
-              event_key: eventKey,
-              error: rpcError.message,
-            })
-            continue
-          }
-
-          results.push({
-            obligation_id: row.obligation_id,
-            entity_id: row.entity_id,
-            delivered: true,
-            status: response.status,
-            event_key: eventKey,
-          })
-
+          results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: !rpcError, status: response.status, event_key: eventKey, error: rpcError?.message })
           continue
         }
 
         const retryOutcome = computeRetryOutcome(claimResult.emission)
-
         const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
           p_emission_id: claimResult.emission.id,
           p_delivery_status: retryOutcome.deliveryStatus,
           p_next_retry_at: retryOutcome.nextRetryAt,
         })
-
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: response.status,
-          event_key: eventKey,
-          error: rpcError ? rpcError.message : `HTTP_${response.status}`,
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: response.status, event_key: eventKey, error: rpcError ? rpcError.message : `HTTP_${response.status}` })
       } catch (err) {
         const retryOutcome = computeRetryOutcome(claimResult.emission)
-
         const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
           p_emission_id: claimResult.emission.id,
           p_delivery_status: retryOutcome.deliveryStatus,
           p_next_retry_at: retryOutcome.nextRetryAt,
         })
-
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          error: rpcError
-            ? rpcError.message
-            : err instanceof Error
-              ? err.message
-              : 'UNKNOWN_ERROR',
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, error: rpcError ? rpcError.message : err instanceof Error ? err.message : 'UNKNOWN_ERROR' })
       }
     }
-
-    const emittedCount = results.filter((r) => !r.skipped).length
-    const deliveredCount = results.filter((r) => r.delivered).length
-    const failedCount = results.filter((r) => !r.delivered && !r.skipped).length
 
     return res.status(200).json({
       ok: true,
       scanned_count: rows.length,
-      emitted_count: emittedCount,
-      delivered_count: deliveredCount,
-      failed_count: failedCount,
+      emitted_count: results.filter((r) => !r.skipped).length,
+      delivered_count: results.filter((r) => r.delivered).length,
+      failed_count: results.filter((r) => !r.delivered && !r.skipped).length,
       results,
     })
   } catch (err) {
-    return res.status(500).json({
-      ok: false,
-      error: err instanceof Error ? err.message : 'UNKNOWN_ERROR',
-    })
+    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'UNKNOWN_ERROR' })
   }
   }

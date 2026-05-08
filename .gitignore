@@ -30,3 +30,6 @@ secrets/
 # local log exports
 logs_after*.json
 logs_after*.txt
+.next-dev.err.log
+AutoKirk-Future/
+AutoKirk-Future/
