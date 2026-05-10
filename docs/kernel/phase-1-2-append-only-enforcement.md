@@ -83,6 +83,9 @@ After applying Phase 1.2:
 - `git diff --check`
 - `git status --short`
 
+Note:
+- `git diff --check` scoped to changed Phase 1.2 files, or global with known generated whitespace exc
+
 Expected outcomes:
 
 - historical events/receipts cannot be updated or deleted,
