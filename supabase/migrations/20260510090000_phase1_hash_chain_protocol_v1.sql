@@ -1,5 +1,4 @@
 begin;
-
 -- ============================================================================
 -- AutoKirk Hash Chain Protocol v1
 -- ----------------------------------------------------------------------------
@@ -72,7 +71,8 @@ begin;
 --
 -- 8. PRE-CHAIN BOUNDARY
 --    Existing rows are marked chain_status='pre_chain' and excluded from
---    verification. New rows default to chain_status='verified'.
+--    verification. New rows begin legacy_unverified and are trigger-sealed
+--    to chain_status='verified' only after hash fields are computed.
 --
 -- 9. VERIFIER CONTRACT
 --    ledger.verify_chain(workspace_id, chain_key) recomputes hashes using the
@@ -85,7 +85,6 @@ begin;
 
 create schema if not exists ledger;
 create schema if not exists governance;
-
 create or replace function ledger.sha256_hex(input text)
 returns text
 language sql
@@ -95,7 +94,6 @@ parallel safe
 as $$
   select encode(extensions.digest(convert_to(input, 'UTF8'), 'sha256'), 'hex');
 $$;
-
 create or replace function ledger._is_sha256_hex(input text)
 returns boolean
 language sql
@@ -105,7 +103,6 @@ parallel safe
 as $$
   select input ~ '^[0-9a-f]{64}$';
 $$;
-
 create or replace function ledger.format_chain_timestamp(input timestamptz)
 returns text
 language sql
@@ -115,7 +112,6 @@ parallel safe
 as $$
   select to_char(input at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"');
 $$;
-
 create or replace function ledger.canonicalize_jsonb(input jsonb)
 returns text
 language plpgsql
@@ -153,7 +149,6 @@ begin
     raise exception 'JCS_V1_UNSUPPORTED_JSON_TYPE: %', v_type;
 end;
 $$;
-
 create or replace function ledger.genesis_hash(p_workspace_id uuid, p_chain_key text)
 returns text
 language sql
@@ -172,7 +167,6 @@ as $$
     )
   );
 $$;
-
 create or replace function ledger.compute_event_hash(envelope jsonb)
 returns text
 language sql
@@ -182,7 +176,6 @@ parallel safe
 as $$
   select ledger.sha256_hex(ledger.canonicalize_jsonb(envelope));
 $$;
-
 create or replace function ledger.compute_receipt_hash(envelope jsonb)
 returns text
 language sql
@@ -192,7 +185,6 @@ parallel safe
 as $$
   select ledger.sha256_hex(ledger.canonicalize_jsonb(envelope));
 $$;
-
 create table if not exists governance.protocol_test_vectors (
     protocol text not null,
     vector_name text not null,
@@ -202,7 +194,6 @@ create table if not exists governance.protocol_test_vectors (
     primary key (protocol, vector_name),
     constraint protocol_test_vectors_expected_hash_hex check (ledger._is_sha256_hex(expected_hash))
 );
-
 insert into governance.protocol_test_vectors (protocol, vector_name, envelope, expected_hash)
 values
 (
@@ -226,7 +217,6 @@ values
 on conflict (protocol, vector_name) do update
 set envelope = excluded.envelope,
     expected_hash = excluded.expected_hash;
-
 create or replace function ledger.self_test_hash_chain_v1()
 returns void
 language plpgsql
@@ -255,9 +245,7 @@ begin
     end loop;
 end;
 $$;
-
 select ledger.self_test_hash_chain_v1();
-
 create table if not exists ledger.chain_heads (
     workspace_id uuid not null references core.workspaces(id) on delete cascade,
     chain_key text not null,
@@ -269,32 +257,27 @@ create table if not exists ledger.chain_heads (
     constraint chain_heads_seq_nonnegative check (seq >= 0),
     constraint chain_heads_head_hash_hex check (ledger._is_sha256_hex(head_hash))
 );
-
 alter table ledger.events
     add column if not exists chain_key text,
     add column if not exists seq bigint,
     add column if not exists prev_hash text,
     add column if not exists event_hash text,
-    add column if not exists chain_status text not null default 'verified';
-
+    add column if not exists chain_status text not null default 'legacy_unverified';
 alter table receipts.receipts
     add column if not exists chain_key text,
     add column if not exists seq bigint,
     add column if not exists prev_hash text,
     add column if not exists receipt_hash text,
     add column if not exists resolution_event_hash text,
-    add column if not exists chain_status text not null default 'verified';
-
+    add column if not exists chain_status text not null default 'legacy_unverified';
 alter table ledger.events
     drop constraint if exists ledger_events_chain_status_check,
     add constraint ledger_events_chain_status_check
-        check (chain_status in ('verified', 'pre_chain', 'quarantined'));
-
+        check (chain_status in ('verified', 'legacy_unverified', 'pre_chain', 'quarantined'));
 alter table receipts.receipts
     drop constraint if exists receipts_chain_status_check,
     add constraint receipts_chain_status_check
-        check (chain_status in ('verified', 'pre_chain', 'quarantined'));
-
+        check (chain_status in ('verified', 'legacy_unverified', 'pre_chain', 'quarantined'));
 alter table ledger.events
     drop constraint if exists ledger_events_verified_chain_fields_check,
     add constraint ledger_events_verified_chain_fields_check
@@ -308,7 +291,6 @@ alter table ledger.events
                 and ledger._is_sha256_hex(event_hash)
             )
         );
-
 alter table receipts.receipts
     drop constraint if exists receipts_verified_chain_fields_check,
     add constraint receipts_verified_chain_fields_check
@@ -323,15 +305,12 @@ alter table receipts.receipts
                 and ledger._is_sha256_hex(resolution_event_hash)
             )
         );
-
 create unique index if not exists ledger_events_verified_chain_seq_uq
     on ledger.events(workspace_id, chain_key, seq)
     where chain_status = 'verified';
-
 create unique index if not exists receipts_verified_chain_seq_uq
     on receipts.receipts(workspace_id, chain_key, seq)
     where chain_status = 'verified';
-
 update ledger.events
 set chain_status = 'pre_chain',
     chain_key = 'pre-hash-chain',
@@ -340,7 +319,6 @@ set chain_status = 'pre_chain',
     event_hash = null
 where chain_status = 'verified'
   and event_hash is null;
-
 update receipts.receipts
 set chain_status = 'pre_chain',
     chain_key = 'pre-hash-chain',
@@ -350,13 +328,11 @@ set chain_status = 'pre_chain',
     resolution_event_hash = null
 where chain_status = 'verified'
   and receipt_hash is null;
-
 insert into ledger.chain_heads (workspace_id, chain_key, seq, head_hash)
 select w.id, c.chain_key, 0, ledger.genesis_hash(w.id, c.chain_key)
 from core.workspaces w
 cross join (values ('events:v1'), ('receipts:v1')) as c(chain_key)
 on conflict (workspace_id, chain_key) do nothing;
-
 create or replace function ledger.initialize_workspace_chain_heads()
 returns trigger
 language plpgsql
@@ -373,12 +349,10 @@ begin
     return new;
 end;
 $$;
-
 drop trigger if exists trg_initialize_workspace_chain_heads on core.workspaces;
 create trigger trg_initialize_workspace_chain_heads
 after insert on core.workspaces
 for each row execute function ledger.initialize_workspace_chain_heads();
-
 create or replace function ledger.events_chain_advance()
 returns trigger
 language plpgsql
@@ -390,12 +364,7 @@ declare
     v_payload jsonb;
     v_envelope jsonb;
 begin
-    if new.chain_status = 'pre_chain' then
-        return new;
-    end if;
-
-    new.chain_status := coalesce(new.chain_status, 'verified');
-    if new.chain_status <> 'verified' then
+    if new.chain_status in ('pre_chain', 'quarantined') then
         return new;
     end if;
 
@@ -435,6 +404,7 @@ begin
     );
 
     new.event_hash := ledger.compute_event_hash(v_envelope);
+    new.chain_status := 'verified';
 
     update ledger.chain_heads
     set seq = new.seq,
@@ -446,7 +416,6 @@ begin
     return new;
 end;
 $$;
-
 create or replace function ledger.receipts_chain_advance()
 returns trigger
 language plpgsql
@@ -458,12 +427,7 @@ declare
     v_event_hash text;
     v_envelope jsonb;
 begin
-    if new.chain_status = 'pre_chain' then
-        return new;
-    end if;
-
-    new.chain_status := coalesce(new.chain_status, 'verified');
-    if new.chain_status <> 'verified' then
+    if new.chain_status in ('pre_chain', 'quarantined') then
         return new;
     end if;
 
@@ -503,6 +467,7 @@ begin
     );
 
     new.receipt_hash := ledger.compute_receipt_hash(v_envelope);
+    new.chain_status := 'verified';
 
     update ledger.chain_heads
     set seq = new.seq,
@@ -514,17 +479,14 @@ begin
     return new;
 end;
 $$;
-
 drop trigger if exists trg_events_chain_advance on ledger.events;
 create trigger trg_events_chain_advance
 before insert on ledger.events
 for each row execute function ledger.events_chain_advance();
-
 drop trigger if exists trg_receipts_chain_advance on receipts.receipts;
 create trigger trg_receipts_chain_advance
 before insert on receipts.receipts
 for each row execute function ledger.receipts_chain_advance();
-
 create or replace view ledger.receipts as
 select
     r.id,
@@ -546,7 +508,6 @@ select
     r.resolution_event_hash,
     r.chain_status
 from receipts.receipts r;
-
 create or replace function ledger.verify_chain(p_workspace_id uuid, p_chain_key text)
 returns table (
     ok boolean,
@@ -680,7 +641,6 @@ begin
     return query select true, null::bigint, null::text, null::text, null::text;
 end;
 $$;
-
 create or replace function api.verify_chain_integrity(p_workspace_id uuid, p_chain_key text)
 returns table (
     ok boolean,
@@ -695,7 +655,6 @@ set search_path = public, pg_temp
 as $$
     select * from ledger.verify_chain(p_workspace_id, p_chain_key);
 $$;
-
 -- Re-wrap the current resolver so receipts bind to the just-sealed event hash.
 create or replace function kernel.resolve_obligation_internal(
     p_obligation_id uuid,
@@ -910,7 +869,6 @@ begin
     );
 end;
 $function$;
-
 create table if not exists governance.chain_activations (
     id uuid primary key default gen_random_uuid(),
     protocol text not null,
@@ -918,12 +876,10 @@ create table if not exists governance.chain_activations (
     scope text not null,
     notes text not null
 );
-
 insert into governance.chain_activations (protocol, scope, notes)
 values (
     'autokirk.hash_chain.v1',
     'ledger.events + receipts.receipts',
     'Phase 1 Step 1.1 activation. Existing rows marked pre_chain; new events and receipts advance workspace-scoped chain heads through BEFORE INSERT triggers.'
 );
-
 commit;

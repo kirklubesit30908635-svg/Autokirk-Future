@@ -1,5 +1,4 @@
 begin;
-
 with ranked as (
   select
     e.id,
@@ -24,12 +23,9 @@ delete from control.watchdog_emissions e
 using ranked r
 where e.id = r.id
   and r.rn > 1;
-
 create unique index if not exists watchdog_emissions_obligation_delivery_target_uidx
   on control.watchdog_emissions (obligation_id, delivery_target);
-
 drop view if exists public.watchdog_delivery_candidates;
-
 create view public.watchdog_delivery_candidates
 with (security_invoker = true) as
 select
@@ -74,10 +70,8 @@ where e.id is null
     and e.next_retry_at is not null
     and e.next_retry_at <= now()
    );
-
 comment on view public.watchdog_delivery_candidates is
 'Retry-governed overdue failure delivery surface. Emits one logical candidate per obligation and delivery target using control.watchdog_emissions as the delivery state authority.';
-
 create or replace function kernel.resolve_obligation_internal(
     p_obligation_id uuid,
     p_actor_id uuid,
@@ -299,5 +293,4 @@ begin
     );
 end;
 $function$;
-
 commit;
