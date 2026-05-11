@@ -6,7 +6,8 @@
     "build": "next build",
     "start": "next start",
     "prove": "powershell -ExecutionPolicy Bypass -File .\\scripts\\verify-system-truth.ps1",
-    "prove:reset": "powershell -ExecutionPolicy Bypass -File .\\scripts\\reset-and-prove.ps1"
+    "prove:reset": "powershell -ExecutionPolicy Bypass -File .\\scripts\\reset-and-prove.ps1",
+    "board:auth:seed": "node .\\scripts\\seed-local-board-session.mjs"
   },
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "^0.15.0",
