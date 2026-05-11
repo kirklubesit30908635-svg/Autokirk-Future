@@ -1,0 +1,344 @@
+/*
+ * AutoKirk universal UI shell
+ *
+ * This file is intentionally product-surface only. It does not alter the
+ * kernel, proof semantics, receipt emission, or mutation authority paths.
+ * It removes the cramped vertical-demo feel on mobile and presents the board
+ * as one universal governed-obligation surface.
+ */
+
+:root {
+  --ak-bg: #06141b;
+  --ak-panel: rgba(11, 30, 35, 0.92);
+  --ak-panel-soft: rgba(17, 41, 39, 0.88);
+  --ak-border: rgba(135, 214, 230, 0.18);
+  --ak-border-strong: rgba(135, 214, 230, 0.34);
+  --ak-text: #eef7f0;
+  --ak-muted: #bfd0c0;
+  --ak-blue: #5bd7ff;
+  --ak-green: #8ef2a1;
+  --ak-gold: #f0db91;
+}
+
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+  background: var(--ak-bg);
+}
+
+#__next {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #102e38 0%, var(--ak-bg) 42%, #02070a 100%);
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+input,
+textarea,
+select {
+  color: var(--ak-text) !important;
+  background: rgba(1, 8, 10, 0.78) !important;
+  border: 1px solid var(--ak-border-strong) !important;
+  border-radius: 12px !important;
+  min-height: 44px;
+  width: 100% !important;
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+  padding: 10px 12px !important;
+  line-height: 1.35 !important;
+}
+
+textarea {
+  min-height: 104px;
+  resize: vertical;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: rgba(238, 247, 240, 0.48) !important;
+}
+
+button {
+  min-height: 44px;
+  white-space: normal !important;
+}
+
+/* Known board cards/sections. These selectors intentionally match existing
+   class names rather than changing component logic. */
+.proofShell,
+.boardShell,
+.systemProofBoard,
+.hero,
+.operatorPanel,
+.operatorShell,
+.operatorSession,
+.streamSection,
+.runPanel,
+.servicePanel,
+.tracePanel,
+.readModel,
+.record,
+.runResult,
+.timeline,
+.proofStory,
+.ingressFlow,
+.currentProofStory,
+.existingObligation,
+.serviceResolution,
+.obligationRecord,
+.intake,
+.proofLoop,
+.summaryCard {
+  max-width: 100% !important;
+  box-sizing: border-box !important;
+}
+
+.record,
+.runResult,
+.streamSection,
+.operatorSession,
+.operatorPanel,
+.servicePanel,
+.runPanel,
+.proofStory,
+.ingressFlow,
+.currentProofStory,
+.existingObligation,
+.serviceResolution,
+.obligationRecord {
+  border-color: var(--ak-border) !important;
+  background: var(--ak-panel-soft) !important;
+}
+
+.fieldGrid,
+.metricGrid,
+.heroStats,
+.recordGrid,
+.serviceGrid,
+.runResultGrid,
+.storyGrid,
+.ingressSteps,
+.traceGrid,
+.summaryGrid,
+.formGrid {
+  max-width: 100% !important;
+}
+
+.fieldValue,
+.runResultValue,
+.recordCode,
+.recordSource,
+.sectionDescription,
+.runMessage,
+.operatorSummary,
+.operatorHeadline,
+.fieldLabel {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.serviceField,
+.serviceFieldFull,
+.formField,
+.field {
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+.serviceInput,
+.serviceTextarea,
+.proofInput,
+.proofTextarea {
+  min-width: 0 !important;
+  width: 100% !important;
+  max-width: 100% !important;
+}
+
+/* The previous vertical-demo UI used very small inline controls. Make every
+   proof/intake form readable and tappable. */
+label:has(input),
+label:has(textarea) {
+  display: grid !important;
+  gap: 7px !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+}
+
+form {
+  max-width: 100% !important;
+}
+
+@media (max-width: 900px) {
+  body {
+    font-size: 15px;
+  }
+
+  main,
+  .proofShell,
+  .boardShell,
+  .systemProofBoard {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding-left: 12px !important;
+    padding-right: 12px !important;
+    overflow-x: hidden !important;
+  }
+
+  .hero,
+  .operatorPanel,
+  .operatorShell,
+  .operatorSession,
+  .streamSection,
+  .runPanel,
+  .servicePanel,
+  .tracePanel,
+  .readModel,
+  .proofStory,
+  .ingressFlow,
+  .currentProofStory,
+  .existingObligation,
+  .serviceResolution,
+  .obligationRecord,
+  .intake,
+  .proofLoop {
+    border-radius: 18px !important;
+    padding: 16px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    overflow: hidden !important;
+  }
+
+  .fieldGrid,
+  .metricGrid,
+  .heroStats,
+  .recordGrid,
+  .serviceGrid,
+  .runResultGrid,
+  .storyGrid,
+  .ingressSteps,
+  .traceGrid,
+  .summaryGrid,
+  .formGrid,
+  .steps,
+  .metrics,
+  form {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .streamHeader,
+  .recordTop,
+  .actions,
+  .operatorActions,
+  .runActions,
+  .serviceActions,
+  .proofActions {
+    display: grid !important;
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+    align-items: stretch !important;
+  }
+
+  .sectionValue,
+  .stateBadge,
+  .actions button,
+  .operatorActions button,
+  .runActions button,
+  .serviceActions button,
+  .proofActions button,
+  button {
+    width: 100% !important;
+    max-width: 100% !important;
+    justify-content: center !important;
+    text-align: center !important;
+  }
+
+  .leftRail,
+  .rightRail,
+  .rail,
+  .desktopRail,
+  .verticalRail {
+    display: none !important;
+  }
+
+  .fieldLabel,
+  .eyebrow,
+  .sectionTitle {
+    letter-spacing: 0.14em !important;
+  }
+
+  .record,
+  .runResult,
+  .summaryCard {
+    padding: 14px !important;
+  }
+
+  .runResultGrid > *,
+  .fieldGrid > *,
+  .storyGrid > *,
+  .traceGrid > * {
+    min-width: 0 !important;
+  }
+}
+
+@media (max-width: 520px) {
+  body {
+    font-size: 14px;
+  }
+
+  main,
+  .proofShell,
+  .boardShell,
+  .systemProofBoard {
+    padding-left: 8px !important;
+    padding-right: 8px !important;
+  }
+
+  .hero,
+  .operatorPanel,
+  .operatorShell,
+  .operatorSession,
+  .streamSection,
+  .runPanel,
+  .servicePanel,
+  .tracePanel,
+  .readModel,
+  .proofStory,
+  .ingressFlow,
+  .currentProofStory,
+  .existingObligation,
+  .serviceResolution,
+  .obligationRecord,
+  .intake,
+  .proofLoop {
+    padding: 14px !important;
+    border-radius: 16px !important;
+  }
+
+  h1 {
+    font-size: clamp(2.2rem, 14vw, 4.6rem) !important;
+    line-height: 0.92 !important;
+  }
+
+  h2 {
+    font-size: 1.15rem !important;
+    line-height: 1.25 !important;
+  }
+
+  h3 {
+    font-size: 1rem !important;
+  }
+
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
