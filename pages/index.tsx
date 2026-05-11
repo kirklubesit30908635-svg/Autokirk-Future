@@ -1,6 +1,7 @@
 import Head from "next/head";
 import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
 
+import { HomeValueCycle } from "../components/HomeValueCycle";
 import { SystemProofBoard, type SystemProofBoardProps } from "../components/SystemProofBoard";
 import { getSystemProofBoardData } from "../components/systemProofData";
 
@@ -25,10 +26,13 @@ export default function HomePage({
         <title>AutoKirk Future</title>
         <meta
           name="description"
-          content="Read-only proof surface for the AutoKirk Future lifecycle."
+          content="AutoKirk turns business promises into governed obligations that resolve only with proof and customer-visible receipts."
         />
       </Head>
-      <SystemProofBoard {...board} />
+      <HomeValueCycle />
+      <div id="live-board">
+        <SystemProofBoard {...board} />
+      </div>
     </>
   );
 }
