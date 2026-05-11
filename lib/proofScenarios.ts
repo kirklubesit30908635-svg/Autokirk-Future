@@ -1,4 +1,4 @@
-export type ProofScenarioId = "marine_service" | "construction_task";
+export type ProofScenarioId = "universal_obligation";
 export type ProofScenarioRecordValue = string | null;
 export type ProofScenarioRecord = Record<string, ProofScenarioRecordValue>;
 export type ProofScenarioDraft = Record<string, string>;
@@ -59,203 +59,111 @@ export type ProofScenarioConfig = {
   fields: readonly ProofScenarioFieldConfig[];
 };
 
-const marineServiceFields = [
+const universalObligationFields = [
   {
-    draftKey: "boatName",
-    recordKey: "boat_name",
-    label: "Boat",
-    placeholder: "Sea Ray 260 Sundancer",
+    draftKey: "obligationLabel",
+    recordKey: "obligation_label",
+    label: "Obligation",
+    placeholder: "Send monthly proof packet",
     required: true,
-    requiredError: "BOAT_NAME_REQUIRED",
-    resultLabel: "BOAT",
+    requiredError: "OBLIGATION_LABEL_REQUIRED",
+    resultLabel: "OBLIGATION",
   },
   {
-    draftKey: "customerName",
-    recordKey: "customer_name",
-    label: "Customer",
-    placeholder: "Jordan Ellis",
+    draftKey: "responsibleParty",
+    recordKey: "responsible_party",
+    label: "Responsible Party",
+    placeholder: "Operations team",
     required: true,
-    requiredError: "CUSTOMER_NAME_REQUIRED",
-    resultLabel: "CUSTOMER",
+    requiredError: "RESPONSIBLE_PARTY_REQUIRED",
+    resultLabel: "RESPONSIBLE PARTY",
   },
   {
-    draftKey: "serviceEvent",
-    recordKey: "service_event",
-    label: "Service Event",
-    placeholder: "Hull wash and condition check",
+    draftKey: "proofReference",
+    recordKey: "proof_reference",
+    label: "Proof Reference",
+    placeholder: "Customer-visible delivery link or receipt reference",
     required: true,
-    requiredError: "SERVICE_EVENT_REQUIRED",
-    resultLabel: "SERVICE",
+    requiredError: "PROOF_REFERENCE_REQUIRED",
+    resultLabel: "PROOF REFERENCE",
   },
   {
     draftKey: "proofPhotoUrl",
     recordKey: "proof_photo_url",
-    label: "Proof Photo URL (Optional)",
-    placeholder: "https://example.com/proof-photo.jpg",
+    label: "Proof URL (Optional)",
+    placeholder: "https://example.com/proof-artifact",
     required: false,
-    resultLabel: "PROOF PHOTO",
+    resultLabel: "PROOF URL",
     emptyResultValue: "NOTE ONLY",
   },
   {
     draftKey: "proofNote",
     recordKey: "proof_note",
     label: "Proof Note",
-    placeholder: "Hull washed, no visible damage",
+    placeholder: "Obligation completed and evidence is attached to the receipt.",
     required: true,
     requiredError: "PROOF_NOTE_REQUIRED",
     multiline: true,
     fullWidth: true,
-    defaultValue: "Hull washed, no visible damage",
-    resultLabel: "PROOF NOTE",
-  },
-] as const satisfies readonly ProofScenarioFieldConfig[];
-
-const constructionTaskFields = [
-  {
-    draftKey: "taskName",
-    recordKey: "task_name",
-    label: "Task Name",
-    placeholder: "Punch list framing repair",
-    required: true,
-    requiredError: "TASK_NAME_REQUIRED",
-    resultLabel: "TASK",
-  },
-  {
-    draftKey: "location",
-    recordKey: "location",
-    label: "Location",
-    placeholder: "Lot 12, north elevation",
-    required: true,
-    requiredError: "LOCATION_REQUIRED",
-    resultLabel: "LOCATION",
-  },
-  {
-    draftKey: "proofPhotoUrl",
-    recordKey: "proof_photo_url",
-    label: "Proof Photo URL",
-    placeholder: "https://example.com/task-photo.jpg",
-    required: true,
-    requiredError: "PROOF_PHOTO_REQUIRED",
-    resultLabel: "PROOF PHOTO",
-  },
-  {
-    draftKey: "proofNote",
-    recordKey: "proof_note",
-    label: "Proof Note",
-    placeholder: "Task completed, area cleaned, no defects observed",
-    required: true,
-    requiredError: "PROOF_NOTE_REQUIRED",
-    multiline: true,
-    fullWidth: true,
-    defaultValue: "Task completed, area cleaned, no defects observed",
+    defaultValue: "Obligation completed and evidence is attached to the receipt.",
     resultLabel: "PROOF NOTE",
   },
 ] as const satisfies readonly ProofScenarioFieldConfig[];
 
 export const proofScenarios = {
-  marine_service: {
-    id: "marine_service",
+  universal_obligation: {
+    id: "universal_obligation",
     enabled: true,
     run: {
-      resultStorageKey: "autokirk-service-proof-result",
-      sourceSystem: "marine-service-board",
-      operatorSurface: "homepage",
-      serviceType: "marine_service",
-      eventType: "marine.service_started",
-      obligationCode: "fulfill_service_with_proof",
+      resultStorageKey: "autokirk-universal-proof-result",
+      sourceSystem: "universal-obligation-board",
+      operatorSurface: "universal-board",
+      serviceType: "universal_obligation",
+      eventType: "obligation.intake_defined",
+      obligationCode: "resolve_obligation_with_proof",
       proofType: "operator_attestation",
-      resolutionReason: "service proof submitted",
-      ruleVersion: "marine-service-proof-v1",
-      runIdPrefix: "marine-service",
-      requiredProofRecordKeys: ["proof_note"],
+      resolutionReason: "obligation proof submitted",
+      ruleVersion: "universal-obligation-proof-v1",
+      runIdPrefix: "universal-obligation",
+      requiredProofRecordKeys: ["proof_note", "proof_reference"],
     },
     ui: {
-      selectorLabel: "Marine Service",
-      sectionLabel: "Service Resolution",
+      selectorLabel: "Universal Obligation",
+      sectionLabel: "Obligation Resolution",
       sectionDescription:
-        "A service stays unresolved until operator proof or failure is explicitly recorded by the kernel.",
-      lifecycleStartLabel: "SERVICE STARTED",
-      lifecycleOpenLabel: "SERVICE OBLIGATION OPENED",
+        "An obligation stays unresolved until proof or failure is explicitly recorded by the kernel.",
+      lifecycleStartLabel: "OBLIGATION INTAKE",
+      lifecycleOpenLabel: "GOVERNED OBLIGATION OPENED",
       operatorDescription:
-        "Service proof can only be submitted by an authenticated workspace operator.",
+        "Proof can only be submitted by an authenticated workspace operator.",
       signInRequiredMessage:
-        "Sign in as a workspace operator to submit service proof.",
+        "Sign in as a workspace operator to submit proof.",
       signInSendingMessage: "Sending operator sign-in link...",
       signInCheckEmailMessage: "Check your email for the operator sign-in link.",
-      recordEyebrow: "Marine Record",
-      recordTitle: "Submit Proof To Resolve Service",
+      recordEyebrow: "Obligation Record",
+      recordTitle: "Submit Proof To Resolve Obligation",
       recordDescription:
-        "Capture one real marine job record: boat, customer, service event, proof note, optional photo URL, then emit the receipt-backed resolution.",
+        "Capture one governed obligation: what is owed, who is responsible, the proof reference, proof note, and optional proof URL, then emit the receipt-backed resolution.",
       proofDescription:
-        "Photo URL is optional; the note is always attached to the receipt.",
+        "The proof note and reference are attached to the receipt. A URL can be added when the evidence lives outside AutoKirk.",
       idleMessage:
-        "Record the boat, customer, service event, and proof to resolve the obligation.",
+        "Record the obligation and proof to resolve it through the governed kernel path.",
       runningMessage:
-        "Submitting the marine service record through the kernel...",
+        "Submitting the obligation record through the kernel...",
       successMessage:
-        "Marine service resolved. Reloading projection truth from the live read model...",
+        "Obligation resolved. Reloading projection truth from the live read model...",
       restoredMessage:
-        "Marine service record resolved through kernel authority. Projection truth has been reloaded.",
-      submitLabel: "SUBMIT SERVICE PROOF",
+        "Obligation record resolved through kernel authority. Projection truth has been reloaded.",
+      submitLabel: "SUBMIT OBLIGATION PROOF",
       submittingLabel: "SUBMITTING PROOF...",
-      resultTitle: "Latest Service Result",
+      resultTitle: "Latest Obligation Result",
       operatorEmailPlaceholder: "operator@autokirk.com",
     },
-    fields: marineServiceFields,
-  },
-  construction_task: {
-    id: "construction_task",
-    enabled: true,
-    run: {
-      resultStorageKey: "autokirk-construction-proof-result",
-      sourceSystem: "construction-task-board",
-      operatorSurface: "homepage",
-      serviceType: "construction_task",
-      eventType: "construction.task_started",
-      obligationCode: "complete_task_with_proof",
-      proofType: "photo_attestation",
-      resolutionReason: "construction task proof submitted",
-      ruleVersion: "construction-task-proof-v1",
-      runIdPrefix: "construction-task",
-      requiredProofRecordKeys: ["proof_note", "proof_photo_url"],
-    },
-    ui: {
-      selectorLabel: "Construction Task",
-      sectionLabel: "Task Completion",
-      sectionDescription:
-        "A task stays unresolved until operator proof or failure is explicitly recorded by the kernel.",
-      lifecycleStartLabel: "TASK STARTED",
-      lifecycleOpenLabel: "TASK OBLIGATION OPENED",
-      operatorDescription:
-        "Task proof can only be submitted by an authenticated workspace operator.",
-      signInRequiredMessage:
-        "Sign in as a workspace operator to submit task proof.",
-      signInSendingMessage: "Sending operator sign-in link...",
-      signInCheckEmailMessage: "Check your email for the operator sign-in link.",
-      recordEyebrow: "Construction Record",
-      recordTitle: "Submit Proof To Complete Task",
-      recordDescription:
-        "Capture one construction task record: task name, location, proof note, and required photo URL, then emit the receipt-backed resolution.",
-      proofDescription:
-        "Photo URL is required for this proof contract and attached to the receipt.",
-      idleMessage:
-        "Record the task, location, and proof to resolve the obligation.",
-      runningMessage:
-        "Submitting the construction task record through the kernel...",
-      successMessage:
-        "Construction task resolved. Reloading projection truth from the live read model...",
-      restoredMessage:
-        "Construction task record resolved through kernel authority. Projection truth has been reloaded.",
-      submitLabel: "SUBMIT TASK PROOF",
-      submittingLabel: "SUBMITTING PROOF...",
-      resultTitle: "Latest Task Result",
-      operatorEmailPlaceholder: "operator@autokirk.com",
-    },
-    fields: constructionTaskFields,
+    fields: universalObligationFields,
   },
 } as const satisfies Record<ProofScenarioId, ProofScenarioConfig>;
 
-export const activeProofScenario = proofScenarios.marine_service;
+export const activeProofScenario = proofScenarios.universal_obligation;
 export const enabledProofScenarios = Object.values(proofScenarios).filter(
   (scenario) => scenario.enabled
 );
@@ -395,7 +303,7 @@ export function buildProofScenarioEvidence(
     }
 
     if (key === "proof_photo_url") {
-      evidence.photo_url = value;
+      evidence.artifact_url = value;
       continue;
     }
 
