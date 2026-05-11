@@ -226,6 +226,7 @@ export default async function handler(
         },
         p_occurred_at: new Date().toISOString(),
         p_obligation_code: obligationCode,
+        p_due_at: dueAt,
       });
 
     if (intakeError) {
