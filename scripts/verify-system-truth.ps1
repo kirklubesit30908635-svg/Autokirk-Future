@@ -54,7 +54,7 @@ if (-not (Test-Path $integrityWatchdogSql)) {
 
 Write-Host ""
 Write-Host "==> Running terminal state verification" -ForegroundColor Cyan
-powershell -ExecutionPolicy Bypass -File $terminalScript
+pwsh -ExecutionPolicy Bypass -File $terminalScript
 
 if ($LASTEXITCODE -ne 0) {
     throw "TERMINAL_STATE_VERIFICATION_FAILED"
@@ -62,7 +62,7 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ""
 Write-Host "==> Running overdue failure verification" -ForegroundColor Cyan
-powershell -ExecutionPolicy Bypass -File $overdueScript
+pwsh -ExecutionPolicy Bypass -File $overdueScript
 
 if ($LASTEXITCODE -ne 0) {
     throw "OVERDUE_FAILURE_VERIFICATION_FAILED"
