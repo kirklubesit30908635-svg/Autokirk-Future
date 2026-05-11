@@ -1,6 +1,7 @@
 import Head from "next/head";
 import type { AppProps } from "next/app";
 import { ProjectionNavLinks } from "../components/ProjectionNavLinks";
+import "../styles/autokirk-universal.css";
 
 export default function App({ Component, pageProps }: AppProps) {
   return (
