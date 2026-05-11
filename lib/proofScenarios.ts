@@ -82,7 +82,7 @@ const universalObligationFields = [
     draftKey: "proofReference",
     recordKey: "proof_reference",
     label: "Proof Reference",
-    placeholder: "Customer-visible delivery link or receipt reference",
+    placeholder: "Customer-visible completion record or failure record",
     required: true,
     requiredError: "PROOF_REFERENCE_REQUIRED",
     resultLabel: "PROOF REFERENCE",
@@ -99,13 +99,13 @@ const universalObligationFields = [
   {
     draftKey: "proofNote",
     recordKey: "proof_note",
-    label: "Proof Note",
-    placeholder: "Obligation completed and evidence is attached to the receipt.",
+    label: "Completion / Failure Proof Note",
+    placeholder: "Describe the evidence that proves completion, or the evidence that proves failure.",
     required: true,
     requiredError: "PROOF_NOTE_REQUIRED",
     multiline: true,
     fullWidth: true,
-    defaultValue: "Obligation completed and evidence is attached to the receipt.",
+    defaultValue: "Completion proof: obligation completed and evidence is attached to the receipt.",
     resultLabel: "PROOF NOTE",
   },
 ] as const satisfies readonly ProofScenarioFieldConfig[];
@@ -131,30 +131,30 @@ export const proofScenarios = {
       selectorLabel: "Universal Obligation",
       sectionLabel: "Obligation Resolution",
       sectionDescription:
-        "An obligation stays unresolved until proof or failure is explicitly recorded by the kernel.",
+        "An obligation stays open until there is proof of completion or proof of failure recorded by the kernel.",
       lifecycleStartLabel: "OBLIGATION INTAKE",
       lifecycleOpenLabel: "GOVERNED OBLIGATION OPENED",
       operatorDescription:
-        "Proof can only be submitted by an authenticated workspace operator.",
+        "Completion proof or failure proof can only be submitted by an authenticated workspace operator.",
       signInRequiredMessage:
-        "Sign in as a workspace operator to submit proof.",
+        "Sign in as a workspace operator to submit completion proof or failure proof.",
       signInSendingMessage: "Sending operator sign-in link...",
       signInCheckEmailMessage: "Check your email for the operator sign-in link.",
       recordEyebrow: "Obligation Record",
-      recordTitle: "Submit Proof To Resolve Obligation",
+      recordTitle: "Submit Proof To Close Obligation",
       recordDescription:
-        "Capture one governed obligation: what is owed, who is responsible, the proof reference, proof note, and optional proof URL, then emit the receipt-backed resolution.",
+        "Capture one governed obligation: what is owed, who is responsible, the proof reference, proof note, and optional proof URL. Then close it with proof of completion or proof of failure.",
       proofDescription:
-        "The proof note and reference are attached to the receipt. A URL can be added when the evidence lives outside AutoKirk.",
+        "The proof note and reference are attached to the receipt. Use them to explain completion evidence or failure evidence.",
       idleMessage:
-        "Record the obligation and proof to resolve it through the governed kernel path.",
+        "Record the obligation and submit completion proof or failure proof through the governed kernel path.",
       runningMessage:
         "Submitting the obligation record through the kernel...",
       successMessage:
-        "Obligation resolved. Reloading projection truth from the live read model...",
+        "Obligation closed with proof. Reloading projection truth from the live read model...",
       restoredMessage:
-        "Obligation record resolved through kernel authority. Projection truth has been reloaded.",
-      submitLabel: "SUBMIT OBLIGATION PROOF",
+        "Obligation record closed through kernel authority. Projection truth has been reloaded.",
+      submitLabel: "SUBMIT COMPLETION PROOF",
       submittingLabel: "SUBMITTING PROOF...",
       resultTitle: "Latest Obligation Result",
       operatorEmailPlaceholder: "operator@autokirk.com",
