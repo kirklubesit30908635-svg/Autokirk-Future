@@ -13,12 +13,12 @@ const cycleSteps: CycleStep[] = [
     body: "AutoKirk opens a governed obligation instead of another loose task or note.",
   },
   {
-    title: "3. Resolve only with proof",
-    body: "The operator submits evidence through the proof path. No proof means no trusted closure.",
+    title: "3. Prove completion or failure",
+    body: "The operator submits evidence. Completion proof resolves the obligation; failure proof preserves the truth that it was not completed.",
   },
   {
     title: "4. Give the customer a receipt",
-    body: "Resolution emits receipt-backed truth the customer can see, audit, and rely on.",
+    body: "Closure emits receipt-backed truth the customer can see, audit, and rely on.",
   },
 ];
 
@@ -28,11 +28,11 @@ export function HomeValueCycle() {
       <div className="heroGrid">
         <div className="copy">
           <p className="eyebrow">Governed obligation truth</p>
-          <h1 id="home-cycle-title">Stop marking work done. Prove what was owed.</h1>
+          <h1 id="home-cycle-title">Stop marking work done. Prove what happened.</h1>
           <p className="lede">
             AutoKirk is for businesses that owe customers outcomes: reports, services,
             deliveries, follow-ups, compliance work, or any promise that should not disappear
-            without proof.
+            without proof of completion or proof of failure.
           </p>
           <div className="actions">
             <a href="#try-cycle" className="primaryAction">
@@ -48,13 +48,13 @@ export function HomeValueCycle() {
           <p className="cardLabel">Value of subscribing</p>
           <h2>A customer-visible truth board for every promise your business makes.</h2>
           <p>
-            Subscribers get one place to see what is open, what is resolved, what failed,
-            and which receipts prove closure.
+            Subscribers get one place to see what is open, what was completed, what failed,
+            and which receipts prove the final state.
           </p>
           <ul>
             <li>Customers stop asking, “Was this actually done?”</li>
             <li>Operators stop relying on screenshots and memory.</li>
-            <li>Every resolved obligation becomes receipt-backed truth.</li>
+            <li>Every closed obligation becomes receipt-backed truth.</li>
           </ul>
         </div>
       </div>
@@ -71,7 +71,7 @@ export function HomeValueCycle() {
       <div className="conversionStrip" id="try-cycle">
         <div>
           <p className="stripLabel">The loop</p>
-          <strong>Promise → Obligation → Proof → Receipt → Renewal trust</strong>
+          <strong>Promise → Obligation → Completion or failure proof → Receipt → Renewal trust</strong>
         </div>
         <a href="#live-board" className="stripAction">
           Open the live board
