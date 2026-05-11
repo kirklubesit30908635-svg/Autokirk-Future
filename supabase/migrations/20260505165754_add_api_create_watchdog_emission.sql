@@ -1,5 +1,7 @@
 -- Task 0C: Create api.create_watchdog_emission()
 -- Replaces direct app-layer insert into control.watchdog_emissions
+drop function if exists api.create_watchdog_emission(uuid, text);
+
 create or replace function api.create_watchdog_emission(
   p_obligation_id uuid,
   p_delivery_target text
