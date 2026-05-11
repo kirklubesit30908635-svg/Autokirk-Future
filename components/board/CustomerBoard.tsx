@@ -1,6 +1,7 @@
 import type { BoardViewModel } from "../../lib/board/getTenantBoard";
 import { BoardHeader } from "./BoardHeader";
 import { ObligationList } from "./ObligationList";
+import { ProofLoop } from "./ProofLoop";
 import { ReceiptList } from "./ReceiptList";
 import { SystemActivity } from "./SystemActivity";
 
@@ -16,6 +17,7 @@ export function CustomerBoard({ board }: CustomerBoardProps) {
         tenantName={board.tenant.name}
         lastUpdatedAt={board.lastUpdatedAt}
       />
+      <ProofLoop board={board} />
       <ObligationList obligations={board.obligations} />
       <ReceiptList receipts={board.receipts} />
       <SystemActivity
