@@ -1,5 +1,6 @@
 import type { BoardViewModel } from "../../lib/board/getTenantBoard";
 import { BoardHeader } from "./BoardHeader";
+import { IntakeForm } from "./IntakeForm";
 import { ObligationList } from "./ObligationList";
 import { ProofLoop } from "./ProofLoop";
 import { ReceiptList } from "./ReceiptList";
@@ -18,6 +19,7 @@ export function CustomerBoard({ board }: CustomerBoardProps) {
         lastUpdatedAt={board.lastUpdatedAt}
       />
       <ProofLoop board={board} />
+      <IntakeForm workspaceId={board.tenant.id} />
       <ObligationList obligations={board.obligations} />
       <ReceiptList receipts={board.receipts} />
       <SystemActivity
