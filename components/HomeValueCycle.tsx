@@ -30,7 +30,7 @@ export function HomeValueCycle() {
         <p className="eyebrow">Completion trust for existing tools</p>
         <h1 id="home-title">Important work should not be marked complete without proof.</h1>
         <p className="lede">
-          AutoKirk connects to the tools you already use and keeps important work visible until the right proof exists.
+          AutoKirk turns completion into a proof decision, so work stays open until evidence can support it.
         </p>
         <p className="support">
           Choose one workflow, define the proof required to close it, and let AutoKirk show what is still open.
