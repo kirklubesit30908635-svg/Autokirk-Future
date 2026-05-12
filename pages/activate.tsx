@@ -1,4 +1,30 @@
 import Head from "next/head";
+import { useEffect, useMemo, useState } from "react";
+
+type ActivationStatus =
+  | { state: "missing" }
+  | { state: "loading" }
+  | {
+      state: "ready";
+      customerEmail: string | null;
+      customerName: string | null;
+      paymentStatus: string | null;
+    }
+  | {
+      state: "not_paid";
+      paymentStatus: string | null;
+    }
+  | { state: "error"; message: string };
+
+type ActivationSessionResponse =
+  | {
+      ok: true;
+      paid: boolean;
+      payment_status: string | null;
+      customer_email: string | null;
+      customer_name: string | null;
+    }
+  | { ok: false; error: string };
 
 const intakeOptions = [
   {
@@ -26,7 +52,117 @@ const proofQuestions = [
   "Who needs to see the final state?",
 ];
 
+function useSessionId(): string | null {
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const value = new URLSearchParams(window.location.search).get("session_id");
+    setSessionId(value);
+  }, []);
+
+  return sessionId;
+}
+
+function useActivationStatus(sessionId: string | null): ActivationStatus {
+  const [status, setStatus] = useState<ActivationStatus>({ state: "missing" });
+
+  useEffect(() => {
+    if (!sessionId) {
+      setStatus({ state: "missing" });
+      return;
+    }
+
+    let cancelled = false;
+    setStatus({ state: "loading" });
+
+    fetch(`/api/stripe/checkout-session?session_id=${encodeURIComponent(sessionId)}`)
+      .then(async (response) => {
+        const body = (await response.json()) as ActivationSessionResponse;
+        if (!response.ok || !body.ok) {
+          const message = body.ok ? "Activation verification failed." : body.error;
+          throw new Error(message);
+        }
+        return body;
+      })
+      .then((body) => {
+        if (cancelled) return;
+
+        if (!body.paid) {
+          setStatus({ state: "not_paid", paymentStatus: body.payment_status });
+          return;
+        }
+
+        setStatus({
+          state: "ready",
+          customerEmail: body.customer_email,
+          customerName: body.customer_name,
+          paymentStatus: body.payment_status,
+        });
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setStatus({
+          state: "error",
+          message: err instanceof Error ? err.message : "Activation verification failed.",
+        });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
+
+  return status;
+}
+
+function statusCopy(status: ActivationStatus): {
+  eyebrow: string;
+  title: string;
+  body: string;
+} {
+  switch (status.state) {
+    case "loading":
+      return {
+        eyebrow: "Verifying payment",
+        title: "Checking your Stripe session.",
+        body: "AutoKirk is confirming the paid checkout before opening activation.",
+      };
+    case "ready":
+      return {
+        eyebrow: "Payment verified",
+        title: status.customerEmail
+          ? `Ready for ${status.customerEmail}`
+          : "Your AutoKirk activation is ready.",
+        body: "Your payment is confirmed. Start with one workflow, define the proof rule, and create the first proof-gated item.",
+      };
+    case "not_paid":
+      return {
+        eyebrow: "Payment not complete",
+        title: "This checkout is not marked paid yet.",
+        body: `Stripe returned payment status: ${status.paymentStatus ?? "unknown"}. Complete payment, then return to this activation link.`,
+      };
+    case "error":
+      return {
+        eyebrow: "Activation needs attention",
+        title: "AutoKirk could not verify this checkout session.",
+        body: status.message,
+      };
+    case "missing":
+    default:
+      return {
+        eyebrow: "Activation preview",
+        title: "Attach your first proof-gated workflow.",
+        body: "After payment, Stripe should send customers here with a checkout session ID so AutoKirk can verify activation automatically.",
+      };
+  }
+}
+
 export default function ActivatePage() {
+  const sessionId = useSessionId();
+  const activationStatus = useActivationStatus(sessionId);
+  const copy = useMemo(() => statusCopy(activationStatus), [activationStatus]);
+  const activationReady = activationStatus.state === "ready";
+
   return (
     <>
       <Head>
@@ -39,14 +175,25 @@ export default function ActivatePage() {
 
       <main className="activationShell">
         <section className="hero" aria-labelledby="activate-title">
-          <p className="eyebrow">Your AutoKirk link</p>
-          <h1 id="activate-title">Attach your first proof-gated workflow.</h1>
-          <p className="lede">
+          <p className="eyebrow">{copy.eyebrow}</p>
+          <h1 id="activate-title">{copy.title}</h1>
+          <p className="lede">{copy.body}</p>
+          <p className="support">
             AutoKirk connects to the tools you already use and keeps important work from being marked complete until the right proof exists.
           </p>
-          <p className="support">
-            Choose where work starts, define what proof means, and see whether work resolves, escalates, or fails.
-          </p>
+          <div className="sessionCard" aria-label="Stripe activation status">
+            <span className={activationReady ? "statusDot ready" : "statusDot"} />
+            <div>
+              <strong>
+                {activationReady ? "Paid activation recognized" : "Waiting for paid activation"}
+              </strong>
+              <p>
+                {sessionId
+                  ? `Stripe session: ${sessionId}`
+                  : "Use Stripe success redirect: /activate?session_id={CHECKOUT_SESSION_ID}"}
+              </p>
+            </div>
+          </div>
           <div className="actions" aria-label="Activation actions">
             <a className="primaryAction" href="#choose-intake">
               Start activation
@@ -60,16 +207,16 @@ export default function ActivatePage() {
         <section className="flowCard" aria-labelledby="flow-title">
           <div>
             <p className="eyebrow">How it works</p>
-            <h2 id="flow-title">One link. One first workflow. One clear outcome.</h2>
+            <h2 id="flow-title">One payment. One activation path. One first workflow.</h2>
           </div>
           <div className="flowGrid" aria-label="Activation flow">
-            <div className="flowStep">Customer subscribes</div>
+            <div className="flowStep">Customer pays</div>
             <div className="flowArrow" aria-hidden="true">→</div>
-            <div className="flowStep">AutoKirk link activates</div>
+            <div className="flowStep">Stripe verifies checkout</div>
             <div className="flowArrow" aria-hidden="true">→</div>
-            <div className="flowStep">Work stays visible until proof exists</div>
+            <div className="flowStep">AutoKirk opens activation</div>
             <div className="flowArrow" aria-hidden="true">→</div>
-            <div className="flowStep">Resolve / escalate / fail</div>
+            <div className="flowStep">First workflow starts</div>
           </div>
         </section>
 
@@ -194,7 +341,8 @@ export default function ActivatePage() {
         .support,
         .sectionHeader p,
         .outcomeStrip p,
-        .optionCard p {
+        .optionCard p,
+        .sessionCard p {
           color: #a1a1aa;
           line-height: 1.5;
         }
@@ -203,6 +351,42 @@ export default function ActivatePage() {
           max-width: 720px;
           margin-top: 12px;
           font-size: 1.02rem;
+        }
+
+        .sessionCard {
+          max-width: 760px;
+          margin-top: 18px;
+          display: flex;
+          gap: 12px;
+          align-items: flex-start;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 18px;
+          background: rgba(20, 25, 32, 0.94);
+          padding: 14px;
+        }
+
+        .sessionCard strong {
+          display: block;
+          margin-bottom: 4px;
+        }
+
+        .sessionCard p {
+          word-break: break-word;
+        }
+
+        .statusDot {
+          width: 10px;
+          height: 10px;
+          flex: 0 0 auto;
+          margin-top: 6px;
+          border-radius: 999px;
+          background: #eab308;
+          box-shadow: 0 0 18px rgba(234, 179, 8, 0.48);
+        }
+
+        .statusDot.ready {
+          background: #10a37f;
+          box-shadow: 0 0 18px rgba(16, 163, 127, 0.7);
         }
 
         .actions {
