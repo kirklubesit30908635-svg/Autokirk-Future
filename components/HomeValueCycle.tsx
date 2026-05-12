@@ -3,6 +3,8 @@ type LoopStep = {
   body: string;
 };
 
+const trialLink = "https://buy.stripe.com/9B68wQgiZ2f24j496R4Rq02";
+
 const loopSteps: LoopStep[] = [
   {
     label: "Work starts",
@@ -34,8 +36,8 @@ export function HomeValueCycle() {
           When proof is sufficient, work can resolve automatically. When proof is missing, it stays visible, escalates, or fails.
         </p>
         <div className="actions" aria-label="Homepage actions">
-          <a href="/activate" className="primaryAction">
-            Activate your AutoKirk link
+          <a href={trialLink} className="primaryAction">
+            Start trial
           </a>
           <a href="#how-it-works" className="secondaryAction">
             See the loop
@@ -67,8 +69,8 @@ export function HomeValueCycle() {
             Test AutoKirk beside the tools you already use. See what stays open, what resolves, and what still needs proof.
           </p>
         </div>
-        <a href="/activate" className="stripAction">
-          Start with one workflow
+        <a href={trialLink} className="stripAction">
+          Start trial
         </a>
       </section>
 
