@@ -3,6 +3,12 @@ type LoopStep = {
   body: string;
 };
 
+type GovernableItem = {
+  title: string;
+  examples: string;
+  value: string;
+};
+
 const trialLink = "https://buy.stripe.com/9B68wQgiZ2f24j496R4Rq02";
 
 const loopSteps: LoopStep[] = [
@@ -17,6 +23,39 @@ const loopSteps: LoopStep[] = [
   {
     label: "Resolved work leaves a record",
     body: "When proof is enough, the work closes with a recorded decision. If proof is missing, AutoKirk keeps it visible.",
+  },
+];
+
+const governableItems: GovernableItem[] = [
+  {
+    title: "Customer promises",
+    examples: "reports, follow-ups, service visits, delivery commitments, support responses",
+    value: "AutoKirk shows whether the promise is still open, completed with proof, or failed with proof.",
+  },
+  {
+    title: "Operational handoffs",
+    examples: "approvals, punch-list items, internal reviews, escalations, owner sign-offs",
+    value: "Nothing quietly disappears when one team says another team has the ball.",
+  },
+  {
+    title: "Revenue and billing duties",
+    examples: "paid invoices, onboarding steps, renewal tasks, required customer actions",
+    value: "Money movement can create obligations that stay visible until the owed work is proven.",
+  },
+  {
+    title: "Compliance evidence",
+    examples: "inspection notes, audit packets, required documents, incident responses",
+    value: "The record keeps the proof trail attached to the final state instead of scattered across tools.",
+  },
+  {
+    title: "Misses and failures",
+    examples: "overdue work, rejected evidence, failed checks, unresolved obligations",
+    value: "Failure is not hidden. It remains visible until doctrine-valid proof explains the outcome.",
+  },
+  {
+    title: "Proof receipts",
+    examples: "customer-visible closure records, receipt ids, lifecycle state, evidence references",
+    value: "A final answer is not just a status. It is a receipt-backed record customers can trust.",
   },
 ];
 
@@ -42,6 +81,25 @@ export function HomeValueCycle() {
           <a href="#how-it-works" className="secondaryAction">
             See how it works
           </a>
+        </div>
+      </section>
+
+      <section className="capabilityCard" id="what-autokirk-governs" aria-labelledby="govern-title">
+        <div className="sectionHeader">
+          <p className="eyebrow">What AutoKirk can govern</p>
+          <h2 id="govern-title">Any promise that should not be closed without evidence.</h2>
+          <p>
+            AutoKirk does not care which tool created the work. It governs the obligation created by that work: what is owed, what proof is required, and what final state is allowed.
+          </p>
+        </div>
+        <div className="governGrid">
+          {governableItems.map((item) => (
+            <article className="governItem" key={item.title}>
+              <h3>{item.title}</h3>
+              <p className="examples">{item.examples}</p>
+              <p>{item.value}</p>
+            </article>
+          ))}
         </div>
       </section>
 
@@ -117,6 +175,7 @@ export function HomeValueCycle() {
         }
 
         .hero,
+        .capabilityCard,
         .loopCard,
         .closingCard {
           position: relative;
@@ -135,6 +194,7 @@ export function HomeValueCycle() {
           align-content: center;
         }
 
+        .capabilityCard,
         .loopCard,
         .closingCard {
           margin-top: 14px;
@@ -237,12 +297,13 @@ export function HomeValueCycle() {
           margin-bottom: 8px;
         }
 
-        .loopGrid {
+        .governGrid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 12px;
         }
 
+        .governItem,
         .loopStep {
           min-height: 210px;
           padding: 18px;
@@ -255,6 +316,21 @@ export function HomeValueCycle() {
           box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
+        .governItem {
+          min-height: 230px;
+        }
+
+        .governItem .examples {
+          color: #d4d4d8;
+          font-size: 0.95rem;
+        }
+
+        .loopGrid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+
         .stepNumber {
           color: #10a37f;
           font-size: 0.8rem;
@@ -262,6 +338,7 @@ export function HomeValueCycle() {
           letter-spacing: 0.08em;
         }
 
+        .governItem p,
         .loopStep p,
         .closingCard p {
           color: #a1a1aa;
@@ -300,16 +377,19 @@ export function HomeValueCycle() {
             padding: 26px 20px;
           }
 
+          .capabilityCard,
           .loopCard,
           .closingCard {
             border-radius: 22px;
             padding: 20px;
           }
 
+          .governGrid,
           .loopGrid {
             grid-template-columns: 1fr;
           }
 
+          .governItem,
           .loopStep {
             min-height: auto;
           }
