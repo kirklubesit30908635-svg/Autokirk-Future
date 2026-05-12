@@ -1,26 +1,9 @@
 import Head from "next/head";
-import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
 
 import { AutokirkStateTransition } from "../components/AutokirkStateTransition";
 import { HomeValueCycle } from "../components/HomeValueCycle";
-import { SystemProofBoard, type SystemProofBoardProps } from "../components/SystemProofBoard";
-import { getSystemProofBoardData } from "../components/systemProofData";
 
-type HomePageProps = {
-  board: SystemProofBoardProps;
-};
-
-export const getServerSideProps: GetServerSideProps<HomePageProps> = async () => {
-  return {
-    props: {
-      board: await getSystemProofBoardData(),
-    },
-  };
-};
-
-export default function HomePage({
-  board,
-}: InferGetServerSidePropsType<typeof getServerSideProps>) {
+export default function HomePage() {
   return (
     <>
       <Head>
@@ -32,9 +15,6 @@ export default function HomePage({
       </Head>
       <HomeValueCycle />
       <AutokirkStateTransition />
-      <div id="live-board">
-        <SystemProofBoard {...board} />
-      </div>
     </>
   );
 }
