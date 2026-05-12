@@ -9,6 +9,11 @@ type GovernableItem = {
   value: string;
 };
 
+type ProofState = {
+  title: string;
+  body: string;
+};
+
 const trialLink = "https://buy.stripe.com/9B68wQgiZ2f24j496R4Rq02";
 
 const loopSteps: LoopStep[] = [
@@ -59,6 +64,21 @@ const governableItems: GovernableItem[] = [
   },
 ];
 
+const proofStates: ProofState[] = [
+  {
+    title: "Open",
+    body: "The obligation exists and still needs evidence.",
+  },
+  {
+    title: "Proof ready",
+    body: "Evidence has been supplied and can be used to close the work.",
+  },
+  {
+    title: "Closed with proof",
+    body: "Completion or failure is recorded with a receipt-backed final state.",
+  },
+];
+
 export function HomeValueCycle() {
   return (
     <section className="homeShell" aria-labelledby="home-title">
@@ -103,12 +123,31 @@ export function HomeValueCycle() {
         </div>
       </section>
 
+      <section className="proofStatesCard" aria-labelledby="states-title">
+        <div className="sectionHeader compactHeader">
+          <p className="eyebrow">Lower-half proof surface</p>
+          <h2 id="states-title">The page should make the state change obvious.</h2>
+          <p>
+            Keep the top section as-is. Below it, the customer should understand the operational cycle before they reach the live trace.
+          </p>
+        </div>
+        <div className="stateGrid">
+          {proofStates.map((state, index) => (
+            <article className="stateCard" key={state.title}>
+              <span className="stepNumber">0{index + 1}</span>
+              <h3>{state.title}</h3>
+              <p>{state.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
       <section className="loopCard" id="how-it-works" aria-labelledby="loop-title">
         <div className="sectionHeader">
           <p className="eyebrow">How it works</p>
-          <h2 id="loop-title">Your tools run the work. AutoKirk protects the moment someone calls it done.</h2>
+          <h2 id="loop-title">Your tools keep running. AutoKirk governs the closing decision.</h2>
           <p>
-            AutoKirk does not replace your operating software. It sits beside one workflow and turns completion into a proof decision.
+            The second half of the page should explain that AutoKirk is not a replacement workflow. It is the proof layer that decides whether a promise is still open, closed with completion proof, or closed with failure proof.
           </p>
         </div>
         <div className="loopGrid">
@@ -176,6 +215,7 @@ export function HomeValueCycle() {
 
         .hero,
         .capabilityCard,
+        .proofStatesCard,
         .loopCard,
         .closingCard {
           position: relative;
@@ -195,6 +235,7 @@ export function HomeValueCycle() {
         }
 
         .capabilityCard,
+        .proofStatesCard,
         .loopCard,
         .closingCard {
           margin-top: 14px;
@@ -293,6 +334,10 @@ export function HomeValueCycle() {
           margin-bottom: 18px;
         }
 
+        .compactHeader {
+          margin-bottom: 16px;
+        }
+
         .sectionHeader .eyebrow {
           margin-bottom: 8px;
         }
@@ -303,7 +348,15 @@ export function HomeValueCycle() {
           gap: 12px;
         }
 
+        .stateGrid,
+        .loopGrid {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+
         .governItem,
+        .stateCard,
         .loopStep {
           min-height: 210px;
           padding: 18px;
@@ -320,15 +373,13 @@ export function HomeValueCycle() {
           min-height: 230px;
         }
 
+        .stateCard {
+          min-height: 168px;
+        }
+
         .governItem .examples {
           color: #d4d4d8;
           font-size: 0.95rem;
-        }
-
-        .loopGrid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 12px;
         }
 
         .stepNumber {
@@ -339,6 +390,7 @@ export function HomeValueCycle() {
         }
 
         .governItem p,
+        .stateCard p,
         .loopStep p,
         .closingCard p {
           color: #a1a1aa;
@@ -378,6 +430,7 @@ export function HomeValueCycle() {
           }
 
           .capabilityCard,
+          .proofStatesCard,
           .loopCard,
           .closingCard {
             border-radius: 22px;
@@ -385,11 +438,13 @@ export function HomeValueCycle() {
           }
 
           .governGrid,
+          .stateGrid,
           .loopGrid {
             grid-template-columns: 1fr;
           }
 
           .governItem,
+          .stateCard,
           .loopStep {
             min-height: auto;
           }
