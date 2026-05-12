@@ -1,106 +1,14 @@
-type LoopStep = {
-  label: string;
-  body: string;
-};
-
-type GovernableItem = {
-  title: string;
-  examples: string;
-  value: string;
-};
-
-type ProofState = {
-  title: string;
-  body: string;
-};
-
-const trialLink = "https://buy.stripe.com/9B68wQgiZ2f24j496R4Rq02";
-
-const loopSteps: LoopStep[] = [
-  {
-    label: "Work starts where it already happens",
-    body: "A ticket, request, payment, service job, approval, or handoff creates work your team intends to close.",
-  },
-  {
-    label: "AutoKirk requires proof before close",
-    body: "The item stays open until the required evidence exists, so false completion cannot disappear into a status change.",
-  },
-  {
-    label: "Resolved work leaves a record",
-    body: "When proof is enough, the work closes with a recorded decision. If proof is missing, AutoKirk keeps it visible.",
-  },
-];
-
-const governableItems: GovernableItem[] = [
-  {
-    title: "Customer promises",
-    examples: "reports, follow-ups, service visits, delivery commitments, support responses",
-    value: "AutoKirk shows whether the promise is still open, completed with proof, or failed with proof.",
-  },
-  {
-    title: "Operational handoffs",
-    examples: "approvals, punch-list items, internal reviews, escalations, owner sign-offs",
-    value: "Nothing quietly disappears when one team says another team has the ball.",
-  },
-  {
-    title: "Revenue and billing duties",
-    examples: "paid invoices, onboarding steps, renewal tasks, required customer actions",
-    value: "Money movement can create obligations that stay visible until the owed work is proven.",
-  },
-  {
-    title: "Compliance evidence",
-    examples: "inspection notes, audit packets, required documents, incident responses",
-    value: "The record keeps the proof trail attached to the final state instead of scattered across tools.",
-  },
-  {
-    title: "Misses and failures",
-    examples: "overdue work, rejected evidence, failed checks, unresolved obligations",
-    value: "Failure is not hidden. It remains visible until doctrine-valid proof explains the outcome.",
-  },
-  {
-    title: "Proof receipts",
-    examples: "customer-visible closure records, receipt ids, lifecycle state, evidence references",
-    value: "A final answer is not just a status. It is a receipt-backed record customers can trust.",
-  },
-];
-
-const proofStates: ProofState[] = [
-  {
-    title: "Open",
-    body: "The obligation exists and still needs evidence.",
-  },
-  {
-    title: "Proof ready",
-    body: "Evidence has been supplied and can be used to close the work.",
-  },
-  {
-    title: "Closed with proof",
-    body: "Completion or failure is recorded with a receipt-backed final state.",
-  },
-];
-
 export function HomeValueCycle() {
   return (
     <section className="homeShell" aria-labelledby="home-title">
-      <div className="underGlow" aria-hidden="true" />
-      <div className="sideGlow" aria-hidden="true" />
-
       <section className="hero" aria-labelledby="home-title">
         <p className="eyebrow">Proof-backed completion for existing tools</p>
         <h1 id="home-title">Work is not complete until it is proven.</h1>
-        <p className="lede">
-          AutoKirk adds a proof layer beside the tools you already use, keeping critical work open until the required evidence exists.
-        </p>
-        <p className="support">
-          Start with one workflow. Define what proof is required. AutoKirk shows what is open, ready to close, or still missing evidence.
-        </p>
+        <p className="lede">AutoKirk adds a proof layer beside the tools you already use, keeping critical work open until the required evidence exists.</p>
+        <p className="support">Start with one workflow. Define what proof is required. AutoKirk shows what is open, ready to close, or still missing evidence.</p>
         <div className="actions" aria-label="Homepage actions">
-          <a href={trialLink} className="primaryAction">
-            Start trial
-          </a>
-          <a href="#how-it-works" className="secondaryAction">
-            See how it works
-          </a>
+          <a href="/platform" className="primaryAction">Start trial</a>
+          <a href="#how-it-works" className="secondaryAction">See how it works</a>
         </div>
       </section>
 
@@ -108,37 +16,25 @@ export function HomeValueCycle() {
         <div className="sectionHeader">
           <p className="eyebrow">What AutoKirk can govern</p>
           <h2 id="govern-title">Any promise that should not be closed without evidence.</h2>
-          <p>
-            AutoKirk does not care which tool created the work. It governs the obligation created by that work: what is owed, what proof is required, and what final state is allowed.
-          </p>
+          <p>AutoKirk does not care which tool created the work. It governs the obligation created by that work: what is owed, what proof is required, and what final state is allowed.</p>
         </div>
         <div className="governGrid">
-          {governableItems.map((item) => (
-            <article className="governItem" key={item.title}>
-              <h3>{item.title}</h3>
-              <p className="examples">{item.examples}</p>
-              <p>{item.value}</p>
-            </article>
-          ))}
+          <article className="governItem"><h3>Customer promises</h3><p className="examples">reports, follow-ups, service visits, delivery commitments, support responses</p><p>AutoKirk shows whether the promise is still open, completed with proof, or failed with proof.</p></article>
+          <article className="governItem"><h3>Operational handoffs</h3><p className="examples">approvals, punch-list items, internal reviews, escalations, owner sign-offs</p><p>Nothing quietly disappears when one team says another team has the ball.</p></article>
+          <article className="governItem"><h3>Proof receipts</h3><p className="examples">customer-visible closure records, receipt ids, lifecycle state, evidence references</p><p>A final answer is not just a status. It is a receipt-backed record customers can trust.</p></article>
         </div>
       </section>
 
       <section className="proofStatesCard" aria-labelledby="states-title">
         <div className="sectionHeader compactHeader">
-          <p className="eyebrow">Lower-half proof surface</p>
-          <h2 id="states-title">The page should make the state change obvious.</h2>
-          <p>
-            Keep the top section as-is. Below it, the customer should understand the operational cycle before they reach the live trace.
-          </p>
+          <p className="eyebrow">Proof states</p>
+          <h2 id="states-title">The state change stays visible.</h2>
+          <p>AutoKirk shows whether an obligation is still open, ready for proof review, or closed with a receipt-backed final state.</p>
         </div>
         <div className="stateGrid">
-          {proofStates.map((state, index) => (
-            <article className="stateCard" key={state.title}>
-              <span className="stepNumber">0{index + 1}</span>
-              <h3>{state.title}</h3>
-              <p>{state.body}</p>
-            </article>
-          ))}
+          <article className="stateCard"><span className="stepNumber">01</span><h3>Open</h3><p>The obligation exists and still needs evidence.</p></article>
+          <article className="stateCard"><span className="stepNumber">02</span><h3>Proof ready</h3><p>Evidence has been supplied and can be used to close the work.</p></article>
+          <article className="stateCard"><span className="stepNumber">03</span><h3>Closed with proof</h3><p>Completion or failure is recorded with a receipt-backed final state.</p></article>
         </div>
       </section>
 
@@ -146,320 +42,19 @@ export function HomeValueCycle() {
         <div className="sectionHeader">
           <p className="eyebrow">How it works</p>
           <h2 id="loop-title">Your tools keep running. AutoKirk governs the closing decision.</h2>
-          <p>
-            The second half of the page should explain that AutoKirk is not a replacement workflow. It is the proof layer that decides whether a promise is still open, closed with completion proof, or closed with failure proof.
-          </p>
+          <p>Work can begin in the systems your team already uses. AutoKirk does not replace that workflow. It governs whether the work can be closed.</p>
         </div>
         <div className="loopGrid">
-          {loopSteps.map((step, index) => (
-            <article className="loopStep" key={step.label}>
-              <span className="stepNumber">0{index + 1}</span>
-              <h3>{step.label}</h3>
-              <p>{step.body}</p>
-            </article>
-          ))}
+          <article className="loopStep"><span className="stepNumber">01</span><h3>Work starts where it already happens</h3><p>A ticket, request, payment, service job, approval, or handoff creates work your team intends to close.</p></article>
+          <article className="loopStep"><span className="stepNumber">02</span><h3>AutoKirk requires proof before close</h3><p>The item stays open until the required evidence exists, so false completion cannot disappear into a status change.</p></article>
+          <article className="loopStep"><span className="stepNumber">03</span><h3>Resolved work leaves a record</h3><p>When proof is enough, the work closes with a recorded decision. If proof is missing, AutoKirk keeps it visible.</p></article>
         </div>
       </section>
 
       <section className="closingCard" aria-label="AutoKirk trial summary">
-        <div>
-          <p className="eyebrow">Start small</p>
-          <strong>One workflow. One proof rule. One place to see what is actually done.</strong>
-          <p>
-            Start where missed follow-up, weak evidence, or premature completion already costs time.
-          </p>
-        </div>
-        <a href={trialLink} className="stripAction">
-          Start trial
-        </a>
+        <div><p className="eyebrow">Start small</p><strong>One workflow. One proof rule. One place to see what is actually done.</strong><p>Start where missed follow-up, weak evidence, or premature completion already costs time.</p></div>
+        <a href="/platform" className="stripAction">Start trial</a>
       </section>
-
-      <style jsx>{`
-        .homeShell {
-          position: relative;
-          width: min(1080px, calc(100% - 24px));
-          margin: 0 auto;
-          padding: 28px 0 22px;
-          color: #f4f4f5;
-          isolation: isolate;
-        }
-
-        .underGlow,
-        .sideGlow {
-          position: absolute;
-          pointer-events: none;
-          z-index: 0;
-        }
-
-        .underGlow {
-          inset: 28px auto auto 50%;
-          width: min(760px, 86vw);
-          height: 360px;
-          transform: translateX(-50%);
-          border-radius: 999px;
-          background: radial-gradient(circle, rgba(16, 163, 127, 0.2), rgba(16, 163, 127, 0.065) 42%, transparent 72%);
-          filter: blur(20px);
-          opacity: 0.78;
-        }
-
-        .sideGlow {
-          right: 3%;
-          bottom: 8%;
-          width: min(460px, 72vw);
-          height: 250px;
-          border-radius: 999px;
-          background: radial-gradient(circle, rgba(88, 166, 255, 0.09), rgba(88, 166, 255, 0.03) 44%, transparent 72%);
-          filter: blur(26px);
-          opacity: 0.68;
-        }
-
-        .hero,
-        .capabilityCard,
-        .proofStatesCard,
-        .loopCard,
-        .closingCard {
-          position: relative;
-          z-index: 1;
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          background: linear-gradient(180deg, rgba(14, 18, 24, 0.96), rgba(8, 11, 16, 0.95));
-          box-shadow: 0 24px 80px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.035);
-          backdrop-filter: blur(12px);
-        }
-
-        .hero {
-          border-radius: 34px;
-          padding: clamp(30px, 6vw, 76px);
-          min-height: 590px;
-          display: grid;
-          align-content: center;
-        }
-
-        .capabilityCard,
-        .proofStatesCard,
-        .loopCard,
-        .closingCard {
-          margin-top: 14px;
-          border-radius: 26px;
-          padding: clamp(20px, 3vw, 30px);
-        }
-
-        .eyebrow {
-          margin: 0 0 12px;
-          color: #9ca3af;
-          font-size: 0.78rem;
-          font-weight: 800;
-          letter-spacing: 0.08em;
-          text-transform: uppercase;
-        }
-
-        h1,
-        h2,
-        h3,
-        p {
-          margin: 0;
-        }
-
-        h1 {
-          max-width: 940px;
-          font-size: clamp(2.8rem, 8vw, 6.8rem);
-          line-height: 0.92;
-          letter-spacing: -0.075em;
-        }
-
-        h2 {
-          max-width: 820px;
-          font-size: clamp(1.7rem, 3.6vw, 3.25rem);
-          line-height: 1.04;
-          letter-spacing: -0.05em;
-        }
-
-        h3 {
-          font-size: 1.05rem;
-          line-height: 1.25;
-        }
-
-        .lede {
-          max-width: 760px;
-          margin-top: 22px;
-          color: #e4e4e7;
-          font-size: clamp(1.08rem, 2.4vw, 1.45rem);
-          line-height: 1.45;
-        }
-
-        .support,
-        .sectionHeader p {
-          max-width: 720px;
-          margin-top: 12px;
-          color: #a1a1aa;
-          font-size: clamp(0.98rem, 2vw, 1.13rem);
-          line-height: 1.5;
-        }
-
-        .actions {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 12px;
-          margin-top: 30px;
-        }
-
-        .primaryAction,
-        .secondaryAction,
-        .stripAction {
-          display: inline-flex;
-          min-height: 46px;
-          align-items: center;
-          justify-content: center;
-          border-radius: 999px;
-          padding: 0 18px;
-          font-weight: 800;
-          text-decoration: none;
-        }
-
-        .primaryAction,
-        .stripAction {
-          background: #10a37f;
-          color: #06130f;
-          box-shadow: 0 0 24px rgba(16, 163, 127, 0.18);
-        }
-
-        .secondaryAction {
-          border: 1px solid rgba(255, 255, 255, 0.16);
-          color: #f4f4f5;
-          background: rgba(255, 255, 255, 0.025);
-        }
-
-        .sectionHeader {
-          display: grid;
-          gap: 4px;
-          margin-bottom: 18px;
-        }
-
-        .compactHeader {
-          margin-bottom: 16px;
-        }
-
-        .sectionHeader .eyebrow {
-          margin-bottom: 8px;
-        }
-
-        .governGrid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 12px;
-        }
-
-        .stateGrid,
-        .loopGrid {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 12px;
-        }
-
-        .governItem,
-        .stateCard,
-        .loopStep {
-          min-height: 210px;
-          padding: 18px;
-          display: grid;
-          align-content: start;
-          gap: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          background: rgba(18, 23, 30, 0.78);
-          border-radius: 20px;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-        }
-
-        .governItem {
-          min-height: 230px;
-        }
-
-        .stateCard {
-          min-height: 168px;
-        }
-
-        .governItem .examples {
-          color: #d4d4d8;
-          font-size: 0.95rem;
-        }
-
-        .stepNumber {
-          color: #10a37f;
-          font-size: 0.8rem;
-          font-weight: 900;
-          letter-spacing: 0.08em;
-        }
-
-        .governItem p,
-        .stateCard p,
-        .loopStep p,
-        .closingCard p {
-          color: #a1a1aa;
-          line-height: 1.45;
-        }
-
-        .closingCard {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 18px;
-        }
-
-        .closingCard strong {
-          display: block;
-          max-width: 780px;
-          font-size: clamp(1.35rem, 3.2vw, 2.55rem);
-          line-height: 1.08;
-          letter-spacing: -0.05em;
-        }
-
-        .closingCard p {
-          max-width: 680px;
-          margin-top: 10px;
-        }
-
-        @media (max-width: 980px) {
-          .homeShell {
-            width: min(100% - 16px, 1080px);
-            padding-top: 16px;
-          }
-
-          .hero {
-            min-height: auto;
-            border-radius: 24px;
-            padding: 26px 20px;
-          }
-
-          .capabilityCard,
-          .proofStatesCard,
-          .loopCard,
-          .closingCard {
-            border-radius: 22px;
-            padding: 20px;
-          }
-
-          .governGrid,
-          .stateGrid,
-          .loopGrid {
-            grid-template-columns: 1fr;
-          }
-
-          .governItem,
-          .stateCard,
-          .loopStep {
-            min-height: auto;
-          }
-
-          .closingCard {
-            display: grid;
-          }
-
-          .primaryAction,
-          .secondaryAction,
-          .stripAction {
-            width: 100%;
-          }
-        }
-      `}</style>
     </section>
   );
 }
