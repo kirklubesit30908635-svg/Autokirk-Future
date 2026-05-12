@@ -3,11 +3,6 @@ type LoopStep = {
   body: string;
 };
 
-type UseCase = {
-  title: string;
-  body: string;
-};
-
 const loopSteps: LoopStep[] = [
   {
     label: "Work starts",
@@ -20,29 +15,6 @@ const loopSteps: LoopStep[] = [
   {
     label: "Resolve or escalate",
     body: "Sufficient proof resolves it. Missing proof keeps it visible, escalates, or fails.",
-  },
-];
-
-const useCases: UseCase[] = [
-  {
-    title: "AI actions",
-    body: "Know whether work created or completed by AI is acceptable to count as done.",
-  },
-  {
-    title: "Revenue follow-up",
-    body: "Keep payment, renewal, fulfillment, and exception work visible until proof exists.",
-  },
-  {
-    title: "Service closeout",
-    body: "Keep jobs from being marked complete without completion or failure proof.",
-  },
-  {
-    title: "Audit evidence",
-    body: "Keep controls visible until evidence exists and the final state is clear.",
-  },
-  {
-    title: "Employee handoffs",
-    body: "Keep important work visible as people join, leave, transfer, or hand off ownership.",
   },
 ];
 
@@ -66,7 +38,7 @@ export function HomeValueCycle() {
             Activate your AutoKirk link
           </a>
           <a href="#how-it-works" className="secondaryAction">
-            See how it works
+            See the loop
           </a>
         </div>
       </section>
@@ -74,7 +46,7 @@ export function HomeValueCycle() {
       <section className="loopCard" id="how-it-works" aria-labelledby="loop-title">
         <div className="sectionHeader">
           <p className="eyebrow">The loop</p>
-          <h2 id="loop-title">Existing tools still run the work. AutoKirk keeps completion honest.</h2>
+          <h2 id="loop-title">Your software runs the work. AutoKirk keeps completion honest.</h2>
         </div>
         <div className="loopGrid">
           {loopSteps.map((step, index) => (
@@ -87,35 +59,23 @@ export function HomeValueCycle() {
         </div>
       </section>
 
-      <section className="proofStrip" aria-label="AutoKirk outcome summary">
+      <section className="closingCard" aria-label="AutoKirk outcome summary">
         <div>
-          <p className="eyebrow">What changes</p>
-          <strong>Work does not disappear. Completion has to be supported by proof.</strong>
+          <p className="eyebrow">Start small</p>
+          <strong>One workflow. One proof standard. One clear final state.</strong>
+          <p>
+            Test AutoKirk beside the tools you already use. See what stays open, what resolves, and what still needs proof.
+          </p>
         </div>
         <a href="/activate" className="stripAction">
           Start with one workflow
         </a>
       </section>
 
-      <section className="useCases" aria-labelledby="use-title">
-        <div className="sectionHeader compact">
-          <p className="eyebrow">Where it applies</p>
-          <h2 id="use-title">One trust layer. Many ways to use it.</h2>
-        </div>
-        <div className="useGrid">
-          {useCases.map((useCase) => (
-            <article className="useCase" key={useCase.title}>
-              <h3>{useCase.title}</h3>
-              <p>{useCase.body}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
       <style jsx>{`
         .homeShell {
           position: relative;
-          width: min(1120px, calc(100% - 24px));
+          width: min(1080px, calc(100% - 24px));
           margin: 0 auto;
           padding: 28px 0 22px;
           color: #f4f4f5;
@@ -130,31 +90,30 @@ export function HomeValueCycle() {
         }
 
         .underGlow {
-          inset: 18px auto auto 50%;
+          inset: 28px auto auto 50%;
           width: min(760px, 86vw);
           height: 360px;
           transform: translateX(-50%);
           border-radius: 999px;
-          background: radial-gradient(circle, rgba(16, 163, 127, 0.2), rgba(16, 163, 127, 0.07) 42%, transparent 72%);
-          filter: blur(18px);
-          opacity: 0.82;
+          background: radial-gradient(circle, rgba(16, 163, 127, 0.2), rgba(16, 163, 127, 0.065) 42%, transparent 72%);
+          filter: blur(20px);
+          opacity: 0.78;
         }
 
         .sideGlow {
-          right: 4%;
-          bottom: 12%;
+          right: 3%;
+          bottom: 8%;
           width: min(460px, 72vw);
           height: 250px;
           border-radius: 999px;
-          background: radial-gradient(circle, rgba(88, 166, 255, 0.1), rgba(88, 166, 255, 0.035) 44%, transparent 72%);
-          filter: blur(24px);
-          opacity: 0.72;
+          background: radial-gradient(circle, rgba(88, 166, 255, 0.09), rgba(88, 166, 255, 0.03) 44%, transparent 72%);
+          filter: blur(26px);
+          opacity: 0.68;
         }
 
         .hero,
         .loopCard,
-        .proofStrip,
-        .useCases {
+        .closingCard {
           position: relative;
           z-index: 1;
           border: 1px solid rgba(255, 255, 255, 0.09);
@@ -165,18 +124,17 @@ export function HomeValueCycle() {
 
         .hero {
           border-radius: 34px;
-          padding: clamp(28px, 6vw, 72px);
-          min-height: 570px;
+          padding: clamp(30px, 6vw, 76px);
+          min-height: 590px;
           display: grid;
           align-content: center;
         }
 
         .loopCard,
-        .useCases,
-        .proofStrip {
+        .closingCard {
           margin-top: 14px;
           border-radius: 26px;
-          padding: clamp(18px, 3vw, 28px);
+          padding: clamp(20px, 3vw, 30px);
         }
 
         .eyebrow {
@@ -203,14 +161,14 @@ export function HomeValueCycle() {
         }
 
         h2 {
-          max-width: 800px;
-          font-size: clamp(1.65rem, 3.6vw, 3.25rem);
+          max-width: 780px;
+          font-size: clamp(1.7rem, 3.6vw, 3.25rem);
           line-height: 1.04;
           letter-spacing: -0.05em;
         }
 
         h3 {
-          font-size: 1.03rem;
+          font-size: 1.05rem;
           line-height: 1.25;
         }
 
@@ -269,22 +227,10 @@ export function HomeValueCycle() {
           margin-bottom: 18px;
         }
 
-        .compact {
-          margin-bottom: 14px;
-        }
-
         .loopGrid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 12px;
-        }
-
-        .loopStep,
-        .useCase {
-          border: 1px solid rgba(255, 255, 255, 0.09);
-          background: rgba(18, 23, 30, 0.78);
-          border-radius: 20px;
-          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
         .loopStep {
@@ -293,6 +239,10 @@ export function HomeValueCycle() {
           display: grid;
           align-content: start;
           gap: 12px;
+          border: 1px solid rgba(255, 255, 255, 0.09);
+          background: rgba(18, 23, 30, 0.78);
+          border-radius: 20px;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
         }
 
         .stepNumber {
@@ -303,41 +253,34 @@ export function HomeValueCycle() {
         }
 
         .loopStep p,
-        .useCase p {
+        .closingCard p {
           color: #a1a1aa;
           line-height: 1.45;
         }
 
-        .proofStrip {
+        .closingCard {
           display: flex;
           align-items: center;
           justify-content: space-between;
           gap: 18px;
         }
 
-        .proofStrip strong {
+        .closingCard strong {
           display: block;
           max-width: 760px;
-          font-size: clamp(1.25rem, 3.1vw, 2.35rem);
+          font-size: clamp(1.35rem, 3.2vw, 2.55rem);
           line-height: 1.08;
-          letter-spacing: -0.045em;
+          letter-spacing: -0.05em;
         }
 
-        .useGrid {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
-          gap: 10px;
-        }
-
-        .useCase {
-          padding: 15px;
-          display: grid;
-          gap: 8px;
+        .closingCard p {
+          max-width: 680px;
+          margin-top: 10px;
         }
 
         @media (max-width: 980px) {
           .homeShell {
-            width: min(100% - 16px, 1120px);
+            width: min(100% - 16px, 1080px);
             padding-top: 16px;
           }
 
@@ -348,14 +291,12 @@ export function HomeValueCycle() {
           }
 
           .loopCard,
-          .useCases,
-          .proofStrip {
+          .closingCard {
             border-radius: 22px;
             padding: 20px;
           }
 
-          .loopGrid,
-          .useGrid {
+          .loopGrid {
             grid-template-columns: 1fr;
           }
 
@@ -363,7 +304,7 @@ export function HomeValueCycle() {
             min-height: auto;
           }
 
-          .proofStrip {
+          .closingCard {
             display: grid;
           }
 
