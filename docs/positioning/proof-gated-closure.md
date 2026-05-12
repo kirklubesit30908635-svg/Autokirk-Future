@@ -1,8 +1,35 @@
 # AutoKirk Positioning — Proof-Gated Closure
 
-**Status:** Product positioning and market-surface doctrine  
+**Status:** Interactive guidance as of now; refine only by explicit agreement  
 **Scope:** Homepage, sales language, customer education, attachment-model design  
 **Protected boundary:** This document does not change the kernel, migrations, API mutation paths, proof semantics, receipt semantics, or Supabase schema.
+
+---
+
+## 0. Interactive Guidance Rule
+
+This document is the current guidance surface for AutoKirk positioning.
+
+It is not final doctrine by itself. It is an agreed working guide that should be refined as decisions are made.
+
+Rules:
+
+- Treat this document as guidance, not implementation authorization.
+- If new direction conflicts with this document, call out drift before changing anything.
+- Only update this document when the change is explicitly agreed.
+- Do not silently reinterpret kernel doctrine from this document.
+- Do not use this document to authorize code, migration, API, Supabase, proof, receipt, or enforcement-path changes.
+
+Drift marker format:
+
+```text
+DRIFT DETECTED:
+<what changed or conflicts>
+Current locked rule:
+<what we should follow now>
+Recommended action:
+<propose, do not mutate>
+```
 
 ---
 
