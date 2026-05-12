@@ -2,9 +2,9 @@ with ingest as (
   select api.ingest_event_to_obligation(
     'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
     '11111111-1111-1111-1111-111111111111'::uuid,
-    'test_system',
-    'event-reject-1',
-    'service_commitment_created',
+    'test_system'::text,
+    'event-reject-1'::text,
+    'service_commitment_created'::text,
     '{"service":"founder_ops","promise":"deliver service commitment"}'::jsonb,
     now()
   ) as result
