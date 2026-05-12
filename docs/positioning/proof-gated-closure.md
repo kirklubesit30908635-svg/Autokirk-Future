@@ -1,26 +1,150 @@
-# AutoKirk Positioning — Proof-Gated Closure
+# AutoKirk Positioning Goal — Proof-Gated Closure
 
-**Status:** Interactive guidance as of now; refine only by explicit agreement  
-**Scope:** Homepage, sales language, customer education, attachment-model design  
-**Protected boundary:** This document does not change the kernel, migrations, API mutation paths, proof semantics, receipt semantics, or Supabase schema.
+**Status:** Public-safe positioning goal and interactive guidance  
+**Scope:** Homepage, sales language, demos, customer education, and adoption messaging  
+**Boundary:** This document is not implementation authorization. It does not authorize code, database, API, security, enforcement, or infrastructure changes.
 
 ---
 
-## 0. Interactive Guidance Rule
+## 1. Positioning Goal
 
-This document is the current guidance surface for AutoKirk positioning.
+AutoKirk should become known as the trusted proof-gated closure layer for modern businesses and AI-driven operations.
 
-It is not final doctrine by itself. It is an agreed working guide that should be refined as decisions are made.
+The goal is to make AutoKirk simple to understand, easy to adopt, and difficult to confuse with workflow software, CRM, field-service software, project management, AI runtime, or compliance dashboards.
 
-Rules:
+AutoKirk should publicly communicate one clear outcome:
 
-- Treat this document as guidance, not implementation authorization.
-- If new direction conflicts with this document, call out drift before changing anything.
-- Only update this document when the change is explicitly agreed.
-- Do not silently reinterpret kernel doctrine from this document.
-- Do not use this document to authorize code, migration, API, Supabase, proof, receipt, or enforcement-path changes.
+> **Important work should not disappear or be marked complete until the right proof exists.**
 
-Drift marker format:
+AutoKirk connects to the tools companies already use and keeps important work visible until it can be resolved with proof, escalated, or failed.
+
+The customer should understand the value without needing to understand the internal design.
+
+---
+
+## 2. Primary Market Message
+
+> **Keep your software. Add proof-gated closure.**
+
+Supporting message:
+
+> AutoKirk connects to the tools you already use and keeps important work from being marked complete until the right proof exists.
+
+Resolution message:
+
+> When proof is sufficient, work can resolve automatically. When proof is missing, it stays visible, escalates, or fails.
+
+---
+
+## 3. Category Goal
+
+AutoKirk should define **proof-gated closure** as a practical business category.
+
+Proof-gated closure means important work, AI-driven actions, revenue-linked follow-ups, service outcomes, audit controls, customer promises, and operational handoffs should not be treated as complete until the required proof exists.
+
+The category is not limited to one market wedge.
+
+---
+
+## 4. Adoption Goal
+
+AutoKirk should feel like an attachment to existing systems, not a replacement for them.
+
+A buyer should think:
+
+> We can keep our tools, but now important work cannot quietly disappear.
+
+AutoKirk should reduce adoption friction by making the first value clear:
+
+- no rip-and-replace
+- important work stays visible
+- proof determines whether work resolves
+- missing proof escalates or fails
+- teams and customers can trust the final state
+
+---
+
+## 5. AI Goal
+
+AutoKirk should help both AI producers and AI consumers make AI usable in business.
+
+Public-safe AI framing:
+
+> **AI can create, suggest, and act. AutoKirk helps determine whether the result is acceptable to count as complete based on the user's rules, required proof, and evidence of how it got there.**
+
+For AI producers, AutoKirk helps make AI-driven work more acceptable to customers by adding proof-gated closeout and unresolved-work visibility.
+
+For AI consumers, AutoKirk helps show what happened, what proof exists, whether the work resolved, and what still needs attention.
+
+AutoKirk should not be positioned as the AI model, AI runtime, or AI orchestration tool.
+
+---
+
+## 6. Market Wedge Goal
+
+AutoKirk can enter the market through specific pain points, but no wedge should become the defining category.
+
+Valid wedges include:
+
+- AI trust
+- revenue leak prevention
+- service closeout
+- audit evidence
+- employee handoffs
+- internal operations
+- customer promises
+
+The defining direction remains:
+
+> **Proof-gated closure infrastructure.**
+
+---
+
+## 7. Public Language Rules
+
+Use outcome language:
+
+- proof-gated closure
+- important work
+- proof standard
+- resolve / fail / escalate
+- visible unresolved work
+- trusted final state
+- existing tools
+- marked complete
+- completion with proof
+
+Avoid implementation language:
+
+- internal architecture details
+- backend mechanics
+- implementation paths
+- enforcement design
+- protected system structure
+
+Public-facing material should show what customers get, not how AutoKirk is internally aligned.
+
+---
+
+## 8. Strategic Goal
+
+AutoKirk should become the system businesses use when work matters enough that “marked done” is not good enough.
+
+The public promise:
+
+> **AutoKirk helps make completion trustworthy.**
+
+The operating discipline:
+
+> Every product surface should make adoption easier without exposing or weakening the protected internal design.
+
+---
+
+## 9. Drift Rule
+
+If new product language, design, documentation, demo material, or implementation planning conflicts with this positioning goal, call out the drift before taking action.
+
+Drift marker:
 
 ```text
 DRIFT DETECTED:
@@ -33,503 +157,18 @@ Recommended action:
 
 ---
 
-## 1. Primary Category
+## 10. Implementation Boundary
 
-AutoKirk is **proof-gated closure infrastructure**.
-
-AutoKirk attaches to the systems a company already uses and governs whether actions are allowed to close.
-
-The simplest market line:
-
-> Keep your software. Add proof-gated closure.
-
-Supporting line:
-
-> Your tools run the work. AutoKirk makes sure unresolved work cannot quietly disappear.
-
----
-
-## 2. What AutoKirk Is
-
-AutoKirk is the closure authority attached to existing operational systems.
-
-External systems create actions. AutoKirk governs whether those actions can truthfully close.
-
-Actions may close automatically only when proof satisfies the obligation contract. If proof is missing or insufficient, the action remains open, fails, or escalates.
-
----
-
-## 3. What AutoKirk Is Not
-
-AutoKirk is not:
-
-- CRM
-- field-service software
-- project management software
-- ticketing software
-- AI runtime
-- ERP
-- identity provider
-- generic workflow software
-- another dashboard users must live inside all day
-
-Those systems can continue to run the work.
-
-AutoKirk governs closeout.
-
----
-
-## 4. The Core Operating Loop
-
-```text
-Existing system creates action
-        ↓
-AutoKirk opens governed obligation
-        ↓
-Proof contract defines what can close it
-        ↓
-Proof arrives from system, human, AI agent, webhook, or artifact
-        ↓
-AutoKirk validates proof
-        ↓
-Close / fail / escalate
-        ↓
-Receipt emitted
-        ↓
-Truth syncs back to board, audit trail, customer, or source system
-```
-
-This loop is the category.
-
-Internal doctrine may continue to use deeper language such as governed obligation truth. Public product language should lead with proof-gated closure.
-
----
-
-## 5. Homepage Hero
-
-Recommended homepage hero:
-
-> **Keep your software. Add proof-gated closure.**
->
-> AutoKirk attaches to the systems you already use. Actions close automatically when valid proof is provided. If proof is missing, unresolved work stays visible, escalates, or fails.
->
-> Your tools run the work. AutoKirk makes sure the work cannot quietly disappear.
-
-Primary CTA:
-
-> Attach first workflow
-
-Secondary CTA:
-
-> See proof-gated closure
-
----
-
-## 6. Correct Contrast
-
-Do not frame the product as:
-
-```text
-Without AutoKirk vs With AutoKirk
-```
-
-Both unresolved and closed states exist inside AutoKirk.
-
-Use this contrast instead:
-
-| Before proof | After proof |
-|---|---|
-| Action exists but cannot truthfully close | Proof satisfies the obligation contract |
-| Work remains visible | Action reaches governed final state |
-| Missing proof can escalate | Receipt-backed truth is emitted |
-| Ownership can change while obligation remains | Closure becomes durable and auditable |
-
----
-
-## 7. Universal Means Attachment Across Operating Surfaces
-
-Universal does not mean vague or generic.
-
-Universal means the same proof-gated closure lifecycle can govern different operational surfaces.
-
-### AI Agents
-
-AI can act. AutoKirk governs whether the action can close.
-
-Use cases:
-
-- tool calls
-- autonomous workflows
-- approvals
-- customer-impacting actions
-- policy-sensitive actions
-- failure states
-
-### Service Operations
-
-Service systems can continue creating and managing jobs. AutoKirk governs whether proof is sufficient to close them.
-
-Use cases:
-
-- technician visits
-- proof of service
-- customer signoff
-- failed visits
-- photo or artifact evidence
-- warranty or compliance proof
-
-### Audit and Compliance
-
-Controls stay open until evidence exists.
-
-Use cases:
-
-- audit trails
-- compliance controls
-- reviewer attestations
-- policy evidence
-- security reviews
-
-### Revenue Enforcement
-
-Revenue events create obligations.
-
-Use cases:
-
-- payment received
-- contract signed
-- subscription renewed
-- onboarding required
-- service delivery required
-- entitlement activation
-- fulfillment proof
-
-### Enterprise Workforce Movement
-
-People join, leave, transfer, and change roles. Obligations remain governed.
-
-Use cases:
-
-- onboarding
-- offboarding
-- permission removal
-- equipment recovery
-- account transfer
-- manager signoff
-- contractor and vendor handoffs
-
-### Internal Operations
-
-Internal tools can create actions while AutoKirk governs closeout.
-
-Use cases:
-
-- Jira
-- Linear
-- Asana
-- Slack
-- email
-- custom internal tools
-- API workflows
-
----
-
-## 8. Enterprise Use Model
-
-In large companies, most users should not live in AutoKirk all day.
-
-AutoKirk should be used by systems heavily and humans selectively.
-
-### System Owners
-
-Configure attachments and proof contracts.
-
-Examples:
-
-- IT
-- operations
-- RevOps
-- compliance
-- AI platform owners
-- service operations managers
-
-### Proof Submitters
-
-Interact when proof is not automatic.
-
-Examples:
-
-- technicians
-- managers
-- auditors
-- reviewers
-- finance operators
-- AI supervisors
-
-### Truth Viewers
-
-View board state, receipts, and unresolved work.
-
-Examples:
-
-- executives
-- customers
-- auditors
-- department heads
-- compliance teams
-- customer success teams
-
-### Automated Actors
-
-Submit events and proof from existing systems.
-
-Examples:
-
-- Stripe
-- Okta
-- Workday
-- ServiceTitan
-- Jira
-- Linear
-- Slack
-- AI agents
-- webhooks
-- internal apps
-
----
-
-## 9. Proof Contracts
-
-A proof contract defines what can close an obligation.
-
-Example fields for product surface language:
-
-```text
-obligation type
-required proof fields
-automatic close allowed
-review required
-failure path
-escalation path
-receipt visibility
-source system
-responsible owner or queue
-```
-
-Product language should describe proof contracts clearly without exposing backend enforcement details.
-
----
-
-## 10. Autonomous Closeout
-
-AutoKirk can close an action automatically only when proof satisfies the obligation contract.
-
-```text
-external event
-        ↓
-proof validation
-        ↓
-sufficient?
-        ↓
-yes → autonomous closure + receipt
-no  → remain open / fail / escalate
-```
-
-This is central to the product claim.
-
-Do not describe AutoKirk as merely monitoring or reporting.
-
-AutoKirk governs closeout.
-
----
-
-## 11. The Movement Problem
-
-Large companies have constant movement:
-
-- joiners
-- movers
-- leavers
-- contractors
-- vendors
-- role changes
-- department changes
-- handoffs
-- AI agents
-
-AutoKirk's enterprise claim:
-
-> People can move. Obligations remain governed.
-
-The owner can change. The obligation stays.
-
-The proof requirement can persist through turnover, role changes, and system handoffs.
-
----
-
-## 12. Subscription Value
-
-A company subscribes to AutoKirk when closure needs to be trusted.
-
-AutoKirk provides:
-
-- proof-gated closeout
-- autonomous closure when proof is sufficient
-- visible unresolved work
-- escalation when proof is missing
-- receipt-backed final state
-- persistent obligations through personnel movement
-- no rip-and-replace requirement
-
----
-
-## 13. AI Producer and Consumer Guidance
-
-AutoKirk should serve both sides of AI adoption: the producers building AI systems and the consumers relying on AI-driven work.
-
-AI can create, suggest, and act. AutoKirk governs whether the result is allowed to count as complete — based on the user's rules, required proof, and evidence of how it got there.
-
-For AI producers, AutoKirk provides a proof-gated closeout layer that helps autonomous actions become business-usable. Builders can move fast while giving customers visibility into whether AI-driven work closed, failed, or escalated.
-
-For AI consumers, AutoKirk provides a trust surface. It shows which actions were created, what proof exists, whether the action closed, failed, or escalated, and what record supports the final state.
-
-AutoKirk is not the AI model, agent runtime, or orchestration layer. AutoKirk governs whether AI-driven work is acceptable to be considered complete under the user's design.
-
-Use:
-
-- AI can act. AutoKirk governs closeout.
-- Keep your AI stack. Add proof-gated trust.
-- Build fast. Let AutoKirk govern closeout.
-- Use AI without losing closure truth.
-- Ship faster with a trust layer attached.
-
-Public positioning may describe AutoKirk's outcomes: proof-gated closure, unresolved-work visibility, acceptance rules, evidence trails, autonomous closeout, escalation, and durable final-state records.
-
-Public positioning must not disclose internal mechanics. Use outcome language, not mechanism language.
-
----
-
-## 14. Confidential Architecture Boundary
-
-Public positioning may describe AutoKirk's outcomes:
-
-- proof-gated closure
-- unresolved-work visibility
-- acceptance rules
-- evidence trails
-- autonomous closeout
-- escalation
-- durable final-state records
-- receipt-backed final state
-
-Public positioning must not disclose internal mechanics that create those guarantees.
-
-Do not expose:
-
-- kernel alignment
-- chain design
-- idempotency details
-- append-only enforcement
-- mutation boundaries
-- anti-bypass architecture
-- receipt-chain internals
-- backend enforcement paths
-
-Use outcome language, not mechanism language.
-
-Technical or investor-facing material may imply structural seriousness without revealing trade-secret mechanics:
-
-> AutoKirk is designed so closure is not just a status change. It is a governed decision based on proof, rules, and the evidence trail behind the result.
-
----
-
-## 15. Public Category Language
-
-Use:
-
-- proof-gated closure
-- closure authority
-- autonomous closeout
-- proof contracts
-- receipt-backed finality
-- unresolved work visibility
-- attachment layer
-- existing systems
-- close / fail / escalate
-
-Avoid on homepage:
-
-- doctrine
-- kernel
-- projection
-- verticalization
-- truth surface
-- lifecycle semantics
-- append-only enforcement
-
-Those concepts remain important internally and technically, but buyer-facing product language should stay operational.
-
----
-
-## 16. Defensible Market Claim
-
-Avoid claiming:
-
-> No software exists like AutoKirk.
-
-Use:
-
-> Most systems manage activity. AutoKirk governs whether activity is allowed to count as complete.
-
-This is stronger, safer, and more understandable.
-
----
-
-## 17. Final Positioning Stack
-
-Primary line:
-
-> Keep your software. Add proof-gated closure.
-
-Secondary line:
-
-> Existing systems create actions. AutoKirk governs whether they can close.
-
-Enterprise line:
-
-> AutoKirk is the closure authority attached across your operational systems.
-
-Emotional line:
-
-> Unresolved work should not disappear.
-
-Technical line:
-
-> Actions close automatically only when proof satisfies the obligation contract.
-
-Infrastructure line:
-
-> AutoKirk is proof-gated closure infrastructure for enterprise systems and AI operations.
-
-AI producer/consumer line:
-
-> AI can create, suggest, and act. AutoKirk governs whether the result is allowed to count as complete — based on the user's rules, required proof, and evidence of how it got there.
-
----
-
-## 18. Protected Boundary
-
-This document is positioning and product-surface guidance only.
+This document is positioning guidance only.
 
 It must not be used as authorization to change:
 
-- kernel tables
-- receipt semantics
-- proof semantics
-- migration history
-- API mutation authority
-- Supabase schema
-- enforcement paths
-- append-only behavior
+- application code
+- database schema
+- API behavior
+- security posture
+- private implementation design
+- enforcement behavior
+- production infrastructure
 
-Any implementation change must be separately proposed and approved.
+Any implementation change must be separately proposed, verified, and approved.
