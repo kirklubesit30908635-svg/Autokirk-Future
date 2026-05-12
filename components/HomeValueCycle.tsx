@@ -15,14 +15,14 @@ const cycleSteps: CycleStep[] = [
   },
   {
     title: "2. AutoKirk keeps it visible",
-    body: "Important work is not allowed to quietly disappear or be treated as done just because a status changed somewhere else.",
+    body: "Important work should not quietly disappear or be treated as done just because a status changed somewhere else.",
   },
   {
-    title: "3. Proof decides the outcome",
-    body: "Your rules define the proof standard. Sufficient proof resolves the work; missing proof keeps it visible, escalates, or fails.",
+    title: "3. Proof determines the next step",
+    body: "Your rules define what proof is required. Sufficient proof resolves the work; missing proof keeps it visible, escalates, or fails.",
   },
   {
-    title: "4. The final state is recorded",
+    title: "4. The final state is clear",
     body: "The customer, operator, auditor, or source system can see what happened without needing to trust screenshots or memory.",
   },
 ];
@@ -30,7 +30,7 @@ const cycleSteps: CycleStep[] = [
 const surfaces: Surface[] = [
   {
     title: "AI producers",
-    body: "Build fast while giving customers proof-gated trust around AI-driven work.",
+    body: "Build fast while giving customers visibility into whether AI-driven work is actually complete.",
   },
   {
     title: "AI consumers",
@@ -45,12 +45,12 @@ const surfaces: Surface[] = [
     body: "Keep controls visible until evidence exists and the final state can be trusted.",
   },
   {
-    title: "Revenue enforcement",
-    body: "Connect payments, contracts, and renewals to proof-backed fulfillment.",
+    title: "Revenue leak prevention",
+    body: "Keep payment, renewal, fulfillment, and exception work visible until proof exists.",
   },
   {
-    title: "Workforce movement",
-    body: "People can join, leave, transfer, or hand off work while important obligations stay visible.",
+    title: "Employee handoffs",
+    body: "People can join, leave, transfer, or hand off work while important work stays visible.",
   },
 ];
 
@@ -59,17 +59,17 @@ export function HomeValueCycle() {
     <section className="homeCycle" aria-labelledby="home-cycle-title">
       <div className="heroGrid">
         <div className="copy">
-          <p className="eyebrow">Proof-gated closure infrastructure</p>
-          <h1 id="home-cycle-title">Keep your software. Add proof-gated closure.</h1>
+          <p className="eyebrow">Completion trust for existing tools</p>
+          <h1 id="home-cycle-title">Important work should not be marked complete without proof.</h1>
           <p className="lede">
-            AutoKirk connects to the tools you already use and keeps important work from being marked complete until the right proof exists.
+            AutoKirk connects to the tools you already use and keeps important work visible until the right proof exists.
           </p>
           <p className="support">
             When proof is sufficient, work can resolve automatically. When proof is missing, it stays visible, escalates, or fails.
           </p>
           <div className="actions">
-            <a href="#try-cycle" className="primaryAction">
-              See how it works
+            <a href="/activate" className="primaryAction">
+              Activate your AutoKirk link
             </a>
             <a href="#live-board" className="secondaryAction">
               Open live proof board
@@ -78,8 +78,8 @@ export function HomeValueCycle() {
         </div>
 
         <div className="promiseCard" id="why-subscribe">
-          <p className="cardLabel">Why subscribe</p>
-          <h2>Important work should not disappear.</h2>
+          <p className="cardLabel">Keep your software</p>
+          <h2>Add proof-required completion.</h2>
           <p>
             AutoKirk gives teams a trusted closeout layer without replacing the systems they already run.
           </p>
@@ -91,7 +91,7 @@ export function HomeValueCycle() {
         </div>
       </div>
 
-      <div className="cycle" aria-label="AutoKirk proof-gated closure cycle" id="try-cycle">
+      <div className="cycle" aria-label="AutoKirk completion trust cycle" id="try-cycle">
         {cycleSteps.map((step) => (
           <article className="step" key={step.title}>
             <h3>{step.title}</h3>
@@ -102,7 +102,7 @@ export function HomeValueCycle() {
 
       <div className="surfaceSection" aria-labelledby="surface-title">
         <div className="surfaceIntro">
-          <p className="stripLabel">One closure layer. Many operating surfaces.</p>
+          <p className="stripLabel">One trust layer. Many ways to use it.</p>
           <h2 id="surface-title">Designed to connect around the tools people already use.</h2>
         </div>
         <div className="surfaceGrid">
@@ -118,10 +118,10 @@ export function HomeValueCycle() {
       <div className="conversionStrip">
         <div>
           <p className="stripLabel">The category</p>
-          <strong>Existing tool → important work → proof standard → resolve / fail / escalate</strong>
+          <strong>Existing tool → important work → required proof → resolve / fail / escalate</strong>
         </div>
-        <a href="#live-board" className="stripAction">
-          See live evidence
+        <a href="/activate" className="stripAction">
+          Try the activation link
         </a>
       </div>
 
@@ -175,9 +175,9 @@ export function HomeValueCycle() {
         }
 
         h1 {
-          max-width: 850px;
-          font-size: clamp(2.75rem, 8vw, 6.6rem);
-          line-height: 0.92;
+          max-width: 900px;
+          font-size: clamp(2.65rem, 7.6vw, 6.1rem);
+          line-height: 0.93;
           letter-spacing: -0.07em;
         }
 
@@ -354,7 +354,7 @@ export function HomeValueCycle() {
           }
 
           h1 {
-            font-size: clamp(2.5rem, 13vw, 5.4rem);
+            font-size: clamp(2.25rem, 12vw, 5rem);
           }
 
           .step {
