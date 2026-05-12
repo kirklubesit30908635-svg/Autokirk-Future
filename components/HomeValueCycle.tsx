@@ -7,16 +7,16 @@ const trialLink = "https://buy.stripe.com/9B68wQgiZ2f24j496R4Rq02";
 
 const loopSteps: LoopStep[] = [
   {
-    label: "Work starts in your tool",
-    body: "A ticket, request, payment, service job, approval, or handoff creates something that should not disappear.",
+    label: "Work starts where it already happens",
+    body: "A ticket, request, payment, service job, approval, or handoff creates work your team intends to close.",
   },
   {
-    label: "AutoKirk waits for proof",
-    body: "The item stays open until the required evidence exists. Your team can see what is still unresolved.",
+    label: "AutoKirk requires proof before close",
+    body: "The item stays open until the required evidence exists, so false completion cannot disappear into a status change.",
   },
   {
-    label: "The item closes with a record",
-    body: "When proof is enough, the work resolves. If proof is missing, it stays visible instead of being treated as done.",
+    label: "Resolved work leaves a record",
+    body: "When proof is enough, the work closes with a recorded decision. If proof is missing, AutoKirk keeps it visible.",
   },
 ];
 
@@ -27,13 +27,13 @@ export function HomeValueCycle() {
       <div className="sideGlow" aria-hidden="true" />
 
       <section className="hero" aria-labelledby="home-title">
-        <p className="eyebrow">Completion trust for existing tools</p>
-        <h1 id="home-title">Important work should not be marked complete without proof.</h1>
+        <p className="eyebrow">Proof-backed completion for existing tools</p>
+        <h1 id="home-title">Work is not complete until it is proven.</h1>
         <p className="lede">
-          AutoKirk turns completion into a proof decision, so work stays open until evidence can support it.
+          AutoKirk adds a proof layer beside the tools you already use, keeping critical work open until the required evidence exists.
         </p>
         <p className="support">
-          Choose one workflow, define the proof required to close it, and let AutoKirk show what is still open.
+          Start with one workflow. Define what proof is required. AutoKirk shows what is open, ready to close, or still missing evidence.
         </p>
         <div className="actions" aria-label="Homepage actions">
           <a href={trialLink} className="primaryAction">
@@ -48,9 +48,9 @@ export function HomeValueCycle() {
       <section className="loopCard" id="how-it-works" aria-labelledby="loop-title">
         <div className="sectionHeader">
           <p className="eyebrow">How it works</p>
-          <h2 id="loop-title">Your tools keep running the work. AutoKirk keeps the final state honest.</h2>
+          <h2 id="loop-title">Your tools run the work. AutoKirk protects the moment someone calls it done.</h2>
           <p>
-            AutoKirk does not replace your operating software. It sits beside one workflow and protects the moment someone wants to call the work complete.
+            AutoKirk does not replace your operating software. It sits beside one workflow and turns completion into a proof decision.
           </p>
         </div>
         <div className="loopGrid">
@@ -69,7 +69,7 @@ export function HomeValueCycle() {
           <p className="eyebrow">Start small</p>
           <strong>One workflow. One proof rule. One place to see what is actually done.</strong>
           <p>
-            Start with the workflow where missed follow-up, weak evidence, or premature completion already costs time.
+            Start where missed follow-up, weak evidence, or premature completion already costs time.
           </p>
         </div>
         <a href={trialLink} className="stripAction">
