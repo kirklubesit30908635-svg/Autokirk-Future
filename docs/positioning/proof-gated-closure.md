@@ -383,7 +383,67 @@ AutoKirk provides:
 
 ---
 
-## 13. Public Category Language
+## 13. AI Producer and Consumer Guidance
+
+AutoKirk should serve both sides of AI adoption: the producers building AI systems and the consumers relying on AI-driven work.
+
+AI can create, suggest, and act. AutoKirk governs whether the result is allowed to count as complete — based on the user's rules, required proof, and evidence of how it got there.
+
+For AI producers, AutoKirk provides a proof-gated closeout layer that helps autonomous actions become business-usable. Builders can move fast while giving customers visibility into whether AI-driven work closed, failed, or escalated.
+
+For AI consumers, AutoKirk provides a trust surface. It shows which actions were created, what proof exists, whether the action closed, failed, or escalated, and what record supports the final state.
+
+AutoKirk is not the AI model, agent runtime, or orchestration layer. AutoKirk governs whether AI-driven work is acceptable to be considered complete under the user's design.
+
+Use:
+
+- AI can act. AutoKirk governs closeout.
+- Keep your AI stack. Add proof-gated trust.
+- Build fast. Let AutoKirk govern closeout.
+- Use AI without losing closure truth.
+- Ship faster with a trust layer attached.
+
+Public positioning may describe AutoKirk's outcomes: proof-gated closure, unresolved-work visibility, acceptance rules, evidence trails, autonomous closeout, escalation, and durable final-state records.
+
+Public positioning must not disclose internal mechanics. Use outcome language, not mechanism language.
+
+---
+
+## 14. Confidential Architecture Boundary
+
+Public positioning may describe AutoKirk's outcomes:
+
+- proof-gated closure
+- unresolved-work visibility
+- acceptance rules
+- evidence trails
+- autonomous closeout
+- escalation
+- durable final-state records
+- receipt-backed final state
+
+Public positioning must not disclose internal mechanics that create those guarantees.
+
+Do not expose:
+
+- kernel alignment
+- chain design
+- idempotency details
+- append-only enforcement
+- mutation boundaries
+- anti-bypass architecture
+- receipt-chain internals
+- backend enforcement paths
+
+Use outcome language, not mechanism language.
+
+Technical or investor-facing material may imply structural seriousness without revealing trade-secret mechanics:
+
+> AutoKirk is designed so closure is not just a status change. It is a governed decision based on proof, rules, and the evidence trail behind the result.
+
+---
+
+## 15. Public Category Language
 
 Use:
 
@@ -411,7 +471,7 @@ Those concepts remain important internally and technically, but buyer-facing pro
 
 ---
 
-## 14. Defensible Market Claim
+## 16. Defensible Market Claim
 
 Avoid claiming:
 
@@ -425,7 +485,7 @@ This is stronger, safer, and more understandable.
 
 ---
 
-## 15. Final Positioning Stack
+## 17. Final Positioning Stack
 
 Primary line:
 
@@ -451,9 +511,13 @@ Infrastructure line:
 
 > AutoKirk is proof-gated closure infrastructure for enterprise systems and AI operations.
 
+AI producer/consumer line:
+
+> AI can create, suggest, and act. AutoKirk governs whether the result is allowed to count as complete — based on the user's rules, required proof, and evidence of how it got there.
+
 ---
 
-## 16. Protected Boundary
+## 18. Protected Boundary
 
 This document is positioning and product-surface guidance only.
 
