@@ -1,24 +1,48 @@
 import Head from "next/head";
 
-const proofStates = [
+const setupSteps = [
   {
-    label: "Open",
-    body: "Important work is visible and waiting for proof.",
+    label: "Connect the source",
+    body: "Start with the tool where important work already appears.",
   },
   {
-    label: "Proof ready",
-    body: "The required proof exists and the work can move forward.",
+    label: "Set the proof rule",
+    body: "Define the evidence required before that work can close.",
   },
   {
-    label: "Needs attention",
-    body: "Proof is missing, unclear, or not enough to close.",
+    label: "Create the first obligation",
+    body: "Send one real item into AutoKirk and let the system govern it.",
   },
 ];
 
-const setupSteps = [
-  "Choose where work starts.",
-  "Define what proof means.",
-  "Send the first item to AutoKirk.",
+const systemUses = [
+  {
+    label: "Source system",
+    body: "Tickets, forms, email, CRM, field notes, or internal requests can stay where they are.",
+  },
+  {
+    label: "Proof system",
+    body: "Files, approvals, messages, invoices, photos, or records become the evidence boundary.",
+  },
+  {
+    label: "Operating view",
+    body: "AutoKirk shows whether the item is still open, ready to resolve, or blocked by missing proof.",
+  },
+];
+
+const proofStates = [
+  {
+    label: "Open",
+    body: "The obligation exists, but the required proof has not been attached yet.",
+  },
+  {
+    label: "Proof ready",
+    body: "Evidence is present and the item is ready for governed resolution.",
+  },
+  {
+    label: "Needs attention",
+    body: "The proof is missing, unclear, rejected, or not enough to close.",
+  },
 ];
 
 export default function PlatformPage() {
@@ -28,7 +52,7 @@ export default function PlatformPage() {
         <title>AutoKirk Platform</title>
         <meta
           name="description"
-          content="Your AutoKirk platform link is ready. Start with one workflow and keep important work visible until proof exists."
+          content="Start with one workflow. AutoKirk connects to the tools you already use and keeps important work from being marked complete until the right proof exists."
         />
       </Head>
 
@@ -44,10 +68,10 @@ export default function PlatformPage() {
           <p className="eyebrow">Your AutoKirk platform link</p>
           <h1 id="platform-title">Start with one workflow.</h1>
           <p className="lede">
-            AutoKirk connects to the tools you already use and keeps important work visible until the right proof exists.
+            AutoKirk connects to the tools you already use and keeps important work from being marked complete until the right proof exists.
           </p>
           <p className="support">
-            Choose where work starts, define what proof means, and watch whether the work resolves, escalates, or stays open.
+            Choose where work starts, define what proof means, and see whether work resolves, escalates, or fails.
           </p>
           <div className="actions" aria-label="Platform actions">
             <a href="/activate" className="primaryAction">
@@ -69,16 +93,34 @@ export default function PlatformPage() {
             <p className="eyebrow">First workflow</p>
             <h2 id="workflow-title">A calm setup for one proof standard.</h2>
             <p>
-              Start narrow. One workflow is enough to see what stays open, what resolves, and what still needs proof.
+              Start narrow. Pick one workflow where missed follow-up, weak evidence, or premature completion creates real operational risk.
             </p>
           </div>
 
           <div className="setupList" aria-label="Setup steps">
             {setupSteps.map((step, index) => (
-              <div className="setupStep" key={step}>
+              <article className="setupStep" key={step.label}>
                 <span>0{index + 1}</span>
-                {step}
-              </div>
+                <div>
+                  <h3>{step.label}</h3>
+                  <p>{step.body}</p>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="systemPanel" aria-labelledby="systems-title">
+          <div>
+            <p className="eyebrow">Existing systems</p>
+            <h2 id="systems-title">Your tools keep their jobs. AutoKirk governs the proof boundary.</h2>
+          </div>
+          <div className="systemUseGrid" aria-label="How AutoKirk works beside existing systems">
+            {systemUses.map((systemUse) => (
+              <article className="systemUseCard" key={systemUse.label}>
+                <h3>{systemUse.label}</h3>
+                <p>{systemUse.body}</p>
+              </article>
             ))}
           </div>
         </section>
@@ -97,7 +139,7 @@ export default function PlatformPage() {
             <p className="eyebrow">Next</p>
             <strong>Attach AutoKirk beside the work that matters first.</strong>
             <p>
-              Your existing software can stay the same. AutoKirk adds the proof-before-complete layer around the workflow you choose.
+              The workflow stays familiar. AutoKirk adds the governed layer that decides when proof is enough to resolve.
             </p>
           </div>
           <a href="/activate" className="stripAction">
@@ -152,6 +194,7 @@ export default function PlatformPage() {
         .hero,
         .signalCard,
         .workflowPanel,
+        .systemPanel,
         .stateGrid,
         .closing {
           position: relative;
@@ -163,8 +206,10 @@ export default function PlatformPage() {
         .hero,
         .signalCard,
         .workflowPanel,
+        .systemPanel,
         .closing,
-        .stateCard {
+        .stateCard,
+        .systemUseCard {
           border: 1px solid rgba(255, 255, 255, 0.09);
           background: linear-gradient(180deg, rgba(14, 18, 24, 0.96), rgba(8, 11, 16, 0.95));
           box-shadow: 0 24px 80px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.035);
@@ -247,6 +292,8 @@ export default function PlatformPage() {
 
         .support,
         .panelIntro p,
+        .setupStep p,
+        .systemUseCard p,
         .stateCard p,
         .closing p {
           color: #a1a1aa;
@@ -294,6 +341,7 @@ export default function PlatformPage() {
 
         .signalCard,
         .workflowPanel,
+        .systemPanel,
         .closing {
           margin-top: 14px;
           border-radius: 26px;
@@ -309,7 +357,8 @@ export default function PlatformPage() {
           letter-spacing: -0.05em;
         }
 
-        .workflowPanel {
+        .workflowPanel,
+        .systemPanel {
           display: grid;
           grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
           gap: 18px;
@@ -321,28 +370,36 @@ export default function PlatformPage() {
           gap: 8px;
         }
 
-        .setupList {
+        .setupList,
+        .systemUseGrid {
           display: grid;
           gap: 10px;
         }
 
-        .setupStep {
-          min-height: 58px;
+        .setupStep,
+        .systemUseCard {
+          min-height: 92px;
           display: flex;
-          align-items: center;
+          align-items: flex-start;
           gap: 12px;
-          border: 1px solid rgba(255, 255, 255, 0.09);
           border-radius: 18px;
           padding: 14px;
+        }
+
+        .setupStep {
           background: rgba(18, 23, 30, 0.78);
-          color: #e4e4e7;
-          font-weight: 800;
         }
 
         .setupStep span {
           color: #10a37f;
           font-size: 0.78rem;
+          font-weight: 800;
           letter-spacing: 0.08em;
+        }
+
+        .setupStep h3,
+        .systemUseCard h3 {
+          margin-bottom: 6px;
         }
 
         .stateGrid {
@@ -386,6 +443,7 @@ export default function PlatformPage() {
 
           .signalCard,
           .workflowPanel,
+          .systemPanel,
           .closing,
           .stateCard {
             border-radius: 22px;
@@ -393,6 +451,7 @@ export default function PlatformPage() {
           }
 
           .workflowPanel,
+          .systemPanel,
           .stateGrid {
             grid-template-columns: 1fr;
           }
