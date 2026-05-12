@@ -25,11 +25,11 @@ const loopSteps: LoopStep[] = [
 
 const useCases: UseCase[] = [
   {
-    title: "AI trust",
-    body: "Know whether AI-driven work is acceptable to count as complete.",
+    title: "AI actions",
+    body: "Know whether work created or completed by AI is acceptable to count as done.",
   },
   {
-    title: "Revenue leaks",
+    title: "Revenue follow-up",
     body: "Keep payment, renewal, fulfillment, and exception work visible until proof exists.",
   },
   {
