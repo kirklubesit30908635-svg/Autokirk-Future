@@ -7,16 +7,16 @@ const trialLink = "https://buy.stripe.com/9B68wQgiZ2f24j496R4Rq02";
 
 const loopSteps: LoopStep[] = [
   {
-    label: "Work starts",
-    body: "A tool, person, AI workflow, payment, service job, or handoff creates important work.",
+    label: "Work starts in your tool",
+    body: "A ticket, request, payment, service job, approval, or handoff creates something that should not disappear.",
   },
   {
-    label: "Proof required",
-    body: "AutoKirk keeps the work visible until the right proof exists.",
+    label: "AutoKirk waits for proof",
+    body: "The item stays open until the required evidence exists. Your team can see what is still unresolved.",
   },
   {
-    label: "Resolve or escalate",
-    body: "Sufficient proof resolves it. Missing proof keeps it visible, escalates, or fails.",
+    label: "The item closes with a record",
+    body: "When proof is enough, the work resolves. If proof is missing, it stays visible instead of being treated as done.",
   },
 ];
 
@@ -33,22 +33,25 @@ export function HomeValueCycle() {
           AutoKirk connects to the tools you already use and keeps important work visible until the right proof exists.
         </p>
         <p className="support">
-          When proof is sufficient, work can resolve automatically. When proof is missing, it stays visible, escalates, or fails.
+          Choose one workflow, define the proof required to close it, and let AutoKirk show what is still open.
         </p>
         <div className="actions" aria-label="Homepage actions">
           <a href={trialLink} className="primaryAction">
             Start trial
           </a>
           <a href="#how-it-works" className="secondaryAction">
-            See the loop
+            See how it works
           </a>
         </div>
       </section>
 
       <section className="loopCard" id="how-it-works" aria-labelledby="loop-title">
         <div className="sectionHeader">
-          <p className="eyebrow">The loop</p>
-          <h2 id="loop-title">Your software runs the work. AutoKirk keeps completion honest.</h2>
+          <p className="eyebrow">How it works</p>
+          <h2 id="loop-title">Your tools keep running the work. AutoKirk keeps the final state honest.</h2>
+          <p>
+            AutoKirk does not replace your operating software. It sits beside one workflow and protects the moment someone wants to call the work complete.
+          </p>
         </div>
         <div className="loopGrid">
           {loopSteps.map((step, index) => (
@@ -61,12 +64,12 @@ export function HomeValueCycle() {
         </div>
       </section>
 
-      <section className="closingCard" aria-label="AutoKirk outcome summary">
+      <section className="closingCard" aria-label="AutoKirk trial summary">
         <div>
           <p className="eyebrow">Start small</p>
-          <strong>One workflow. One proof standard. One clear final state.</strong>
+          <strong>One workflow. One proof rule. One place to see what is actually done.</strong>
           <p>
-            Test AutoKirk beside the tools you already use. See what stays open, what resolves, and what still needs proof.
+            Start with the workflow where missed follow-up, weak evidence, or premature completion already costs time.
           </p>
         </div>
         <a href={trialLink} className="stripAction">
@@ -163,7 +166,7 @@ export function HomeValueCycle() {
         }
 
         h2 {
-          max-width: 780px;
+          max-width: 820px;
           font-size: clamp(1.7rem, 3.6vw, 3.25rem);
           line-height: 1.04;
           letter-spacing: -0.05em;
@@ -182,8 +185,9 @@ export function HomeValueCycle() {
           line-height: 1.45;
         }
 
-        .support {
-          max-width: 700px;
+        .support,
+        .sectionHeader p {
+          max-width: 720px;
           margin-top: 12px;
           color: #a1a1aa;
           font-size: clamp(0.98rem, 2vw, 1.13rem);
@@ -229,6 +233,10 @@ export function HomeValueCycle() {
           margin-bottom: 18px;
         }
 
+        .sectionHeader .eyebrow {
+          margin-bottom: 8px;
+        }
+
         .loopGrid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -236,7 +244,7 @@ export function HomeValueCycle() {
         }
 
         .loopStep {
-          min-height: 190px;
+          min-height: 210px;
           padding: 18px;
           display: grid;
           align-content: start;
@@ -269,7 +277,7 @@ export function HomeValueCycle() {
 
         .closingCard strong {
           display: block;
-          max-width: 760px;
+          max-width: 780px;
           font-size: clamp(1.35rem, 3.2vw, 2.55rem);
           line-height: 1.08;
           letter-spacing: -0.05em;
