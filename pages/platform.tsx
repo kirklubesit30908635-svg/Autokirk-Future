@@ -257,7 +257,7 @@ export default function PlatformPage() {
         .platformShell {
           position: relative;
           min-height: 100vh;
-          padding: 26px 12px 40px;
+          padding: 24px 12px 40px;
           color: #f4f4f5;
           background:
             radial-gradient(circle at 50% -10%, rgba(16, 163, 127, 0.13), transparent 34rem),
@@ -328,11 +328,12 @@ export default function PlatformPage() {
         }
 
         .hero {
-          min-height: 560px;
+          min-height: 520px;
           border-radius: 34px;
-          padding: clamp(28px, 6vw, 72px);
+          padding: clamp(32px, 5vw, 64px);
           display: grid;
           align-content: center;
+          overflow: hidden;
         }
 
         .statusPill {
@@ -374,18 +375,26 @@ export default function PlatformPage() {
           margin: 0;
         }
 
+        h1,
+        h2,
+        .signalCard strong,
+        .closing strong {
+          text-wrap: balance;
+          overflow-wrap: break-word;
+        }
+
         h1 {
-          max-width: 900px;
-          font-size: clamp(3rem, 8vw, 7rem);
-          line-height: 0.9;
-          letter-spacing: -0.078em;
+          max-width: 880px;
+          font-size: clamp(3rem, 7vw, 5.85rem);
+          line-height: 0.98;
+          letter-spacing: -0.064em;
         }
 
         h2 {
-          max-width: 760px;
-          font-size: clamp(1.75rem, 3.7vw, 3.35rem);
-          line-height: 1.04;
-          letter-spacing: -0.05em;
+          max-width: 720px;
+          font-size: clamp(1.65rem, 3vw, 2.75rem);
+          line-height: 1.12;
+          letter-spacing: -0.04em;
         }
 
         h3 {
@@ -397,8 +406,8 @@ export default function PlatformPage() {
           max-width: 760px;
           margin-top: 22px;
           color: #e4e4e7;
-          font-size: clamp(1.08rem, 2.4vw, 1.45rem);
-          line-height: 1.45;
+          font-size: clamp(1.08rem, 2.1vw, 1.35rem);
+          line-height: 1.48;
         }
 
         .support,
@@ -462,22 +471,22 @@ export default function PlatformPage() {
         .closing {
           margin-top: 14px;
           border-radius: 26px;
-          padding: clamp(20px, 3vw, 30px);
+          padding: clamp(22px, 3vw, 34px);
+          overflow: hidden;
         }
 
         .signalCard strong,
         .closing strong {
           display: block;
-          max-width: 800px;
-          font-size: clamp(1.35rem, 3.2vw, 2.6rem);
-          line-height: 1.08;
-          letter-spacing: -0.05em;
+          max-width: 780px;
+          font-size: clamp(1.35rem, 2.8vw, 2.25rem);
+          line-height: 1.15;
+          letter-spacing: -0.04em;
         }
 
         .integrityPanel {
           display: grid;
           gap: 18px;
-          overflow: hidden;
         }
 
         .integrityHeader {
@@ -485,6 +494,14 @@ export default function PlatformPage() {
           grid-template-columns: minmax(0, 1fr) 260px;
           gap: 18px;
           align-items: stretch;
+        }
+
+        .integrityHeader > div,
+        .workflowPanel > div,
+        .baselinePanel > div,
+        .systemPanel > div,
+        .closing > div {
+          min-width: 0;
         }
 
         .scoreCard {
@@ -702,6 +719,16 @@ export default function PlatformPage() {
           .systemPanel,
           .stateGrid {
             grid-template-columns: 1fr;
+          }
+
+          h1 {
+            font-size: clamp(2.8rem, 13vw, 4.8rem);
+            line-height: 1;
+          }
+
+          h2 {
+            font-size: clamp(1.8rem, 8vw, 3rem);
+            line-height: 1.08;
           }
 
           .scoreCard strong {
