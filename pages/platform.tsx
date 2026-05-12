@@ -45,6 +45,45 @@ const proofStates = [
   },
 ];
 
+const integrityMetrics = [
+  {
+    label: "Verified Closure",
+    value: "Strong",
+    body: "Commitments are reaching verified outcomes instead of staying open-ended.",
+  },
+  {
+    label: "Time Exposure",
+    value: "Controlled",
+    body: "Aging commitments remain visible before they become operational risk.",
+  },
+  {
+    label: "Commitment Capture",
+    value: "Active",
+    body: "Important source activity is being shaped into governed obligations.",
+  },
+  {
+    label: "Resolution Speed",
+    value: "Stable",
+    body: "Open commitments are moving toward resolution inside the expected window.",
+  },
+  {
+    label: "Evidence Timing",
+    value: "Watch",
+    body: "Verification should be captured closer to the moment work is completed.",
+  },
+];
+
+const integrityIntake = [
+  "Work is completed but evidence is not captured",
+  "Customers dispute completed work",
+  "Payment follow-up is inconsistent",
+  "Handoffs lose ownership",
+  "Time-sensitive commitments are missed",
+  "The next responsible owner is unclear",
+  "Work is reopened after being marked complete",
+  "Important commitments live in texts, calls, or memory",
+];
+
 export default function PlatformPage() {
   return (
     <>
@@ -52,7 +91,7 @@ export default function PlatformPage() {
         <title>AutoKirk Platform</title>
         <meta
           name="description"
-          content="Start with one workflow. AutoKirk connects to the tools you already use and keeps important work from being marked complete until the right proof exists."
+          content="Start with one workflow. AutoKirk connects to the tools you already use and measures operational integrity across commitments, evidence, timing, and durable receipts."
         />
       </Head>
 
@@ -77,8 +116,8 @@ export default function PlatformPage() {
             <a href="/activate" className="primaryAction">
               Activate AutoKirk
             </a>
-            <a href="#first-workflow" className="secondaryAction">
-              Preview setup
+            <a href="#integrity" className="secondaryAction">
+              View integrity layer
             </a>
           </div>
         </section>
@@ -86,6 +125,53 @@ export default function PlatformPage() {
         <section className="signalCard" aria-label="AutoKirk promise">
           <p className="eyebrow">The rule</p>
           <strong>Important work should not be marked complete without proof.</strong>
+        </section>
+
+        <section className="integrityPanel" id="integrity" aria-labelledby="integrity-title">
+          <div className="integrityHeader">
+            <div>
+              <p className="eyebrow">Operational Integrity</p>
+              <h2 id="integrity-title">See where follow-through is strong and where it becomes exposed.</h2>
+              <p>
+                AutoKirk measures how reliably your company captures commitments, verifies outcomes, controls time exposure, and produces durable receipts.
+              </p>
+            </div>
+            <div className="scoreCard" aria-label="Operational integrity score">
+              <span>Integrity Score</span>
+              <strong>87</strong>
+              <small>Stable — evidence timing requires attention</small>
+            </div>
+          </div>
+
+          <div className="integritySummary" aria-label="Integrity summary">
+            <article>
+              <span>Integrity Strength</span>
+              <strong>Verified outcome coverage is strong.</strong>
+              <p>Most work is moving toward receipt-backed closure once the required evidence is present.</p>
+            </article>
+            <article>
+              <span>Integrity Exposure</span>
+              <strong>Closeout verification is the current risk area.</strong>
+              <p>Evidence should be captured closer to completion so the business record stays durable.</p>
+            </article>
+            <article>
+              <span>Observed Pattern</span>
+              <strong>Completion is not the weak point. Verification timing is.</strong>
+              <p>AutoKirk is watching the gap between finished work and accepted evidence.</p>
+            </article>
+          </div>
+
+          <div className="metricGrid" aria-label="Operational integrity components">
+            {integrityMetrics.map((metric) => (
+              <article className="metricCard" key={metric.label}>
+                <div>
+                  <h3>{metric.label}</h3>
+                  <span>{metric.value}</span>
+                </div>
+                <p>{metric.body}</p>
+              </article>
+            ))}
+          </div>
         </section>
 
         <section className="workflowPanel" id="first-workflow" aria-labelledby="workflow-title">
@@ -106,6 +192,25 @@ export default function PlatformPage() {
                   <p>{step.body}</p>
                 </div>
               </article>
+            ))}
+          </div>
+        </section>
+
+        <section className="baselinePanel" aria-labelledby="baseline-title">
+          <div>
+            <p className="eyebrow">Integrity Baseline</p>
+            <h2 id="baseline-title">Teach AutoKirk where follow-through usually becomes exposed.</h2>
+            <p>
+              This intake layer gives AutoKirk the first operating map: what proof means, what exposure looks like, and what should be monitored first.
+            </p>
+          </div>
+
+          <div className="baselineList" aria-label="Integrity baseline options">
+            {integrityIntake.map((item) => (
+              <label className="baselineOption" key={item}>
+                <span aria-hidden="true" />
+                {item}
+              </label>
             ))}
           </div>
         </section>
@@ -193,7 +298,9 @@ export default function PlatformPage() {
 
         .hero,
         .signalCard,
+        .integrityPanel,
         .workflowPanel,
+        .baselinePanel,
         .systemPanel,
         .stateGrid,
         .closing {
@@ -205,11 +312,15 @@ export default function PlatformPage() {
 
         .hero,
         .signalCard,
+        .integrityPanel,
         .workflowPanel,
+        .baselinePanel,
         .systemPanel,
         .closing,
         .stateCard,
-        .systemUseCard {
+        .systemUseCard,
+        .metricCard,
+        .integritySummary article {
           border: 1px solid rgba(255, 255, 255, 0.09);
           background: linear-gradient(180deg, rgba(14, 18, 24, 0.96), rgba(8, 11, 16, 0.95));
           box-shadow: 0 24px 80px rgba(0, 0, 0, 0.46), inset 0 1px 0 rgba(255, 255, 255, 0.035);
@@ -271,7 +382,7 @@ export default function PlatformPage() {
         }
 
         h2 {
-          max-width: 720px;
+          max-width: 760px;
           font-size: clamp(1.75rem, 3.7vw, 3.35rem);
           line-height: 1.04;
           letter-spacing: -0.05em;
@@ -295,7 +406,11 @@ export default function PlatformPage() {
         .setupStep p,
         .systemUseCard p,
         .stateCard p,
-        .closing p {
+        .closing p,
+        .integrityHeader p,
+        .integritySummary p,
+        .metricCard p,
+        .baselinePanel p {
           color: #a1a1aa;
           line-height: 1.5;
         }
@@ -340,7 +455,9 @@ export default function PlatformPage() {
         }
 
         .signalCard,
+        .integrityPanel,
         .workflowPanel,
+        .baselinePanel,
         .systemPanel,
         .closing {
           margin-top: 14px;
@@ -357,8 +474,104 @@ export default function PlatformPage() {
           letter-spacing: -0.05em;
         }
 
+        .integrityPanel {
+          display: grid;
+          gap: 18px;
+          overflow: hidden;
+        }
+
+        .integrityHeader {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 260px;
+          gap: 18px;
+          align-items: stretch;
+        }
+
+        .scoreCard {
+          border: 1px solid rgba(16, 163, 127, 0.22);
+          border-radius: 24px;
+          padding: 20px;
+          display: grid;
+          align-content: center;
+          background:
+            radial-gradient(circle at 50% 0%, rgba(16, 163, 127, 0.16), transparent 70%),
+            rgba(16, 163, 127, 0.045);
+        }
+
+        .scoreCard span,
+        .integritySummary span,
+        .metricCard span {
+          color: #9ca3af;
+          font-size: 0.78rem;
+          font-weight: 800;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+        }
+
+        .scoreCard strong {
+          margin-top: 8px;
+          color: #f4f4f5;
+          font-size: 4.5rem;
+          line-height: 0.9;
+          letter-spacing: -0.08em;
+        }
+
+        .scoreCard small {
+          margin-top: 10px;
+          color: #c7f9e7;
+          font-weight: 800;
+          line-height: 1.35;
+        }
+
+        .integritySummary {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .integritySummary article,
+        .metricCard {
+          border-radius: 20px;
+          padding: 16px;
+        }
+
+        .integritySummary strong {
+          display: block;
+          margin-top: 8px;
+          font-size: 1.08rem;
+          line-height: 1.25;
+        }
+
+        .integritySummary p {
+          margin-top: 8px;
+        }
+
+        .metricGrid {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .metricCard {
+          min-height: 168px;
+          display: grid;
+          align-content: space-between;
+          gap: 14px;
+          background: rgba(18, 23, 30, 0.78);
+        }
+
+        .metricCard div {
+          display: grid;
+          gap: 8px;
+        }
+
+        .metricCard span {
+          color: #c7f9e7;
+        }
+
         .workflowPanel,
-        .systemPanel {
+        .systemPanel,
+        .baselinePanel {
           display: grid;
           grid-template-columns: minmax(0, 1.05fr) minmax(300px, 0.95fr);
           gap: 18px;
@@ -371,7 +584,8 @@ export default function PlatformPage() {
         }
 
         .setupList,
-        .systemUseGrid {
+        .systemUseGrid,
+        .baselineList {
           display: grid;
           gap: 10px;
         }
@@ -402,6 +616,29 @@ export default function PlatformPage() {
           margin-bottom: 6px;
         }
 
+        .baselineOption {
+          min-height: 44px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          border: 1px solid rgba(255, 255, 255, 0.08);
+          border-radius: 14px;
+          padding: 11px 12px;
+          color: #e4e4e7;
+          background: rgba(18, 23, 30, 0.72);
+          font-size: 0.94rem;
+          line-height: 1.35;
+        }
+
+        .baselineOption span {
+          width: 15px;
+          height: 15px;
+          border: 1px solid rgba(16, 163, 127, 0.46);
+          border-radius: 5px;
+          background: rgba(16, 163, 127, 0.06);
+          flex: 0 0 auto;
+        }
+
         .stateGrid {
           margin-top: 14px;
           display: grid;
@@ -430,6 +667,12 @@ export default function PlatformPage() {
           margin-top: 10px;
         }
 
+        @media (max-width: 1040px) {
+          .metricGrid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
         @media (max-width: 900px) {
           .platformShell {
             padding: 16px 8px 32px;
@@ -442,7 +685,9 @@ export default function PlatformPage() {
           }
 
           .signalCard,
+          .integrityPanel,
           .workflowPanel,
+          .baselinePanel,
           .systemPanel,
           .closing,
           .stateCard {
@@ -450,10 +695,17 @@ export default function PlatformPage() {
             padding: 20px;
           }
 
+          .integrityHeader,
+          .integritySummary,
           .workflowPanel,
+          .baselinePanel,
           .systemPanel,
           .stateGrid {
             grid-template-columns: 1fr;
+          }
+
+          .scoreCard strong {
+            font-size: 3.75rem;
           }
 
           .closing {
@@ -464,6 +716,12 @@ export default function PlatformPage() {
           .secondaryAction,
           .stripAction {
             width: 100%;
+          }
+        }
+
+        @media (max-width: 560px) {
+          .metricGrid {
+            grid-template-columns: 1fr;
           }
         }
       `}</style>
