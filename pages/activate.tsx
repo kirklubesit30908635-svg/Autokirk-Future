@@ -29,19 +29,19 @@ type ActivationSessionResponse =
 const intakeOptions = [
   {
     title: "Manual item",
-    body: "Create the first proof-gated work item by hand and define what proof should count.",
+    body: "Create one proof-gated work item by hand.",
   },
   {
     title: "AI workflow",
-    body: "Use AutoKirk to help decide whether AI-driven work is acceptable to count as complete.",
+    body: "Require human-acceptable proof before AI-assisted work counts as complete.",
   },
   {
     title: "Existing tool",
-    body: "Connect work from the software your team already uses without replacing that software.",
+    body: "Attach AutoKirk to the software your team already uses.",
   },
   {
     title: "Webhook",
-    body: "Send events from another system into a proof-gated closeout flow.",
+    body: "Send source events into a proof-gated closeout flow.",
   },
 ];
 
@@ -125,14 +125,14 @@ function statusCopy(status: ActivationStatus): {
       return {
         eyebrow: "Verifying payment",
         title: "Checking your Stripe session.",
-        body: "AutoKirk is confirming the paid checkout before opening activation.",
+        body: "AutoKirk is confirming checkout before opening setup.",
       };
     case "ready":
       return {
         eyebrow: "Payment verified",
         title: status.customerEmail
           ? `Ready for ${status.customerEmail}`
-          : "Your AutoKirk activation is ready.",
+          : "Payment verified. Start setup.",
         body: "Your payment is confirmed. Start with one workflow, define the proof rule, and create the first proof-gated item.",
       };
     case "not_paid":
@@ -150,9 +150,9 @@ function statusCopy(status: ActivationStatus): {
     case "missing":
     default:
       return {
-        eyebrow: "Activation preview",
-        title: "Attach your first proof-gated workflow.",
-        body: "After payment, Stripe should send customers here with a checkout session ID so AutoKirk can verify activation automatically.",
+        eyebrow: "Activate your first workflow",
+        title: "Activate your first proof-gated workflow.",
+        body: "After checkout, AutoKirk verifies your activation and opens setup automatically.",
       };
   }
 }
@@ -185,12 +185,12 @@ export default function ActivatePage() {
             <span className={activationReady ? "statusDot ready" : "statusDot"} />
             <div>
               <strong>
-                {activationReady ? "Paid activation recognized" : "Waiting for paid activation"}
+                {activationReady ? "Payment verified. Start setup." : "Ready after checkout"}
               </strong>
               <p>
                 {sessionId
-                  ? `Stripe session: ${sessionId}`
-                  : "Use Stripe success redirect: /activate?session_id={CHECKOUT_SESSION_ID}"}
+                  ? "Checkout session received. AutoKirk is verifying activation."
+                  : "After checkout, AutoKirk verifies your activation and opens setup automatically."}
               </p>
             </div>
           </div>
