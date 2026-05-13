@@ -112,7 +112,7 @@ async function getOrCreateEmission(
     }
   }
 
-  const { data, error } = await supabase.rpc('create_watchdog_emission', {
+  const { data, error } = await supabase.schema('api').rpc('create_watchdog_emission', {
     p_obligation_id: row.obligation_id,
     p_delivery_target: row.delivery_target,
   })
@@ -128,7 +128,7 @@ async function claimEmission(
   supabase: any,
   emissionId: string
 ): Promise<{ emission: InsertedEmission | null; error?: string }> {
-  const { data, error } = await supabase.rpc('claim_watchdog_emission', {
+  const { data, error } = await supabase.schema('api').rpc('claim_watchdog_emission', {
     p_emission_id: emissionId,
   })
 
@@ -139,6 +139,17 @@ async function claimEmission(
   return {
     emission: data ? (data as InsertedEmission) : null,
   }
+}
+
+async function recordWatchdogAttempt(
+  supabase: any,
+  payload: {
+    p_emission_id: string
+    p_delivery_status: string
+    p_next_retry_at: string | null
+  }
+) {
+  return supabase.schema('api').rpc('record_watchdog_attempt', payload)
 }
 
 function computeRetryOutcome(emission: InsertedEmission) {
@@ -245,7 +256,7 @@ export default async function handler(
         })
 
         if (response.ok) {
-          const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+          const { error: rpcError } = await recordWatchdogAttempt(supabase, {
             p_emission_id: claimResult.emission.id,
             p_delivery_status: 'delivered',
             p_next_retry_at: null,
@@ -255,7 +266,7 @@ export default async function handler(
         }
 
         const retryOutcome = computeRetryOutcome(claimResult.emission)
-        const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+        const { error: rpcError } = await recordWatchdogAttempt(supabase, {
           p_emission_id: claimResult.emission.id,
           p_delivery_status: retryOutcome.deliveryStatus,
           p_next_retry_at: retryOutcome.nextRetryAt,
@@ -263,7 +274,7 @@ export default async function handler(
         results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: response.status, event_key: eventKey, error: rpcError ? rpcError.message : `HTTP_${response.status}` })
       } catch (err) {
         const retryOutcome = computeRetryOutcome(claimResult.emission)
-        const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+        const { error: rpcError } = await recordWatchdogAttempt(supabase, {
           p_emission_id: claimResult.emission.id,
           p_delivery_status: retryOutcome.deliveryStatus,
           p_next_retry_at: retryOutcome.nextRetryAt,
@@ -283,4 +294,4 @@ export default async function handler(
   } catch (err) {
     return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'UNKNOWN_ERROR' })
   }
-  }
+}
