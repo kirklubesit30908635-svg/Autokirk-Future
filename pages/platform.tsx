@@ -1,4 +1,5 @@
 import Head from "next/head";
+import { createClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 
 type CheckoutState =
@@ -20,6 +21,25 @@ type CheckoutVerifyResponse =
       customer_email: string | null;
     }
   | { ok: false; error: string };
+
+type FirstObligationState =
+  | { state: "idle" }
+  | { state: "submitting" }
+  | { state: "created"; result: unknown }
+  | { state: "error"; message: string };
+
+type FirstObligationForm = {
+  workspace_id: string;
+  object_anchor: string;
+  action_anchor: string;
+  trigger_anchor: string;
+  trigger_text: string;
+  operator_note: string;
+};
+
+type IntakeCommitResponse =
+  | { ok: true; result: unknown }
+  | { ok: false; error: string; detail?: string };
 
 const steps = [
   {
@@ -84,9 +104,63 @@ function statusCopy(status: CheckoutState): { label: string; body: string } {
   }
 }
 
+function firstObligationCopy(status: FirstObligationState): { label: string; body: string } {
+  switch (status.state) {
+    case "submitting":
+      return {
+        label: "Creating obligation",
+        body: "Opening the first governed item.",
+      };
+    case "created":
+      return {
+        label: "First obligation created",
+        body: "It is open and waiting for proof.",
+      };
+    case "error":
+      return {
+        label: "Obligation needs attention",
+        body: status.message,
+      };
+    case "idle":
+    default:
+      return {
+        label: "Ready for first obligation",
+        body: "Define one real promise and proof rule.",
+      };
+  }
+}
+
+function getSupabaseBrowserClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("SUPABASE_BROWSER_ENV_NOT_CONFIGURED");
+  }
+
+  return createClient(supabaseUrl, supabaseAnonKey);
+}
+
 export default function PlatformPage() {
   const [checkout, setCheckout] = useState<CheckoutState>({ state: "idle" });
+  const [firstObligation, setFirstObligation] = useState<FirstObligationState>({
+    state: "idle",
+  });
+  const [firstForm, setFirstForm] = useState<FirstObligationForm>({
+    workspace_id: "",
+    object_anchor: "first customer workflow",
+    action_anchor: "complete promised work",
+    trigger_anchor: "activation started",
+    trigger_text:
+      "Customer activated AutoKirk and defined the first proof-gated workflow.",
+    operator_note: "",
+  });
+
   const copy = useMemo(() => statusCopy(checkout), [checkout]);
+  const obligationCopy = useMemo(
+    () => firstObligationCopy(firstObligation),
+    [firstObligation],
+  );
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -162,6 +236,63 @@ export default function PlatformPage() {
     }
   }
 
+  async function createFirstObligation() {
+    setFirstObligation({ state: "submitting" });
+
+    try {
+      const supabase = getSupabaseBrowserClient();
+      const {
+        data: { session },
+        error: sessionError,
+      } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        throw new Error(sessionError.message);
+      }
+
+      if (!session?.access_token) {
+        throw new Error("Sign in before creating the first obligation.");
+      }
+
+      const sessionId = new URLSearchParams(window.location.search).get("session_id");
+      const response = await fetch("/api/intake/commit", {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${session.access_token}`,
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          workspace_id: firstForm.workspace_id.trim(),
+          candidate_ref: sessionId
+            ? `platform-activation:${sessionId}`
+            : `platform-activation:${Date.now()}`,
+          obligation_code: "fulfill_promised_service",
+          trigger_text: firstForm.trigger_text.trim(),
+          source_signal_ref: sessionId ?? "platform-activation",
+          object_anchor: firstForm.object_anchor.trim(),
+          action_anchor: firstForm.action_anchor.trim(),
+          trigger_anchor: firstForm.trigger_anchor.trim(),
+          operator_note: firstForm.operator_note.trim() || null,
+        }),
+      });
+
+      const body = (await response.json()) as IntakeCommitResponse;
+
+      if (!response.ok || !body.ok) {
+        throw new Error(
+          body.ok ? "Could not create first obligation." : body.detail || body.error,
+        );
+      }
+
+      setFirstObligation({ state: "created", result: body.result });
+    } catch (err) {
+      setFirstObligation({
+        state: "error",
+        message: err instanceof Error ? err.message : "Could not create first obligation.",
+      });
+    }
+  }
+
   return (
     <>
       <Head>
@@ -190,7 +321,7 @@ export default function PlatformPage() {
             <button
               className="primaryAction"
               type="button"
-              onClick={startCheckout}
+              onClick={checkout.state === "verified" ? undefined : startCheckout}
               disabled={checkout.state === "starting"}
             >
               {checkout.state === "verified" ? "Continue activation" : checkout.state === "starting" ? "Opening Stripe..." : "Activate AutoKirk"}
@@ -205,6 +336,114 @@ export default function PlatformPage() {
           <p className="eyebrow">The rule</p>
           <strong>Important work should not be marked complete without proof.</strong>
         </section>
+
+        {checkout.state === "verified" && (
+          <section className="panel activationPanel" aria-labelledby="first-obligation-title">
+            <div>
+              <div className="status compact" aria-live="polite">
+                <span className={firstObligation.state === "created" ? "dot ready" : "dot"} />
+                <strong>{obligationCopy.label}</strong>
+                <span>{obligationCopy.body}</span>
+              </div>
+              <p className="eyebrow">First obligation</p>
+              <h2 id="first-obligation-title">Create the first proof-gated workflow.</h2>
+              <p>
+                Start with one real promise. AutoKirk will open it as an obligation and keep it visible until proof exists.
+              </p>
+            </div>
+
+            <form
+              className="activationForm"
+              onSubmit={(event) => {
+                event.preventDefault();
+                createFirstObligation();
+              }}
+            >
+              <label>
+                Workspace ID
+                <input
+                  required
+                  value={firstForm.workspace_id}
+                  onChange={(event) =>
+                    setFirstForm((current) => ({ ...current, workspace_id: event.target.value }))
+                  }
+                  placeholder="workspace uuid"
+                />
+              </label>
+
+              <label>
+                What work must be completed?
+                <input
+                  required
+                  value={firstForm.object_anchor}
+                  onChange={(event) =>
+                    setFirstForm((current) => ({ ...current, object_anchor: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                What action proves progress?
+                <input
+                  required
+                  value={firstForm.action_anchor}
+                  onChange={(event) =>
+                    setFirstForm((current) => ({ ...current, action_anchor: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                When should AutoKirk care?
+                <input
+                  required
+                  value={firstForm.trigger_anchor}
+                  onChange={(event) =>
+                    setFirstForm((current) => ({ ...current, trigger_anchor: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Rule in plain English
+                <textarea
+                  required
+                  value={firstForm.trigger_text}
+                  onChange={(event) =>
+                    setFirstForm((current) => ({ ...current, trigger_text: event.target.value }))
+                  }
+                />
+              </label>
+
+              <label>
+                Operator note
+                <textarea
+                  value={firstForm.operator_note}
+                  onChange={(event) =>
+                    setFirstForm((current) => ({ ...current, operator_note: event.target.value }))
+                  }
+                  placeholder="Optional note for the operator view"
+                />
+              </label>
+
+              <button
+                className="primaryAction"
+                type="submit"
+                disabled={firstObligation.state === "submitting"}
+              >
+                {firstObligation.state === "submitting" ? "Creating obligation..." : "Create first obligation"}
+              </button>
+
+              {firstObligation.state === "created" && (
+                <p className="successText">First obligation created. It is now open and waiting for proof.</p>
+              )}
+
+              {firstObligation.state === "error" && (
+                <p className="errorText">{firstObligation.message}</p>
+              )}
+            </form>
+          </section>
+        )}
 
         <section className="panel" id="setup" aria-labelledby="setup-title">
           <div>
@@ -253,10 +492,10 @@ export default function PlatformPage() {
           <button
             className="stripAction"
             type="button"
-            onClick={startCheckout}
+            onClick={checkout.state === "verified" ? undefined : startCheckout}
             disabled={checkout.state === "starting"}
           >
-            {checkout.state === "starting" ? "Opening Stripe..." : "Activate AutoKirk"}
+            {checkout.state === "verified" ? "Create first obligation above" : checkout.state === "starting" ? "Opening Stripe..." : "Activate AutoKirk"}
           </button>
         </section>
       </main>
@@ -305,6 +544,10 @@ export default function PlatformPage() {
           background: rgba(16, 163, 127, 0.08);
           font-size: 0.86rem;
           line-height: 1.25;
+        }
+
+        .status.compact {
+          margin-bottom: 18px;
         }
 
         .status span:last-child {
@@ -431,6 +674,10 @@ export default function PlatformPage() {
           align-items: start;
         }
 
+        .activationPanel {
+          border-color: rgba(16, 163, 127, 0.2);
+        }
+
         .panel p,
         .step p,
         .stateCard p {
@@ -444,7 +691,8 @@ export default function PlatformPage() {
         }
 
         .stepList,
-        .stateGrid {
+        .stateGrid,
+        .activationForm {
           display: grid;
           gap: 10px;
         }
@@ -481,6 +729,40 @@ export default function PlatformPage() {
 
         .stateCard {
           min-height: 146px;
+        }
+
+        .activationForm label {
+          display: grid;
+          gap: 7px;
+          color: #d4d4d8;
+          font-size: 0.9rem;
+          font-weight: 800;
+        }
+
+        .activationForm input,
+        .activationForm textarea {
+          width: 100%;
+          border: 1px solid rgba(255, 255, 255, 0.11);
+          border-radius: 16px;
+          background: rgba(255, 255, 255, 0.04);
+          color: #f4f4f5;
+          padding: 13px 14px;
+          font: inherit;
+        }
+
+        .activationForm textarea {
+          min-height: 96px;
+          resize: vertical;
+        }
+
+        .successText {
+          color: #86efac !important;
+          font-weight: 800;
+        }
+
+        .errorText {
+          color: #fca5a5 !important;
+          font-weight: 800;
         }
 
         .closing {
