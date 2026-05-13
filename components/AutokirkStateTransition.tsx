@@ -15,8 +15,8 @@ export function AutokirkStateTransition() {
           <p className="cardLabel">Before proof is supplied</p>
           <ul>
             <li>Obligation remains open</li>
-            <li>Overdue state stays visible</li>
-            <li>Watchdog can escalate the miss</li>
+            <li>Missing evidence stays visible</li>
+            <li>Premature completion is blocked</li>
           </ul>
         </article>
 
