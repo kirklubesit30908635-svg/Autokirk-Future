@@ -11,6 +11,35 @@ AutoKirk can launch only when checkout, authentication, tenant visibility, recov
 
 The kernel remains the source of governed obligation truth. Launch work must not add browser-side writes around the kernel or bypass the governed `api.*` entry points.
 
+## Live environment verification notes
+
+Canonical Supabase project:
+- `AutoKirk-Future`
+- Project ref: `aiuicbyufelqdeiwhmyi`
+- Status observed through connector: active/healthy
+
+Production Vercel project:
+- Project: `autokirk-future`
+- Project id: `prj_lJhyFrdcF6qOokBzf2cNVuMyhWoh`
+- Domain attached: `autokirk.com`
+- Production deployment observed on main commit `0005d4d7bf2f86d009a24d5bbae644d638c6c95e`
+
+PR preview deployment:
+- Branch: `launch-hardening-billing-auth-recovery`
+- Commit observed: `70ffb0b88640db7d45ae0a1a9cff3cf3c6f793f3`
+- Vercel build status observed: READY
+- Build evidence: TypeScript completed, Next compiled successfully, deployment completed
+
+Supabase log access:
+- Edge Function, Auth, and API log checks currently return a Supabase analytics reservation error through the connector.
+- Treat live log review as blocked until logs are accessible through Supabase dashboard or connector.
+
+Live Stripe webhook status:
+- Live Supabase Edge Function `stripe-webhook` exists, status ACTIVE, version 25.
+- `verify_jwt=false`, which is expected for a Stripe-signed webhook.
+- Live deployed function still contains hard-coded `WORKSPACE_ID` and `ACTOR_ID` constants.
+- This branch fixes the source file, but production is not fixed until migration deploy and Edge Function redeploy are completed.
+
 ## Engineering acceptance checks
 
 ### 1. Stripe billing-account mapping
@@ -49,7 +78,18 @@ Manual proof:
 
 ### 2. Supabase exposed-surface lockdown
 
-Status in this branch: runbook defined; production audit still required before merge/deploy.
+Status in this branch: implemented as migration; production proof still required before merge/deploy.
+
+Files:
+- `supabase/migrations/20260513123000_exposed_surface_lockdown.sql`
+
+Live audit findings before this branch is deployed:
+- `core.proof_contracts` has RLS disabled.
+- Browser roles can execute broad `kernel.*` and `ledger.*` functions directly.
+- Several `api.*` SECURITY DEFINER functions are executable by `anon`.
+- Supabase security advisor reports public/signed-in SECURITY DEFINER warnings.
+- Supabase security advisor reports mutable `search_path` warnings.
+- Supabase security advisor reports leaked password protection disabled.
 
 Audit queries:
 
@@ -183,10 +223,13 @@ Commercial site must ship:
 ## Merge gate
 
 Before merging this branch:
-- `npm run build` passes.
-- `npm run prove` passes.
+- Vercel preview build is READY.
+- `npm run build` passes locally or in CI.
+- `npm run prove` passes locally or in CI.
 - Supabase migration replays locally.
 - Stripe test checkout creates a `billing.accounts` row.
 - Webhook replay opens an obligation in the mapped workspace.
-- Supabase security advisors are reviewed.
+- Supabase Edge Function `stripe-webhook` is redeployed after merge.
+- Supabase security advisors are reviewed after migration.
+- Live logs are accessible or an alternate monitoring path is documented.
 - No kernel write path is changed outside governed API boundaries.
