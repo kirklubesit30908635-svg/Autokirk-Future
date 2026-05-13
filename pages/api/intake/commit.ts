@@ -31,7 +31,8 @@ export default async function handler(
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
     )
 
     if (!accessToken) {
@@ -81,7 +82,7 @@ export default async function handler(
 
     const workspaceId = membership.workspace_id
 
-    const { data, error } = await supabase.rpc('commit_intake_candidate', {
+    const { data, error } = await supabase.schema('api').rpc('commit_intake_candidate', {
       p_workspace_id: workspaceId,
       p_actor_user_id: user.id,
       p_candidate_ref: body.candidate_ref,
