@@ -9,6 +9,8 @@ type StripeCheckoutSession = {
   url?: string | null
 }
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+
 function getBaseUrl(req: NextApiRequest): string {
   const configured =
     process.env.NEXT_PUBLIC_SITE_URL ??
@@ -35,6 +37,14 @@ function checkoutMode(): 'payment' | 'subscription' {
   return process.env.STRIPE_CHECKOUT_MODE === 'payment' ? 'payment' : 'subscription'
 }
 
+function requireUuidEnv(name: string): string {
+  const value = process.env[name]
+  if (!value || !UUID_PATTERN.test(value)) {
+    throw new Error(`${name}_NOT_CONFIGURED`)
+  }
+  return value
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<CreateCheckoutResponse>,
@@ -58,9 +68,20 @@ export default async function handler(
     return
   }
 
+  let workspaceId: string
+  let actorId: string
+  try {
+    workspaceId = requireUuidEnv('AUTOKIRK_PLATFORM_WORKSPACE_ID')
+    actorId = requireUuidEnv('AUTOKIRK_PLATFORM_ACTOR_ID')
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'BILLING_MAPPING_NOT_CONFIGURED' })
+    return
+  }
+
   const baseUrl = getBaseUrl(req)
+  const mode = checkoutMode()
   const params = new URLSearchParams({
-    mode: checkoutMode(),
+    mode,
     success_url: `${baseUrl}/login?session_id={CHECKOUT_SESSION_ID}&next=/platform`,
     cancel_url: `${baseUrl}/platform?checkout=cancelled`,
     'line_items[0][price]': stripePriceId,
@@ -68,7 +89,16 @@ export default async function handler(
     allow_promotion_codes: 'true',
     billing_address_collection: 'auto',
     'metadata[source]': 'autokirk_platform_activation',
+    'metadata[workspace_id]': workspaceId,
+    'metadata[actor_id]': actorId,
+    'client_reference_id': workspaceId,
   })
+
+  if (mode === 'subscription') {
+    params.set('subscription_data[metadata][source]', 'autokirk_platform_activation')
+    params.set('subscription_data[metadata][workspace_id]', workspaceId)
+    params.set('subscription_data[metadata][actor_id]', actorId)
+  }
 
   const customerEmail = typeof req.body?.email === 'string' ? req.body.email.trim() : ''
   if (customerEmail.includes('@') && customerEmail.length <= 254) {
