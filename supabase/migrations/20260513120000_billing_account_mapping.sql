@@ -41,6 +41,8 @@ begin
 end;
 $$;
 
+revoke execute on all functions in schema billing from anon, authenticated;
+
 create trigger billing_accounts_touch_updated_at
 before update on billing.accounts
 for each row execute function billing.touch_updated_at();
