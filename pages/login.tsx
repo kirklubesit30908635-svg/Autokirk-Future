@@ -10,6 +10,8 @@ type LoginState =
   | { state: "signed_in"; email: string | null }
   | { state: "error"; message: string };
 
+const SESSION_KEY = "autokirk.pendingCheckoutSessionId";
+
 function getSupabaseBrowserClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -17,25 +19,30 @@ function getSupabaseBrowserClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-function getNextPath(): string {
+function getSessionId(): string | null {
   const params = new URLSearchParams(window.location.search);
-  const sessionId = params.get("session_id");
-  const next = params.get("next") || "/platform";
-  const safeNext = next.startsWith("/") && !next.startsWith("//") ? next : "/platform";
-  if (!sessionId) return safeNext;
-  const separator = safeNext.includes("?") ? "&" : "?";
-  return `${safeNext}${separator}session_id=${encodeURIComponent(sessionId)}`;
+  const fromUrl = params.get("session_id");
+  if (fromUrl) {
+    window.localStorage.setItem(SESSION_KEY, fromUrl);
+    return fromUrl;
+  }
+  return window.localStorage.getItem(SESSION_KEY);
+}
+
+function getPlatformPath(): string {
+  const sessionId = getSessionId();
+  return sessionId ? `/platform?session_id=${encodeURIComponent(sessionId)}` : "/platform";
 }
 
 function getRedirectUrl(): string {
-  return `${window.location.origin}${getNextPath()}`;
+  return `${window.location.origin}/login`;
 }
 
 function copyFor(status: LoginState): { label: string; body: string } {
   if (status.state === "checking") return { label: "Checking login", body: "AutoKirk is checking whether this browser is already signed in." };
   if (status.state === "sending") return { label: "Sending login link", body: "AutoKirk is sending a secure sign-in link." };
   if (status.state === "sent") return { label: "Check your email", body: `A secure login link was sent to ${status.email}.` };
-  if (status.state === "signed_in") return { label: "Signed in", body: status.email ? `Continue as ${status.email}.` : "Continue to AutoKirk." };
+  if (status.state === "signed_in") return { label: "Signed in", body: status.email ? `Continuing as ${status.email}.` : "Continuing to AutoKirk." };
   if (status.state === "error") return { label: "Login needs attention", body: status.message };
   return { label: "Daily login", body: "Sign in after checkout and return whenever you need to run AutoKirk." };
 }
@@ -47,10 +54,15 @@ export default function LoginPage() {
 
   useEffect(() => {
     try {
+      getSessionId();
       const supabase = getSupabaseBrowserClient();
       supabase.auth.getSession().then(({ data, error }) => {
         if (error) return setStatus({ state: "error", message: error.message });
-        if (data.session) return setStatus({ state: "signed_in", email: data.session.user.email ?? null });
+        if (data.session) {
+          setStatus({ state: "signed_in", email: data.session.user.email ?? null });
+          window.setTimeout(() => window.location.replace(getPlatformPath()), 250);
+          return;
+        }
         setStatus({ state: "idle" });
       });
     } catch (err) {
@@ -63,6 +75,7 @@ export default function LoginPage() {
     if (!trimmed.includes("@")) return setStatus({ state: "error", message: "Enter the email address used for AutoKirk." });
     setStatus({ state: "sending" });
     try {
+      getSessionId();
       const supabase = getSupabaseBrowserClient();
       const { error } = await supabase.auth.signInWithOtp({
         email: trimmed,
@@ -76,7 +89,7 @@ export default function LoginPage() {
   }
 
   function continueToPlatform() {
-    window.location.assign(getNextPath());
+    window.location.replace(getPlatformPath());
   }
 
   return (
