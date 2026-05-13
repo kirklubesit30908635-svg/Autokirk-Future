@@ -1,12 +1,12 @@
 with ingest as (
   select api.ingest_event_to_obligation(
-    'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
-    '11111111-1111-1111-1111-111111111111'::uuid,
-    'test_system'::text,
-    'event-fail-1'::text,
-    'service_commitment_created'::text,
-    '{"service":"founder_ops","promise":"deliver service commitment"}'::jsonb,
-    now()
+    p_workspace_id => 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'::uuid,
+    p_actor_id => '11111111-1111-1111-1111-111111111111'::uuid,
+    p_source_system => 'test_system'::text,
+    p_source_event_key => 'event-fail-1'::text,
+    p_source_event_type => 'service_commitment_created'::text,
+    p_payload => '{"service":"founder_ops","promise":"deliver service commitment"}'::jsonb,
+    p_occurred_at => now()::timestamptz
   ) as result
 ),
 parsed as (
