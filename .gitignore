@@ -33,3 +33,11 @@ logs_after*.txt
 .next-dev.err.log
 AutoKirk-Future/
 AutoKirk-Future/
+
+# local/private files
+.claude/
+.agents/
+.npmrc
+*secret*.txt
+*secrete*.txt
+research strategyl.txt
