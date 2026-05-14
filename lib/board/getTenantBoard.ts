@@ -6,15 +6,14 @@ import { serialize } from "cookie";
 import { mapBoardStatus, type BoardStatus } from "./status";
 import { supabaseUrl, verifyBoardToken } from "./signedBoardUrl";
 
-type LifecycleRow = {
-  obligation_id: string;
+type ObligationRow = {
+  id: string;
   obligation_code: string | null;
   entity_id: string | null;
   due_at: string | null;
   proof_status: string | null;
-  obligation_created_at: string | null;
-  receipt_id: string | null;
-  lifecycle_state: string | null;
+  created_at: string | null;
+  status: string | null;
   resolution_type: string | null;
 };
 
@@ -69,9 +68,7 @@ const UUID_PATTERN =
 const TRUSTED_PUBLIC_BOARD_WORKSPACES = new Set([
   "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   "88eecda6-80e4-4eb7-b890-4330674fa7a7",
-  ...(
-    process.env.AUTOKIRK_PUBLIC_BOARD_WORKSPACE_IDS ?? ""
-  )
+  ...(process.env.AUTOKIRK_PUBLIC_BOARD_WORKSPACE_IDS ?? "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean),
@@ -131,24 +128,30 @@ function queryToken(context: GetServerSidePropsContext): string | null {
 
 function buildBoard(input: {
   workspace: { id: string; name: string | null };
-  obligationRows: LifecycleRow[];
+  obligationRows: ObligationRow[];
   receiptRows: ReceiptRow[];
   now: Date;
 }): BoardViewModel {
+  const receiptObligationIds = new Set(
+    input.receiptRows
+      .map((receipt) => receipt.obligation_id)
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
+
   const obligations = input.obligationRows.map((row): BoardObligation => ({
-    id: row.obligation_id,
+    id: row.id,
     status: mapBoardStatus({
-      lifecycleState: row.lifecycle_state,
+      lifecycleState: row.status,
       proofStatus: row.proof_status,
       dueAt: row.due_at,
-      hasReceipt: Boolean(row.receipt_id),
+      hasReceipt: receiptObligationIds.has(row.id),
       now: input.now,
     }),
     obligationCode: asString(row.obligation_code, "UNSPECIFIED"),
     subjectLabel: asNullableString(row.entity_id),
     dueAt: row.due_at,
     proofStatus: row.proof_status,
-    openedAt: row.obligation_created_at,
+    openedAt: row.created_at,
   }));
 
   const receipts = input.receiptRows.map((row): BoardReceipt => ({
@@ -160,14 +163,14 @@ function buildBoard(input: {
   }));
 
   const overdueCount = obligations.filter(
-    (row) => row.status === "Overdue — System Acting"
+    (row) => row.status === "Overdue — System Acting",
   ).length;
   const systemActingCount = input.obligationRows.filter((row) => {
     const mappedStatus = mapBoardStatus({
-      lifecycleState: row.lifecycle_state,
+      lifecycleState: row.status,
       proofStatus: row.proof_status,
       dueAt: row.due_at,
-      hasReceipt: Boolean(row.receipt_id),
+      hasReceipt: receiptObligationIds.has(row.id),
       now: input.now,
     });
 
@@ -194,7 +197,7 @@ function buildBoard(input: {
 
 export async function getTenantBoard(
   context: GetServerSidePropsContext,
-  workspaceIdParam: string
+  workspaceIdParam: string,
 ): Promise<TenantBoardResult> {
   const workspaceId = workspaceIdParam.trim();
 
@@ -216,13 +219,13 @@ export async function getTenantBoard(
         set(name, value, options) {
           appendSetCookie(
             context.res,
-            serialize(name, value, { path: "/", ...options })
+            serialize(name, value, { path: "/", ...options }),
           );
         },
         remove(name, options) {
           appendSetCookie(
             context.res,
-            serialize(name, "", { path: "/", maxAge: 0, ...options })
+            serialize(name, "", { path: "/", maxAge: 0, ...options }),
           );
         },
       },
@@ -283,13 +286,13 @@ export async function getTenantBoard(
 
   const [obligationsResult, receiptsResult] = await Promise.all([
     readClient
-      .schema("projection")
-      .from("obligation_lifecycle")
+      .schema("core")
+      .from("obligations")
       .select(
-        "obligation_id,obligation_code,entity_id,due_at,proof_status,obligation_created_at,receipt_id,lifecycle_state,resolution_type"
+        "id,obligation_code,entity_id,due_at,proof_status,created_at,status,resolution_type",
       )
       .eq("workspace_id", workspaceId)
-      .order("obligation_created_at", { ascending: false })
+      .order("created_at", { ascending: false })
       .limit(100),
     readClient
       .schema("receipts")
@@ -306,7 +309,7 @@ export async function getTenantBoard(
 
   const board = buildBoard({
     workspace,
-    obligationRows: (obligationsResult.data ?? []) as LifecycleRow[],
+    obligationRows: (obligationsResult.data ?? []) as ObligationRow[],
     receiptRows: (receiptsResult.data ?? []) as ReceiptRow[],
     now: new Date(),
   });
