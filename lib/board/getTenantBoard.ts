@@ -65,6 +65,7 @@ export type TenantBoardResult =
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SUPABASE_URL_FALLBACK = "https://aiuicbyufelqdeiwhmyi.supabase.co";
 
 export function createFallbackBoard(workspaceId: string): BoardViewModel {
   return {
@@ -185,33 +186,35 @@ export async function getTenantBoard(
     return { kind: "not_found" };
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const url =
+    process.env.NEXT_PUBLIC_SUPABASE_URL ??
+    process.env.SUPABASE_URL ??
+    SUPABASE_URL_FALLBACK;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!url?.trim() || !anonKey?.trim()) {
-    return { kind: "error" };
+  let userSupabase: ReturnType<typeof createServerClient> | null = null;
+  if (anonKey?.trim()) {
+    userSupabase = createServerClient(url, anonKey, {
+      cookies: {
+        get(name) {
+          return context.req.cookies[name];
+        },
+        set(name, value, options) {
+          appendSetCookie(
+            context.res,
+            serialize(name, value, { path: "/", ...options })
+          );
+        },
+        remove(name, options) {
+          appendSetCookie(
+            context.res,
+            serialize(name, "", { path: "/", maxAge: 0, ...options })
+          );
+        },
+      },
+    });
   }
-
-  const userSupabase = createServerClient(url, anonKey, {
-    cookies: {
-      get(name) {
-        return context.req.cookies[name];
-      },
-      set(name, value, options) {
-        appendSetCookie(
-          context.res,
-          serialize(name, value, { path: "/", ...options })
-        );
-      },
-      remove(name, options) {
-        appendSetCookie(
-          context.res,
-          serialize(name, "", { path: "/", maxAge: 0, ...options })
-        );
-      },
-    },
-  });
 
   const serviceSupabase = serviceRoleKey?.trim()
     ? createClient(url, serviceRoleKey, {
@@ -219,21 +222,23 @@ export async function getTenantBoard(
       })
     : null;
 
-  const {
-    data: { user },
-  } = await userSupabase.auth.getUser();
-
   let canReadViaUser = false;
-  if (user) {
-    const { data: membership } = await userSupabase
-      .schema("core")
-      .from("workspace_members")
-      .select("workspace_id,user_id")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", user.id)
-      .maybeSingle();
+  if (userSupabase) {
+    const {
+      data: { user },
+    } = await userSupabase.auth.getUser();
 
-    canReadViaUser = Boolean(membership);
+    if (user) {
+      const { data: membership } = await userSupabase
+        .schema("core")
+        .from("workspace_members")
+        .select("workspace_id,user_id")
+        .eq("workspace_id", workspaceId)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      canReadViaUser = Boolean(membership);
+    }
   }
 
   const readClient = canReadViaUser ? userSupabase : serviceSupabase;
