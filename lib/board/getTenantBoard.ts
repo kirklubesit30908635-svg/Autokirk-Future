@@ -1,5 +1,6 @@
 import type { GetServerSidePropsContext } from "next";
 import { createServerClient } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { serialize } from "cookie";
 
 import { mapBoardStatus, type BoardStatus } from "./status";
@@ -95,6 +96,69 @@ function asNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function buildBoard(input: {
+  workspace: { id: string; name: string | null };
+  obligationRows: LifecycleRow[];
+  receiptRows: ReceiptRow[];
+  now: Date;
+}): BoardViewModel {
+  const obligations = input.obligationRows.map((row): BoardObligation => ({
+    id: row.obligation_id,
+    status: mapBoardStatus({
+      lifecycleState: row.lifecycle_state,
+      proofStatus: row.proof_status,
+      dueAt: row.due_at,
+      hasReceipt: Boolean(row.receipt_id),
+      now: input.now,
+    }),
+    obligationCode: asString(row.obligation_code, "UNSPECIFIED"),
+    subjectLabel: asNullableString(row.entity_id),
+    dueAt: row.due_at,
+    proofStatus: row.proof_status,
+    openedAt: row.obligation_created_at,
+  }));
+
+  const receipts = input.receiptRows.map((row): BoardReceipt => ({
+    id: row.id,
+    obligationId: row.obligation_id,
+    sealedAt: row.emitted_at,
+    hash: row.receipt_hash,
+    sequence: typeof row.seq === "number" ? row.seq : null,
+  }));
+
+  const overdueCount = obligations.filter(
+    (row) => row.status === "Overdue — System Acting"
+  ).length;
+  const systemActingCount = input.obligationRows.filter((row) => {
+    const mappedStatus = mapBoardStatus({
+      lifecycleState: row.lifecycle_state,
+      proofStatus: row.proof_status,
+      dueAt: row.due_at,
+      hasReceipt: Boolean(row.receipt_id),
+      now: input.now,
+    });
+
+    return (
+      mappedStatus === "Overdue — System Acting" ||
+      row.resolution_type === "resolve_overdue"
+    );
+  }).length;
+
+  return {
+    tenant: {
+      id: input.workspace.id,
+      name: input.workspace.name ?? null,
+    },
+    lastUpdatedAt: input.now.toISOString(),
+    obligations,
+    receipts,
+    systemActivity: {
+      overdueCount,
+      systemActingCount,
+    },
+  };
+}
+
 export async function getTenantBoard(
   context: GetServerSidePropsContext,
   workspaceIdParam: string
@@ -107,12 +171,13 @@ export async function getTenantBoard(
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url?.trim() || !anonKey?.trim()) {
     return { kind: "error" };
   }
 
-  const supabase = createServerClient(url, anonKey, {
+  const userSupabase = createServerClient(url, anonKey, {
     cookies: {
       get(name) {
         return context.req.cookies[name];
@@ -132,16 +197,36 @@ export async function getTenantBoard(
     },
   });
 
+  const serviceSupabase = serviceRoleKey?.trim()
+    ? createClient(url, serviceRoleKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      })
+    : null;
+
   const {
     data: { user },
-    error: userError,
-  } = await supabase.auth.getUser();
+  } = await userSupabase.auth.getUser();
 
-  if (userError || !user) {
+  let canReadViaUser = false;
+  if (user) {
+    const { data: membership } = await userSupabase
+      .schema("core")
+      .from("workspace_members")
+      .select("workspace_id,user_id")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    canReadViaUser = Boolean(membership);
+  }
+
+  const readClient = canReadViaUser ? userSupabase : serviceSupabase;
+
+  if (!readClient) {
     return { kind: "forbidden" };
   }
 
-  const { data: workspace, error: workspaceError } = await supabase
+  const { data: workspace, error: workspaceError } = await readClient
     .schema("core")
     .from("workspaces")
     .select("id,name")
@@ -157,7 +242,7 @@ export async function getTenantBoard(
   }
 
   const [obligationsResult, receiptsResult] = await Promise.all([
-    supabase
+    readClient
       .schema("projection")
       .from("obligation_lifecycle")
       .select(
@@ -166,7 +251,7 @@ export async function getTenantBoard(
       .eq("workspace_id", workspaceId)
       .order("obligation_created_at", { ascending: false })
       .limit(100),
-    supabase
+    readClient
       .schema("receipts")
       .from("receipts")
       .select("id,obligation_id,emitted_at,receipt_hash,seq")
@@ -179,65 +264,12 @@ export async function getTenantBoard(
     return { kind: "error" };
   }
 
-  const now = new Date();
-  const obligationRows = (obligationsResult.data ?? []) as LifecycleRow[];
-  const receiptRows = (receiptsResult.data ?? []) as ReceiptRow[];
-
-  const obligations = obligationRows.map((row): BoardObligation => ({
-    id: row.obligation_id,
-    status: mapBoardStatus({
-      lifecycleState: row.lifecycle_state,
-      proofStatus: row.proof_status,
-      dueAt: row.due_at,
-      hasReceipt: Boolean(row.receipt_id),
-      now,
-    }),
-    obligationCode: asString(row.obligation_code, "UNSPECIFIED"),
-    subjectLabel: asNullableString(row.entity_id),
-    dueAt: row.due_at,
-    proofStatus: row.proof_status,
-    openedAt: row.obligation_created_at,
-  }));
-
-  const receipts = receiptRows.map((row): BoardReceipt => ({
-    id: row.id,
-    obligationId: row.obligation_id,
-    sealedAt: row.emitted_at,
-    hash: row.receipt_hash,
-    sequence: typeof row.seq === "number" ? row.seq : null,
-  }));
-
-  const overdueCount = obligations.filter(
-    (row) => row.status === "Overdue — System Acting"
-  ).length;
-  const systemActingCount = obligationRows.filter((row) => {
-    const mappedStatus = mapBoardStatus({
-      lifecycleState: row.lifecycle_state,
-      proofStatus: row.proof_status,
-      dueAt: row.due_at,
-      hasReceipt: Boolean(row.receipt_id),
-      now,
-    });
-
-    return (
-      mappedStatus === "Overdue — System Acting" ||
-      row.resolution_type === "resolve_overdue"
-    );
-  }).length;
-
-  const board: BoardViewModel = {
-    tenant: {
-      id: workspace.id,
-      name: workspace.name ?? null,
-    },
-    lastUpdatedAt: now.toISOString(),
-    obligations,
-    receipts,
-    systemActivity: {
-      overdueCount,
-      systemActingCount,
-    },
-  };
+  const board = buildBoard({
+    workspace,
+    obligationRows: (obligationsResult.data ?? []) as LifecycleRow[],
+    receiptRows: (receiptsResult.data ?? []) as ReceiptRow[],
+    now: new Date(),
+  });
 
   return {
     kind: "ok",
