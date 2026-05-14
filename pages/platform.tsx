@@ -166,7 +166,7 @@ export default function PlatformPage() {
           {firstObligation.state === "error" && <p className="error">{firstObligation.message}</p>}
         </form>
       </section>}
-      <section className="card panel" id="setup"><div><p className="eyebrow">First workflow</p><h2>A calm setup for one proof standard.</h2><p>Start narrow. The workflow stays familiar. AutoKirk adds the governed layer that decides when proof is enough to resolve.</p></div><div className="list">{steps.map(([label, body], index) => <article key={label} className="mini"><span>0{index + 1}</span><h3>{label}</h3><p>{body}</p></article>)}</div></section>
+      <section className="card panel" id="setup"><div><p className="eyebrow">First workflow</p><h2>A calm setup for one proof standard.</h2><p>Start narrow. The workflow stays familiar. AutoKirk keeps important work open until the right proof exists.</p></div><div className="list">{steps.map(([label, body], index) => <article key={label} className="mini"><span>0{index + 1}</span><h3>{label}</h3><p>{body}</p></article>)}</div></section>
       <section className="card panel"><div><p className="eyebrow">Operating view</p><h2>AutoKirk shows what is open, ready, or exposed.</h2><p>Any system can create the signal. AutoKirk governs the obligation, the proof path, and the receipt-backed closeout.</p></div><div className="grid">{states.map(([label, body]) => <article key={label} className="mini"><h3>{label}</h3><p>{body}</p></article>)}</div></section>
     </main>
     <style jsx>{`
