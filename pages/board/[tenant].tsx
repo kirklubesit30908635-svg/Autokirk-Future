@@ -3,6 +3,7 @@ import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
 
 import { LiveBoardWindow } from "../../components/board/LiveBoardWindow";
 import {
+  createFallbackBoard,
   getTenantBoard,
   type BoardViewModel,
 } from "../../lib/board/getTenantBoard";
@@ -21,13 +22,17 @@ export const getServerSideProps: GetServerSideProps<TenantBoardPageProps> =
 
     const result = await getTenantBoard(context, tenant);
 
-    if (result.kind !== "ok") {
-      return { notFound: true };
+    if (result.kind === "ok") {
+      return {
+        props: {
+          board: result.board,
+        },
+      };
     }
 
     return {
       props: {
-        board: result.board,
+        board: createFallbackBoard(tenant),
       },
     };
   };
