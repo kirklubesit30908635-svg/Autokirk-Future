@@ -169,11 +169,17 @@ export default async function handler(
       }
     }
 
+    if (!workspaceId) {
+      return res.status(500).json({ ok: false, error: "WORKSPACE_ID_NOT_RESOLVED" });
+    }
+
+    const resolvedWorkspaceId: string = workspaceId;
+
     return res.status(200).json({
       ok: true,
-      workspace_id: workspaceId,
+      workspace_id: resolvedWorkspaceId,
       workspace_name: workspaceName ?? personalWorkspaceName,
-      board_url: buildSignedBoardUrl(workspaceId),
+      board_url: buildSignedBoardUrl(resolvedWorkspaceId),
     });
   } catch (error) {
     return res.status(500).json({
