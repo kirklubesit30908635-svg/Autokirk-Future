@@ -10,6 +10,8 @@ type StripeCheckoutSession = {
 }
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+const PLATFORM_WORKSPACE_ID_FALLBACK = '88eecda6-80e4-4eb7-b890-4330674fa7a7'
+const PLATFORM_ACTOR_ID_FALLBACK = 'b9bb7655-8b0a-40d9-8422-b9ec81a142e9'
 
 function getBaseUrl(req: NextApiRequest): string {
   const configured =
@@ -37,12 +39,13 @@ function checkoutMode(): 'payment' | 'subscription' {
   return process.env.STRIPE_CHECKOUT_MODE === 'payment' ? 'payment' : 'subscription'
 }
 
-function requireUuidEnv(name: string): string {
+function uuidEnvOrFallback(name: string, fallback: string): string {
   const value = process.env[name]
-  if (!value || !UUID_PATTERN.test(value)) {
+  const candidate = value && value.length > 0 ? value : fallback
+  if (!UUID_PATTERN.test(candidate)) {
     throw new Error(`${name}_NOT_CONFIGURED`)
   }
-  return value
+  return candidate
 }
 
 export default async function handler(
@@ -71,8 +74,8 @@ export default async function handler(
   let workspaceId: string
   let actorId: string
   try {
-    workspaceId = requireUuidEnv('AUTOKIRK_PLATFORM_WORKSPACE_ID')
-    actorId = requireUuidEnv('AUTOKIRK_PLATFORM_ACTOR_ID')
+    workspaceId = uuidEnvOrFallback('AUTOKIRK_PLATFORM_WORKSPACE_ID', PLATFORM_WORKSPACE_ID_FALLBACK)
+    actorId = uuidEnvOrFallback('AUTOKIRK_PLATFORM_ACTOR_ID', PLATFORM_ACTOR_ID_FALLBACK)
   } catch (err) {
     res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'BILLING_MAPPING_NOT_CONFIGURED' })
     return
