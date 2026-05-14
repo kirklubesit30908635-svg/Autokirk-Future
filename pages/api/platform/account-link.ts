@@ -143,6 +143,13 @@ export default async function handler(
       }
     }
 
+    if (!workspaceId) {
+      return res.status(500).json({
+        ok: false,
+        error: "WORKSPACE_ID_NOT_RESOLVED",
+      });
+    }
+
     const { data: workspaceRow } = await supabase
       .schema("core")
       .from("workspaces")
