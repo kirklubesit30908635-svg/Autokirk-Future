@@ -71,29 +71,57 @@ export default async function handler(
       return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
     }
 
-    const { data: existingMembership, error: existingMembershipError } = await supabase
+    const email = user.email ?? "customer@autokirk.com";
+    const baseName = slugPart(email.split("@")[0]);
+    const personalWorkspaceName = `${baseName} AutoKirk Board`;
+
+    const { data: memberships, error: membershipError } = await supabase
       .schema("core")
       .from("workspace_members")
       .select("workspace_id")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
+      .eq("user_id", user.id);
 
-    if (existingMembershipError) {
+    if (membershipError) {
       return res.status(500).json({
         ok: false,
         error: "MEMBERSHIP_LOOKUP_FAILED",
-        detail: existingMembershipError.message,
+        detail: membershipError.message,
       });
     }
 
-    let workspaceId = existingMembership?.workspace_id as string | undefined;
+    const workspaceIds = (memberships ?? [])
+      .map((row) => row.workspace_id)
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
+
+    let workspaceId: string | null = null;
+    let workspaceName: string | null = null;
+
+    if (workspaceIds.length > 0) {
+      const { data: workspaces, error: workspaceLookupError } = await supabase
+        .schema("core")
+        .from("workspaces")
+        .select("id,name")
+        .in("id", workspaceIds);
+
+      if (workspaceLookupError) {
+        return res.status(500).json({
+          ok: false,
+          error: "WORKSPACE_LOOKUP_FAILED",
+          detail: workspaceLookupError.message,
+        });
+      }
+
+      const personalWorkspace = workspaces?.find(
+        (workspace) => workspace.name === personalWorkspaceName
+      );
+
+      if (personalWorkspace) {
+        workspaceId = personalWorkspace.id;
+        workspaceName = personalWorkspace.name;
+      }
+    }
 
     if (!workspaceId) {
-      const email = user.email ?? "customer@autokirk.com";
-      const baseName = email.split("@")[0] || "customer";
-
       const { data: entity, error: entityError } = await supabase
         .schema("core")
         .from("legal_entities")
@@ -112,11 +140,8 @@ export default async function handler(
       const { data: workspace, error: workspaceError } = await supabase
         .schema("core")
         .from("workspaces")
-        .insert({
-          name: `${baseName} AutoKirk Board`,
-          entity_id: entity.id,
-        })
-        .select("id")
+        .insert({ name: personalWorkspaceName, entity_id: entity.id })
+        .select("id,name")
         .single();
 
       if (workspaceError || !workspace) {
@@ -128,6 +153,7 @@ export default async function handler(
       }
 
       workspaceId = workspace.id;
+      workspaceName = workspace.name;
 
       const { error: memberError } = await supabase
         .schema("core")
@@ -143,24 +169,10 @@ export default async function handler(
       }
     }
 
-    if (!workspaceId) {
-      return res.status(500).json({
-        ok: false,
-        error: "WORKSPACE_ID_NOT_RESOLVED",
-      });
-    }
-
-    const { data: workspaceRow } = await supabase
-      .schema("core")
-      .from("workspaces")
-      .select("name")
-      .eq("id", workspaceId)
-      .maybeSingle();
-
     return res.status(200).json({
       ok: true,
       workspace_id: workspaceId,
-      workspace_name: workspaceRow?.name ?? `${slugPart(user.email)} AutoKirk Board`,
+      workspace_name: workspaceName ?? personalWorkspaceName,
       board_url: buildSignedBoardUrl(workspaceId),
     });
   } catch (error) {
