@@ -66,6 +66,22 @@ export type TenantBoardResult =
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
+export function createFallbackBoard(workspaceId: string): BoardViewModel {
+  return {
+    tenant: {
+      id: workspaceId,
+      name: "Active system",
+    },
+    lastUpdatedAt: new Date().toISOString(),
+    obligations: [],
+    receipts: [],
+    systemActivity: {
+      overdueCount: 0,
+      systemActingCount: 0,
+    },
+  };
+}
+
 function isUuid(value: string): boolean {
   return UUID_PATTERN.test(value);
 }
@@ -169,8 +185,8 @@ export async function getTenantBoard(
     return { kind: "not_found" };
   }
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url?.trim() || !anonKey?.trim()) {
