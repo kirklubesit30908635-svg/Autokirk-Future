@@ -68,6 +68,39 @@ function getSupabaseBrowserClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
+function popupUrl(url: string): string {
+  const next = new URL(url, window.location.origin);
+  next.searchParams.set("panel", "popup");
+  return next.toString();
+}
+
+function openBoardPopup(url: string) {
+  const width = 380;
+  const height = 440;
+  const left = Math.max(0, Math.round(window.screenX + window.outerWidth - width - 24));
+  const top = Math.max(0, Math.round(window.screenY + window.outerHeight - height - 80));
+  const features = [
+    "popup=yes",
+    `width=${width}`,
+    `height=${height}`,
+    `left=${left}`,
+    `top=${top}`,
+    "menubar=no",
+    "toolbar=no",
+    "location=no",
+    "status=no",
+    "resizable=yes",
+    "scrollbars=no",
+  ].join(",");
+
+  const opened = window.open(popupUrl(url), "autokirk_live_board", features);
+  if (opened) {
+    opened.focus();
+    return;
+  }
+  window.location.assign(popupUrl(url));
+}
+
 function resetFirstForm(): FirstObligationForm {
   return {
     object_anchor: "first customer workflow",
@@ -154,7 +187,7 @@ export default function PlatformPage() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw new Error(sessionError.message);
       if (!session?.access_token) throw new Error("Sign in before creating the first obligation.");
-      let workspaceId = activeWorkspaceId;
+      const workspaceId = activeWorkspaceId;
       if (!workspaceId) {
         await loadLinkedAccount(session.access_token);
         throw new Error("Account link is being prepared. Tap create again after the link appears.");
@@ -178,6 +211,7 @@ export default function PlatformPage() {
       const body = (await response.json()) as IntakeCommitResponse;
       if (!response.ok || !body.ok) throw new Error(body.ok ? "Could not create first obligation." : body.detail || body.error);
       setFirstObligation({ state: "created", result: body.result });
+      openBoardPopup(boardHref);
     } catch (err) {
       setFirstObligation({ state: "error", message: err instanceof Error ? err.message : "Could not create first obligation." });
     }
@@ -201,8 +235,8 @@ export default function PlatformPage() {
       <section className="card rule"><p className="eyebrow">The rule</p><strong>Important work should not be marked complete without proof.</strong></section>
       {(checkout.state === "verified" || linkedAccount.state === "ready") && <section className="card panel">
         <div><div className="status"><span className={linkedAccount.state === "ready" ? "dot ready" : "dot"} /><strong>{linkedAccount.state === "ready" ? "Account link ready" : "Linking account"}</strong><span>{linkedAccount.state === "ready" ? `${linkedAccount.workspaceName ?? "Personal board"} is attached to a safe board URL.` : linkedAccount.state === "error" ? linkedAccount.message : "Preparing a personal board link."}</span></div><p className="eyebrow">First obligation</p><h2>Create the first proof-gated workflow.</h2><p>Start with one real promise. AutoKirk will open it as an obligation and keep it visible until proof exists.</p>
-        {linkedAccount.state === "ready" && <div className="nextBox"><p className="eyebrow">Safe board URL</p><h3>Your system is attached to this board.</h3><p>The board link is signed and points to the workspace AutoKirk will write obligations into.</p><div className="actions compact"><a className="primary" href={boardHref}>Open live board</a><button className="secondary" type="button" onClick={() => navigator.clipboard?.writeText(boardHref)}>Copy board link</button></div></div>}
-        {firstObligation.state === "created" && <div className="nextBox"><p className="eyebrow">Next step</p><h3>Go to the live board.</h3><p>The obligation is open. The board is the proof surface that shows what is owed, what needs proof, and what has closed.</p><div className="actions compact"><a className="primary" href={boardHref}>View live board</a><button className="secondary" type="button" onClick={createAnotherObligation}>Create another obligation</button></div></div>}
+        {linkedAccount.state === "ready" && <div className="nextBox"><p className="eyebrow">Safe board URL</p><h3>Your system is attached to this board.</h3><p>The board opens as a compact popup window and points to the workspace AutoKirk writes obligations into.</p><div className="actions compact"><button className="primary" type="button" onClick={() => openBoardPopup(boardHref)}>Open live board popup</button><button className="secondary" type="button" onClick={() => navigator.clipboard?.writeText(popupUrl(boardHref))}>Copy board link</button></div></div>}
+        {firstObligation.state === "created" && <div className="nextBox"><p className="eyebrow">Next step</p><h3>Live board opened.</h3><p>The obligation is open. The popup is the proof surface that shows what is owed, what needs proof, and what has closed.</p><div className="actions compact"><button className="primary" type="button" onClick={() => openBoardPopup(boardHref)}>Open live board popup</button><button className="secondary" type="button" onClick={createAnotherObligation}>Create another obligation</button></div></div>}
         </div>
         <form className="form" onSubmit={(event) => { event.preventDefault(); createFirstObligation(); }}>
           <label>What work must be completed?<input required value={firstForm.object_anchor} onChange={(event) => setFirstForm((current) => ({ ...current, object_anchor: event.target.value }))} /></label>
@@ -211,7 +245,7 @@ export default function PlatformPage() {
           <label>Rule in plain English<textarea required value={firstForm.trigger_text} onChange={(event) => setFirstForm((current) => ({ ...current, trigger_text: event.target.value }))} /></label>
           <label>Operator note<textarea value={firstForm.operator_note} onChange={(event) => setFirstForm((current) => ({ ...current, operator_note: event.target.value }))} placeholder="Optional note for the operator view" /></label>
           <button className="primary" type="submit" disabled={firstObligation.state === "submitting" || linkedAccount.state !== "ready"}>{firstObligation.state === "submitting" ? "Creating obligation..." : firstObligation.state === "created" ? "Create another from this form" : "Create first obligation"}</button>
-          {firstObligation.state === "created" && <p className="success">First obligation created. It is now open and waiting for proof. Continue to the board to inspect it.</p>}
+          {firstObligation.state === "created" && <p className="success">First obligation created. It is now open and waiting for proof. The board popup should show it after refresh.</p>}
           {firstObligation.state === "error" && <p className="error">{firstObligation.message}</p>}
         </form>
       </section>}
