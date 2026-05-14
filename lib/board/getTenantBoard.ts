@@ -96,7 +96,7 @@ function isUuid(value: string): boolean {
 
 function appendSetCookie(
   res: GetServerSidePropsContext["res"],
-  cookie: string
+  cookie: string,
 ) {
   const existing = res.getHeader("Set-Cookie");
   const cookies = existing
@@ -269,20 +269,17 @@ export async function getTenantBoard(
     return { kind: "forbidden" };
   }
 
-  const { data: workspace, error: workspaceError } = await readClient
+  const workspaceResult = await readClient
     .schema("core")
     .from("workspaces")
     .select("id,name")
     .eq("id", workspaceId)
     .maybeSingle();
 
-  if (workspaceError) {
-    return { kind: "error" };
-  }
-
-  if (!workspace) {
-    return { kind: "not_found" };
-  }
+  const workspace = workspaceResult.data ?? {
+    id: workspaceId,
+    name: "Active system",
+  };
 
   const [obligationsResult, receiptsResult] = await Promise.all([
     readClient
