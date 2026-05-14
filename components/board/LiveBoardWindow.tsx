@@ -18,22 +18,22 @@ type ResolveState = {
   message: string;
 };
 
+function shorten(value: string | null | undefined): string {
+  if (!value) return "--";
+  if (value.length <= 14) return value;
+  return `${value.slice(0, 7)}...${value.slice(-4)}`;
+}
+
 function formatTime(value: string | null): string {
-  if (!value) return "not set";
+  if (!value) return "not sealed";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
 }
 
-function shorten(value: string | null | undefined): string {
-  if (!value) return "--";
-  if (value.length <= 16) return value;
-  return `${value.slice(0, 8)}...${value.slice(-5)}`;
-}
-
 function statusLabel(item: BoardObligation): string {
   if (item.status === "Overdue — System Acting") return "overdue";
-  if (item.status === "Needs Proof") return "needs proof";
+  if (item.status === "Needs Proof") return "proof";
   return item.status.toLowerCase();
 }
 
@@ -50,7 +50,6 @@ function calculateIntegrityScore(
   const overdue = active.filter(
     (item) => item.status === "Overdue — System Acting"
   ).length;
-
   const score =
     72 +
     Math.round(sealedRatio * 22) -
@@ -70,6 +69,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     [board.obligations]
   );
   const [showClosed, setShowClosed] = useState(false);
+  const [resolveOpen, setResolveOpen] = useState(false);
   const [resolveState, setResolveState] = useState<ResolveState>(() => ({
     obligationId: activeObligations[0]?.id ?? "",
     proofNote: "",
@@ -106,7 +106,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     setResolveState((current) => ({
       ...current,
       status: "submitting",
-      message: "Submitting proof to the governed path...",
+      message: "Submitting proof...",
     }));
 
     try {
@@ -117,7 +117,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           obligation_id: selectedObligation.id,
           proof_note: resolveState.proofNote,
           proof_photo_url: resolveState.proofUrl.trim() || undefined,
-          reason: "operator resolved from live board window",
+          reason: "operator resolved from live board panel",
         }),
       });
       const body = await response.json();
@@ -129,7 +129,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
       setResolveState((current) => ({
         ...current,
         status: "done",
-        message: "Resolved. Refresh to see the new receipt-backed state.",
+        message: "Resolved. Refresh to verify receipt.",
       }));
     } catch (error) {
       setResolveState((current) => ({
@@ -142,286 +142,258 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
 
   return (
     <main className="liveBoardShell">
-      <section className="liveBoardWindow" aria-label="AutoKirk live board window">
-        <header className="windowHeader">
+      <section className="liveBoardPanel" aria-label="AutoKirk live board attached panel">
+        <header className="panelTop">
           <div>
-            <p className="eyebrow">AutoKirk live board</p>
+            <p className="eyebrow">AutoKirk live</p>
             <h1>{board.tenant.name ?? "Active system"}</h1>
-            <p className="subline">Attached obligation window</p>
           </div>
-          <div className="scoreBadge" aria-label={`Integrity score ${integrityScore}`}>
-            <span>{integrityScore}</span>
-            <small>integrity</small>
+          <div className="score" aria-label={`Integrity score ${integrityScore}`}>
+            <strong>{integrityScore}</strong>
+            <span>integrity</span>
           </div>
         </header>
 
-        <section className="summaryStrip">
-          <article>
-            <strong>{activeObligations.length}</strong>
-            <span>active</span>
-          </article>
-          <article>
-            <strong>{board.receipts.length}</strong>
-            <span>closed</span>
-          </article>
-          <article>
-            <strong>{board.systemActivity.overdueCount}</strong>
-            <span>exposed</span>
-          </article>
+        <section className="stats" aria-label="Board state summary">
+          <article><strong>{activeObligations.length}</strong><span>active</span></article>
+          <article><strong>{board.receipts.length}</strong><span>closed</span></article>
+          <article><strong>{board.systemActivity.overdueCount}</strong><span>exposed</span></article>
         </section>
 
-        <section className="ruleCard">
-          <span>proof rule</span>
-          <p>Important work cannot be marked complete until proof exists.</p>
-        </section>
+        <div className="scrollArea">
+          <section className="rule">
+            <span>proof rule</span>
+            <p>Work cannot close until proof exists.</p>
+          </section>
 
-        <section className="panel">
-          <div className="panelHeader">
-            <div>
-              <p className="eyebrow">Active obligations</p>
-              <h2>Resolve what is still open.</h2>
-            </div>
-            <button type="button" className="ghostButton" onClick={() => location.reload()}>
-              refresh
-            </button>
-          </div>
-
-          {activeObligations.length > 0 ? (
-            <div className="obligationList">
-              {activeObligations.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  className={`obligationRow ${
-                    item.id === selectedObligation?.id ? "selected" : ""
-                  }`}
-                  onClick={() =>
-                    setResolveState((current) => ({
-                      ...current,
-                      obligationId: item.id,
-                      status: "idle",
-                      message: "",
-                    }))
-                  }
-                >
-                  <span>
-                    <strong>{item.obligationCode}</strong>
-                    <small>{shorten(item.id)} · {item.proofStatus ?? "proof pending"}</small>
-                  </span>
-                  <em>{statusLabel(item)}</em>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <div className="emptyBox">
-              <strong>No active obligations.</strong>
-              <p>The active system has no open proof burden right now.</p>
-            </div>
-          )}
-        </section>
-
-        <section className="panel resolvePanel">
-          <p className="eyebrow">Resolve with proof</p>
-          {selectedObligation ? (
-            <div className="resolveBody">
-              <div className="selectedLine">
-                <strong>{selectedObligation.obligationCode}</strong>
-                <span>{shorten(selectedObligation.id)}</span>
+          <section className="block">
+            <div className="blockHead">
+              <div>
+                <p className="eyebrow">Active obligations</p>
+                <h2>Still open</h2>
               </div>
-              <label>
-                Proof note
-                <textarea
-                  value={resolveState.proofNote}
-                  onChange={(event) =>
-                    setResolveState((current) => ({
-                      ...current,
-                      proofNote: event.target.value,
-                      status: "idle",
-                      message: "",
-                    }))
-                  }
-                  placeholder="What proof closes this obligation?"
-                />
-              </label>
-              <label>
-                Proof link
-                <input
-                  value={resolveState.proofUrl}
-                  onChange={(event) =>
-                    setResolveState((current) => ({
-                      ...current,
-                      proofUrl: event.target.value,
-                      status: "idle",
-                      message: "",
-                    }))
-                  }
-                  placeholder="https://..."
-                />
-              </label>
-              <button
-                type="button"
-                className="primaryButton"
-                disabled={resolveState.status === "submitting"}
-                onClick={submitResolution}
-              >
-                {resolveState.status === "submitting"
-                  ? "Resolving..."
-                  : "Resolve with proof"}
+              <button type="button" className="tinyButton" onClick={() => location.reload()}>
+                refresh
               </button>
-              {resolveState.message ? (
-                <p className="message">{resolveState.message}</p>
-              ) : null}
             </div>
-          ) : (
-            <div className="emptyBox">
-              <strong>Nothing selected.</strong>
-              <p>Create or select an active obligation to resolve.</p>
-            </div>
-          )}
-        </section>
 
-        <section className="panel closedPanel">
-          <button
-            type="button"
-            className="closedToggle"
-            onClick={() => setShowClosed((value) => !value)}
-          >
-            <span>Look up closed obligations</span>
-            <strong>{closedObligations.length}</strong>
-          </button>
-          {showClosed ? (
-            <div className="closedList">
-              {closedObligations.length > 0 ? (
-                closedObligations.slice(0, 12).map((item) => {
-                  const receipt = board.receipts.find(
-                    (entry) => entry.obligationId === item.id
-                  );
-                  return (
-                    <article key={item.id} className="closedRow">
-                      <div>
-                        <strong>{item.obligationCode}</strong>
-                        <p>{shorten(item.id)} · sealed {formatTime(receipt?.sealedAt ?? null)}</p>
-                      </div>
-                      <span>{shorten(receipt?.hash)}</span>
-                    </article>
-                  );
-                })
-              ) : (
-                <div className="emptyBox">
-                  <strong>No closed obligations yet.</strong>
-                  <p>Resolved obligations will appear here with receipt evidence.</p>
-                </div>
-              )}
-            </div>
-          ) : null}
-        </section>
+            {activeObligations.length > 0 ? (
+              <div className="obligationList">
+                {activeObligations.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    className={`obligationRow ${item.id === selectedObligation?.id ? "selected" : ""}`}
+                    onClick={() => {
+                      setResolveOpen(true);
+                      setShowClosed(false);
+                      setResolveState((current) => ({
+                        ...current,
+                        obligationId: item.id,
+                        status: "idle",
+                        message: "",
+                      }));
+                    }}
+                  >
+                    <span>
+                      <strong>{item.obligationCode}</strong>
+                      <small>{shorten(item.id)} · {item.proofStatus ?? "proof pending"}</small>
+                    </span>
+                    <em>{statusLabel(item)}</em>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="emptyBox">
+                <strong>No active obligations.</strong>
+                <p>Create one from the linked system.</p>
+              </div>
+            )}
+          </section>
+
+          <section className="block">
+            <button
+              type="button"
+              className="wideToggle"
+              onClick={() => {
+                setResolveOpen((value) => !value);
+                setShowClosed(false);
+              }}
+            >
+              <span>Resolve selected</span>
+              <strong>{selectedObligation ? "open" : "none"}</strong>
+            </button>
+            {resolveOpen ? (
+              <div className="drawer">
+                {selectedObligation ? (
+                  <>
+                    <div className="selectedLine">
+                      <strong>{selectedObligation.obligationCode}</strong>
+                      <span>{shorten(selectedObligation.id)}</span>
+                    </div>
+                    <label>
+                      Proof note
+                      <textarea
+                        value={resolveState.proofNote}
+                        onChange={(event) => setResolveState((current) => ({ ...current, proofNote: event.target.value, status: "idle", message: "" }))}
+                        placeholder="What proof closes this?"
+                      />
+                    </label>
+                    <label>
+                      Proof link
+                      <input
+                        value={resolveState.proofUrl}
+                        onChange={(event) => setResolveState((current) => ({ ...current, proofUrl: event.target.value, status: "idle", message: "" }))}
+                        placeholder="https://..."
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="primaryButton"
+                      disabled={resolveState.status === "submitting"}
+                      onClick={submitResolution}
+                    >
+                      {resolveState.status === "submitting" ? "Resolving..." : "Resolve with proof"}
+                    </button>
+                    {resolveState.message ? <p className="message">{resolveState.message}</p> : null}
+                  </>
+                ) : (
+                  <div className="emptyBox"><strong>Nothing selected.</strong><p>Select an active obligation.</p></div>
+                )}
+              </div>
+            ) : null}
+          </section>
+
+          <section className="block">
+            <button
+              type="button"
+              className="wideToggle"
+              onClick={() => {
+                setShowClosed((value) => !value);
+                setResolveOpen(false);
+              }}
+            >
+              <span>Look up closed</span>
+              <strong>{closedObligations.length}</strong>
+            </button>
+            {showClosed ? (
+              <div className="drawer">
+                {closedObligations.length > 0 ? (
+                  closedObligations.slice(0, 8).map((item) => {
+                    const receipt = board.receipts.find((entry) => entry.obligationId === item.id);
+                    return (
+                      <article key={item.id} className="closedRow">
+                        <div>
+                          <strong>{item.obligationCode}</strong>
+                          <p>{shorten(item.id)} · {formatTime(receipt?.sealedAt ?? null)}</p>
+                        </div>
+                        <span>{shorten(receipt?.hash)}</span>
+                      </article>
+                    );
+                  })
+                ) : (
+                  <div className="emptyBox"><strong>No closed obligations.</strong><p>Receipts appear here after resolution.</p></div>
+                )}
+              </div>
+            ) : null}
+          </section>
+        </div>
       </section>
 
       <style jsx>{`
         .liveBoardShell {
           min-height: 100vh;
-          display: grid;
-          place-items: start center;
-          padding: 18px 10px 32px;
           color: #f5f5f5;
-          background: radial-gradient(circle at 18% 0%, rgba(45, 245, 213, 0.2), transparent 30rem), #030303;
+          background: transparent;
+          pointer-events: none;
         }
 
-        .liveBoardWindow {
-          width: min(480px, 100%);
+        .liveBoardPanel {
+          position: fixed;
+          right: 18px;
+          bottom: 18px;
+          z-index: 2147483000;
+          width: min(360px, calc(100vw - 28px));
+          height: min(430px, calc(100vh - 36px));
+          pointer-events: auto;
           border: 1px solid #2b2b2b;
-          border-radius: 28px;
+          border-radius: 22px;
           background: linear-gradient(180deg, #101010, #050505);
           box-shadow: 0 28px 92px rgba(0, 0, 0, 0.76);
           overflow: hidden;
         }
 
-        .windowHeader,
-        .summaryStrip,
-        .ruleCard,
-        .panel {
-          margin: 12px;
-        }
-
-        .windowHeader {
+        .panelTop {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          gap: 12px;
-          padding: 18px 18px 8px;
+          gap: 10px;
+          padding: 14px 14px 8px;
         }
 
-        h1,
-        h2,
-        p {
-          margin: 0;
-        }
+        h1, h2, p { margin: 0; }
 
         h1 {
-          font-size: 1.45rem;
-          letter-spacing: -0.045em;
+          font-size: 1rem;
           line-height: 1.05;
+          letter-spacing: -0.04em;
+          max-width: 205px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         h2 {
-          font-size: 1rem;
-          letter-spacing: -0.035em;
+          font-size: 0.86rem;
+          letter-spacing: -0.03em;
         }
 
         .eyebrow {
           color: #8e8e8e;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          font-size: 0.68rem;
+          font-size: 0.56rem;
           font-weight: 900;
-          margin-bottom: 7px;
+          margin-bottom: 5px;
         }
 
-        .subline,
-        .message,
-        .emptyBox p,
-        .obligationRow small,
-        .closedRow p,
-        label,
-        .summaryStrip span {
-          color: #9a9a9a;
-        }
-
-        .scoreBadge {
+        .score {
           flex: 0 0 auto;
-          min-width: 74px;
+          min-width: 58px;
           border: 1px solid rgba(45, 245, 213, 0.5);
-          border-radius: 20px;
-          padding: 9px 10px;
+          border-radius: 16px;
+          padding: 7px 8px;
           text-align: center;
-          box-shadow: 0 0 28px rgba(45, 245, 213, 0.12);
+          box-shadow: 0 0 22px rgba(45, 245, 213, 0.12);
         }
 
-        .scoreBadge span {
+        .score strong {
           display: block;
           color: #2df5d5;
-          font-size: 1.35rem;
-          font-weight: 950;
+          font-size: 1.1rem;
           line-height: 1;
         }
 
-        .scoreBadge small {
+        .score span {
+          display: block;
+          margin-top: 3px;
           color: #b8b8b8;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
-          font-size: 0.58rem;
+          font-size: 0.48rem;
           font-weight: 900;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
         }
 
-        .summaryStrip {
+        .stats {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 8px;
+          gap: 6px;
+          padding: 0 10px 8px;
         }
 
-        .summaryStrip article,
-        .ruleCard,
-        .panel,
+        .stats article,
+        .rule,
+        .block,
         .emptyBox,
         .obligationRow,
         .closedRow {
@@ -429,84 +401,91 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           background: #0b0b0b;
         }
 
-        .summaryStrip article {
-          border-radius: 18px;
-          padding: 12px 10px;
+        .stats article {
+          border-radius: 14px;
+          padding: 8px;
         }
 
-        .summaryStrip strong {
+        .stats strong {
           display: block;
           color: #2df5d5;
-          font-size: 1.28rem;
+          font-size: 1rem;
           line-height: 1;
         }
 
-        .summaryStrip span {
+        .stats span {
           display: block;
-          margin-top: 5px;
-          font-size: 0.72rem;
-          text-transform: uppercase;
-          letter-spacing: 0.08em;
+          margin-top: 4px;
+          color: #9a9a9a;
+          font-size: 0.55rem;
           font-weight: 900;
-        }
-
-        .ruleCard {
-          border-radius: 20px;
-          padding: 15px;
-        }
-
-        .ruleCard span {
-          color: #2df5d5;
+          letter-spacing: 0.08em;
           text-transform: uppercase;
-          letter-spacing: 0.1em;
-          font-size: 0.66rem;
-          font-weight: 950;
         }
 
-        .ruleCard p {
-          margin-top: 7px;
+        .scrollArea {
+          height: calc(100% - 112px);
+          overflow-y: auto;
+          padding: 0 10px 10px;
+        }
+
+        .scrollArea::-webkit-scrollbar { width: 6px; }
+        .scrollArea::-webkit-scrollbar-thumb { background: #2c2c2c; border-radius: 999px; }
+
+        .rule,
+        .block {
+          border-radius: 16px;
+          padding: 10px;
+          margin-bottom: 8px;
+        }
+
+        .rule span {
+          color: #2df5d5;
+          font-size: 0.55rem;
+          font-weight: 950;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        .rule p {
+          margin-top: 4px;
           color: #f5f5f5;
           font-weight: 900;
-          line-height: 1.2;
-          letter-spacing: -0.03em;
+          line-height: 1.15;
+          font-size: 0.83rem;
         }
 
-        .panel {
-          border-radius: 22px;
-          padding: 14px;
-        }
-
-        .panelHeader {
+        .blockHead,
+        .selectedLine {
           display: flex;
-          align-items: flex-start;
           justify-content: space-between;
-          gap: 10px;
-          margin-bottom: 11px;
+          align-items: center;
+          gap: 8px;
         }
 
-        .ghostButton,
-        .closedToggle,
+        .tinyButton,
+        .wideToggle,
         .primaryButton,
         .obligationRow {
           cursor: pointer;
           font: inherit;
         }
 
-        .ghostButton {
+        .tinyButton {
           color: #2df5d5;
           border: 1px solid #2b2b2b;
           border-radius: 999px;
           background: #060606;
-          padding: 7px 10px;
-          font-size: 0.74rem;
+          padding: 6px 8px;
+          font-size: 0.62rem;
           font-weight: 900;
         }
 
         .obligationList,
-        .closedList,
-        .resolveBody {
+        .drawer {
           display: grid;
-          gap: 8px;
+          gap: 6px;
+          margin-top: 8px;
         }
 
         .obligationRow {
@@ -514,16 +493,16 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 10px;
-          border-radius: 16px;
-          padding: 11px;
-          text-align: left;
+          gap: 8px;
+          border-radius: 13px;
+          padding: 8px;
           color: #f5f5f5;
+          text-align: left;
         }
 
         .obligationRow.selected {
           border-color: #2df5d5;
-          box-shadow: 0 0 0 1px rgba(45, 245, 213, 0.24);
+          box-shadow: 0 0 0 1px rgba(45, 245, 213, 0.18);
         }
 
         .obligationRow strong,
@@ -532,14 +511,18 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .selectedLine strong {
           display: block;
           color: #f5f5f5;
-          font-size: 0.9rem;
+          font-size: 0.77rem;
           line-height: 1.2;
         }
 
-        .obligationRow small {
-          display: block;
-          margin-top: 4px;
-          font-size: 0.72rem;
+        .obligationRow small,
+        .emptyBox p,
+        .closedRow p,
+        .message,
+        label {
+          color: #9a9a9a;
+          font-size: 0.64rem;
+          line-height: 1.3;
         }
 
         .obligationRow em {
@@ -547,43 +530,44 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           color: #2df5d5;
           border: 1px solid rgba(45, 245, 213, 0.38);
           border-radius: 999px;
-          padding: 5px 8px;
+          padding: 4px 6px;
           font-style: normal;
-          font-size: 0.64rem;
+          font-size: 0.54rem;
           font-weight: 950;
           text-align: center;
-          max-width: 106px;
         }
 
         .emptyBox {
-          border-radius: 16px;
-          padding: 13px;
+          border-radius: 13px;
+          padding: 10px;
+          margin-top: 8px;
         }
 
-        .emptyBox p {
-          margin-top: 5px;
-          font-size: 0.78rem;
-          line-height: 1.35;
-        }
-
-        .selectedLine {
+        .wideToggle {
+          width: 100%;
+          min-height: 36px;
           display: flex;
-          justify-content: space-between;
-          gap: 10px;
           align-items: center;
-          padding-bottom: 4px;
+          justify-content: space-between;
+          gap: 8px;
+          color: #f5f5f5;
+          background: #050505;
+          border: 1px solid #2c2c2c;
+          border-radius: 999px;
+          padding: 0 10px;
+          font-size: 0.76rem;
+          font-weight: 950;
         }
 
-        .selectedLine span {
+        .wideToggle strong,
+        .selectedLine span,
+        .closedRow span {
           color: #2df5d5;
-          font-size: 0.72rem;
-          font-weight: 900;
         }
 
         label {
           display: grid;
-          gap: 7px;
-          font-size: 0.76rem;
+          gap: 5px;
           font-weight: 900;
           text-transform: uppercase;
           letter-spacing: 0.08em;
@@ -593,11 +577,12 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         input {
           width: 100%;
           border: 1px solid #2c2c2c;
-          border-radius: 16px;
+          border-radius: 12px;
           background: #050505;
           color: #f5f5f5;
           font: inherit;
-          padding: 11px;
+          font-size: 0.76rem;
+          padding: 8px;
           outline: none;
         }
 
@@ -608,71 +593,45 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         }
 
         textarea {
+          min-height: 58px;
           resize: vertical;
-          min-height: 82px;
-        }
-
-        .primaryButton,
-        .closedToggle {
-          width: 100%;
-          border: 0;
-          border-radius: 999px;
-          min-height: 46px;
-          font-weight: 950;
         }
 
         .primaryButton {
+          width: 100%;
+          min-height: 36px;
+          border: 0;
+          border-radius: 999px;
           color: #020202;
           background: #2df5d5;
+          font-weight: 950;
         }
 
-        .primaryButton:disabled {
-          opacity: 0.62;
-        }
-
-        .message {
-          font-size: 0.78rem;
-          line-height: 1.35;
-        }
-
-        .closedToggle {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          gap: 12px;
-          color: #f5f5f5;
-          background: #050505;
-          border: 1px solid #2c2c2c;
-          padding: 0 14px;
-        }
-
-        .closedToggle strong {
-          color: #2df5d5;
-        }
-
-        .closedList {
-          margin-top: 10px;
-        }
+        .primaryButton:disabled { opacity: 0.62; }
 
         .closedRow {
           display: flex;
           justify-content: space-between;
-          gap: 10px;
+          gap: 8px;
           align-items: center;
-          border-radius: 16px;
-          padding: 11px;
-        }
-
-        .closedRow p {
-          margin-top: 4px;
-          font-size: 0.72rem;
+          border-radius: 13px;
+          padding: 8px;
         }
 
         .closedRow span {
-          color: #2df5d5;
-          font-size: 0.7rem;
+          font-size: 0.6rem;
           font-weight: 900;
           text-align: right;
+        }
+
+        @media (max-width: 700px) {
+          .liveBoardPanel {
+            right: 10px;
+            left: 10px;
+            bottom: 10px;
+            width: auto;
+            height: min(420px, calc(100vh - 20px));
+          }
         }
       `}</style>
     </main>
