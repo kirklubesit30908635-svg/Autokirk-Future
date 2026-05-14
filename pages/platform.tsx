@@ -13,6 +13,14 @@ type CheckoutCreateResponse = { ok: true; id: string; url: string } | { ok: fals
 type CheckoutVerifyResponse =
   | { ok: true; paid: boolean; payment_status: string | null; customer_email: string | null }
   | { ok: false; error: string };
+type AccountLinkResponse =
+  | { ok: true; workspace_id: string; board_url: string; workspace_name: string | null }
+  | { ok: false; error: string; detail?: string };
+type LinkedAccountState =
+  | { state: "idle" }
+  | { state: "loading" }
+  | { state: "ready"; workspaceId: string; boardUrl: string; workspaceName: string | null }
+  | { state: "error"; message: string };
 type FirstObligationState =
   | { state: "idle" }
   | { state: "submitting" }
@@ -26,10 +34,6 @@ type FirstObligationForm = {
   operator_note: string;
 };
 type IntakeCommitResponse = { ok: true; result: unknown } | { ok: false; error: string; detail?: string };
-
-const PLATFORM_WORKSPACE_ID_FALLBACK = "88eecda6-80e4-4eb7-b890-4330674fa7a7";
-const platformWorkspaceId =
-  process.env.NEXT_PUBLIC_AUTOKIRK_PLATFORM_WORKSPACE_ID ?? PLATFORM_WORKSPACE_ID_FALLBACK;
 
 const steps = [
   ["Choose one workflow", "Pick one promise your business makes to a customer."],
@@ -76,17 +80,36 @@ function resetFirstForm(): FirstObligationForm {
 
 export default function PlatformPage() {
   const [checkout, setCheckout] = useState<CheckoutState>({ state: "idle" });
+  const [linkedAccount, setLinkedAccount] = useState<LinkedAccountState>({ state: "idle" });
   const [firstObligation, setFirstObligation] = useState<FirstObligationState>({ state: "idle" });
   const [firstForm, setFirstForm] = useState<FirstObligationForm>(resetFirstForm());
   const copy = useMemo(() => statusCopy(checkout), [checkout]);
   const obligationCopy = useMemo(() => firstObligationCopy(firstObligation), [firstObligation]);
-  const boardHref = `/board/${platformWorkspaceId}`;
+  const boardHref = linkedAccount.state === "ready" ? linkedAccount.boardUrl : "/platform";
+  const activeWorkspaceId = linkedAccount.state === "ready" ? linkedAccount.workspaceId : null;
+
+  async function loadLinkedAccount(accessToken?: string | null) {
+    setLinkedAccount({ state: "loading" });
+    try {
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (accessToken) headers.authorization = `Bearer ${accessToken}`;
+      const response = await fetch("/api/platform/account-link", { method: "POST", headers });
+      const body = (await response.json()) as AccountLinkResponse;
+      if (!response.ok || !body.ok) throw new Error(body.ok ? "Could not link board." : body.detail || body.error);
+      setLinkedAccount({ state: "ready", workspaceId: body.workspace_id, boardUrl: body.board_url, workspaceName: body.workspace_name });
+    } catch (err) {
+      setLinkedAccount({ state: "error", message: err instanceof Error ? err.message : "Could not link board." });
+    }
+  }
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get("session_id");
     if (params.get("checkout") === "cancelled") return setCheckout({ state: "cancelled" });
-    if (!sessionId) return;
+    if (!sessionId) {
+      void loadLinkedAccount(null);
+      return;
+    }
     let ignore = false;
     fetch(`/api/stripe/checkout-session?session_id=${encodeURIComponent(sessionId)}`)
       .then(async (response) => {
@@ -94,10 +117,13 @@ export default function PlatformPage() {
         if (!response.ok || !body.ok) throw new Error(body.ok ? "Stripe verification failed." : body.error);
         return body;
       })
-      .then((body) => {
+      .then(async (body) => {
         if (ignore) return;
         if (!body.paid) return setCheckout({ state: "error", message: `Stripe returned payment status: ${body.payment_status ?? "unknown"}.` });
         setCheckout({ state: "verified", email: body.customer_email, paymentStatus: body.payment_status });
+        const supabase = getSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        await loadLinkedAccount(session?.access_token ?? null);
       })
       .catch((err) => {
         if (!ignore) setCheckout({ state: "error", message: err instanceof Error ? err.message : "Stripe verification failed." });
@@ -128,12 +154,17 @@ export default function PlatformPage() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       if (sessionError) throw new Error(sessionError.message);
       if (!session?.access_token) throw new Error("Sign in before creating the first obligation.");
+      let workspaceId = activeWorkspaceId;
+      if (!workspaceId) {
+        await loadLinkedAccount(session.access_token);
+        throw new Error("Account link is being prepared. Tap create again after the link appears.");
+      }
       const sessionId = new URLSearchParams(window.location.search).get("session_id");
       const response = await fetch("/api/intake/commit", {
         method: "POST",
         headers: { authorization: `Bearer ${session.access_token}`, "content-type": "application/json" },
         body: JSON.stringify({
-          workspace_id: platformWorkspaceId,
+          workspace_id: workspaceId,
           candidate_ref: sessionId ? `platform-activation:${sessionId}` : `platform-activation:${Date.now()}`,
           obligation_code: "fulfill_promised_service",
           trigger_text: firstForm.trigger_text.trim(),
@@ -168,8 +199,9 @@ export default function PlatformPage() {
         <div className="actions"><button className="primary" type="button" onClick={checkout.state === "verified" ? undefined : startCheckout} disabled={checkout.state === "starting"}>{checkout.state === "verified" ? "Continue activation" : checkout.state === "starting" ? "Opening Stripe..." : "Activate AutoKirk"}</button><a className="secondary" href="#setup">See setup path</a></div>
       </section>
       <section className="card rule"><p className="eyebrow">The rule</p><strong>Important work should not be marked complete without proof.</strong></section>
-      {checkout.state === "verified" && <section className="card panel">
-        <div><div className="status"><span className={firstObligation.state === "created" ? "dot ready" : "dot"} /><strong>{obligationCopy.label}</strong><span>{obligationCopy.body}</span></div><p className="eyebrow">First obligation</p><h2>Create the first proof-gated workflow.</h2><p>Start with one real promise. AutoKirk will open it as an obligation and keep it visible until proof exists.</p>
+      {(checkout.state === "verified" || linkedAccount.state === "ready") && <section className="card panel">
+        <div><div className="status"><span className={linkedAccount.state === "ready" ? "dot ready" : "dot"} /><strong>{linkedAccount.state === "ready" ? "Account link ready" : "Linking account"}</strong><span>{linkedAccount.state === "ready" ? `${linkedAccount.workspaceName ?? "Personal board"} is attached to a safe board URL.` : linkedAccount.state === "error" ? linkedAccount.message : "Preparing a personal board link."}</span></div><p className="eyebrow">First obligation</p><h2>Create the first proof-gated workflow.</h2><p>Start with one real promise. AutoKirk will open it as an obligation and keep it visible until proof exists.</p>
+        {linkedAccount.state === "ready" && <div className="nextBox"><p className="eyebrow">Safe board URL</p><h3>Your system is attached to this board.</h3><p>The board link is signed and points to the workspace AutoKirk will write obligations into.</p><div className="actions compact"><a className="primary" href={boardHref}>Open live board</a><button className="secondary" type="button" onClick={() => navigator.clipboard?.writeText(boardHref)}>Copy board link</button></div></div>}
         {firstObligation.state === "created" && <div className="nextBox"><p className="eyebrow">Next step</p><h3>Go to the live board.</h3><p>The obligation is open. The board is the proof surface that shows what is owed, what needs proof, and what has closed.</p><div className="actions compact"><a className="primary" href={boardHref}>View live board</a><button className="secondary" type="button" onClick={createAnotherObligation}>Create another obligation</button></div></div>}
         </div>
         <form className="form" onSubmit={(event) => { event.preventDefault(); createFirstObligation(); }}>
@@ -178,7 +210,7 @@ export default function PlatformPage() {
           <label>When should AutoKirk care?<input required value={firstForm.trigger_anchor} onChange={(event) => setFirstForm((current) => ({ ...current, trigger_anchor: event.target.value }))} /></label>
           <label>Rule in plain English<textarea required value={firstForm.trigger_text} onChange={(event) => setFirstForm((current) => ({ ...current, trigger_text: event.target.value }))} /></label>
           <label>Operator note<textarea value={firstForm.operator_note} onChange={(event) => setFirstForm((current) => ({ ...current, operator_note: event.target.value }))} placeholder="Optional note for the operator view" /></label>
-          <button className="primary" type="submit" disabled={firstObligation.state === "submitting"}>{firstObligation.state === "submitting" ? "Creating obligation..." : firstObligation.state === "created" ? "Create another from this form" : "Create first obligation"}</button>
+          <button className="primary" type="submit" disabled={firstObligation.state === "submitting" || linkedAccount.state !== "ready"}>{firstObligation.state === "submitting" ? "Creating obligation..." : firstObligation.state === "created" ? "Create another from this form" : "Create first obligation"}</button>
           {firstObligation.state === "created" && <p className="success">First obligation created. It is now open and waiting for proof. Continue to the board to inspect it.</p>}
           {firstObligation.state === "error" && <p className="error">{firstObligation.message}</p>}
         </form>
