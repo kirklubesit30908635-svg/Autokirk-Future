@@ -4,6 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { serialize } from "cookie";
 
 import { mapBoardStatus, type BoardStatus } from "./status";
+import { supabaseUrl, verifyBoardToken } from "./signedBoardUrl";
 
 type LifecycleRow = {
   obligation_id: string;
@@ -65,7 +66,6 @@ export type TenantBoardResult =
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const SUPABASE_URL_FALLBACK = "https://aiuicbyufelqdeiwhmyi.supabase.co";
 
 export function createFallbackBoard(workspaceId: string): BoardViewModel {
   return {
@@ -111,6 +111,12 @@ function asString(value: string | null | undefined, fallback: string): string {
 
 function asNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
+}
+
+function queryToken(context: GetServerSidePropsContext): string | null {
+  const raw = context.query.key;
+  if (Array.isArray(raw)) return raw[0] ?? null;
+  return typeof raw === "string" ? raw : null;
 }
 
 function buildBoard(input: {
@@ -186,10 +192,7 @@ export async function getTenantBoard(
     return { kind: "not_found" };
   }
 
-  const url =
-    process.env.NEXT_PUBLIC_SUPABASE_URL ??
-    process.env.SUPABASE_URL ??
-    SUPABASE_URL_FALLBACK;
+  const url = supabaseUrl();
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? process.env.SUPABASE_ANON_KEY;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -216,6 +219,7 @@ export async function getTenantBoard(
     });
   }
 
+  const signedBoardAccess = verifyBoardToken(workspaceId, queryToken(context));
   const serviceSupabase = serviceRoleKey?.trim()
     ? createClient(url, serviceRoleKey, {
         auth: { persistSession: false, autoRefreshToken: false },
@@ -241,7 +245,7 @@ export async function getTenantBoard(
     }
   }
 
-  const readClient = canReadViaUser ? userSupabase : serviceSupabase;
+  const readClient = canReadViaUser ? userSupabase : signedBoardAccess ? serviceSupabase : null;
 
   if (!readClient) {
     return { kind: "forbidden" };
