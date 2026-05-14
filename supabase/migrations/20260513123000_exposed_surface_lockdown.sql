@@ -18,8 +18,19 @@ grant usage on schema api to authenticated;
 grant execute on all functions in schema api to authenticated;
 revoke execute on all functions in schema api from anon;
 
-revoke execute on function public.ingest_event_to_obligation(uuid, uuid, text, text, text, jsonb, timestamptz) from anon, authenticated;
-revoke execute on function public.record_watchdog_attempt(uuid, text, timestamptz) from anon, authenticated;
+-- Legacy public wrappers are absent in clean replay on some histories.
+-- PostgreSQL privilege changes on functions are signature-specific, so guard these optional revokes.
+do $$
+begin
+    if to_regprocedure('public.ingest_event_to_obligation(uuid, uuid, text, text, text, jsonb, timestamptz)') is not null then
+        revoke execute on function public.ingest_event_to_obligation(uuid, uuid, text, text, text, jsonb, timestamptz) from anon, authenticated;
+    end if;
+
+    if to_regprocedure('public.record_watchdog_attempt(uuid, text, timestamptz)') is not null then
+        revoke execute on function public.record_watchdog_attempt(uuid, text, timestamptz) from anon, authenticated;
+    end if;
+end;
+$$;
 
 -- Trigger functions are still invoked by table triggers and do not need direct browser EXECUTE grants.
 comment on schema kernel is 'Internal governed kernel. Browser roles must not execute kernel functions directly.';
