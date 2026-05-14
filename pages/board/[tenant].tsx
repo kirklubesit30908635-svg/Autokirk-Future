@@ -1,7 +1,7 @@
 import Head from "next/head";
 import type { GetServerSideProps, InferGetServerSidePropsType } from "next";
 
-import { CustomerBoard } from "../../components/board/CustomerBoard";
+import { LiveBoardWindow } from "../../components/board/LiveBoardWindow";
 import {
   getTenantBoard,
   type BoardViewModel,
@@ -38,13 +38,14 @@ export default function TenantBoardPage({
   return (
     <>
       <Head>
-        <title>AutoKirk Future Tenant-scoped board</title>
+        <title>AutoKirk Live Board</title>
         <meta
           name="description"
-          content="Read-only tenant-scoped board for obligations, receipts, and system activity."
+          content="Compact live obligation board attached to an active system."
         />
+        <meta name="theme-color" content="#030303" />
       </Head>
-      <CustomerBoard board={board} />
+      <LiveBoardWindow board={board} />
     </>
   );
 }
