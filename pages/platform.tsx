@@ -27,6 +27,10 @@ type FirstObligationForm = {
 };
 type IntakeCommitResponse = { ok: true; result: unknown } | { ok: false; error: string; detail?: string };
 
+const PLATFORM_WORKSPACE_ID_FALLBACK = "88eecda6-80e4-4eb7-b890-4330674fa7a7";
+const platformWorkspaceId =
+  process.env.NEXT_PUBLIC_AUTOKIRK_PLATFORM_WORKSPACE_ID ?? PLATFORM_WORKSPACE_ID_FALLBACK;
+
 const steps = [
   ["Choose one workflow", "Pick one promise your business makes to a customer."],
   ["Set the proof rule", "Define the evidence required before that work can close."],
@@ -60,18 +64,23 @@ function getSupabaseBrowserClient() {
   return createClient(supabaseUrl, supabaseAnonKey);
 }
 
-export default function PlatformPage() {
-  const [checkout, setCheckout] = useState<CheckoutState>({ state: "idle" });
-  const [firstObligation, setFirstObligation] = useState<FirstObligationState>({ state: "idle" });
-  const [firstForm, setFirstForm] = useState<FirstObligationForm>({
+function resetFirstForm(): FirstObligationForm {
+  return {
     object_anchor: "first customer workflow",
     action_anchor: "complete promised work",
     trigger_anchor: "activation started",
     trigger_text: "Customer activated AutoKirk and defined the first proof-gated workflow.",
     operator_note: "",
-  });
+  };
+}
+
+export default function PlatformPage() {
+  const [checkout, setCheckout] = useState<CheckoutState>({ state: "idle" });
+  const [firstObligation, setFirstObligation] = useState<FirstObligationState>({ state: "idle" });
+  const [firstForm, setFirstForm] = useState<FirstObligationForm>(resetFirstForm());
   const copy = useMemo(() => statusCopy(checkout), [checkout]);
   const obligationCopy = useMemo(() => firstObligationCopy(firstObligation), [firstObligation]);
+  const boardHref = `/board/${platformWorkspaceId}`;
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -124,6 +133,7 @@ export default function PlatformPage() {
         method: "POST",
         headers: { authorization: `Bearer ${session.access_token}`, "content-type": "application/json" },
         body: JSON.stringify({
+          workspace_id: platformWorkspaceId,
           candidate_ref: sessionId ? `platform-activation:${sessionId}` : `platform-activation:${Date.now()}`,
           obligation_code: "fulfill_promised_service",
           trigger_text: firstForm.trigger_text.trim(),
@@ -142,6 +152,11 @@ export default function PlatformPage() {
     }
   }
 
+  function createAnotherObligation() {
+    setFirstObligation({ state: "idle" });
+    setFirstForm(resetFirstForm());
+  }
+
   return <>
     <Head><title>AutoKirk Platform</title><meta name="description" content="Start with one workflow. AutoKirk keeps important work from being marked complete until the right proof exists." /></Head>
     <main className="shell">
@@ -154,15 +169,17 @@ export default function PlatformPage() {
       </section>
       <section className="card rule"><p className="eyebrow">The rule</p><strong>Important work should not be marked complete without proof.</strong></section>
       {checkout.state === "verified" && <section className="card panel">
-        <div><div className="status"><span className={firstObligation.state === "created" ? "dot ready" : "dot"} /><strong>{obligationCopy.label}</strong><span>{obligationCopy.body}</span></div><p className="eyebrow">First obligation</p><h2>Create the first proof-gated workflow.</h2><p>Start with one real promise. AutoKirk will open it as an obligation and keep it visible until proof exists.</p></div>
+        <div><div className="status"><span className={firstObligation.state === "created" ? "dot ready" : "dot"} /><strong>{obligationCopy.label}</strong><span>{obligationCopy.body}</span></div><p className="eyebrow">First obligation</p><h2>Create the first proof-gated workflow.</h2><p>Start with one real promise. AutoKirk will open it as an obligation and keep it visible until proof exists.</p>
+        {firstObligation.state === "created" && <div className="nextBox"><p className="eyebrow">Next step</p><h3>Go to the live board.</h3><p>The obligation is open. The board is the proof surface that shows what is owed, what needs proof, and what has closed.</p><div className="actions compact"><a className="primary" href={boardHref}>View live board</a><button className="secondary" type="button" onClick={createAnotherObligation}>Create another obligation</button></div></div>}
+        </div>
         <form className="form" onSubmit={(event) => { event.preventDefault(); createFirstObligation(); }}>
           <label>What work must be completed?<input required value={firstForm.object_anchor} onChange={(event) => setFirstForm((current) => ({ ...current, object_anchor: event.target.value }))} /></label>
           <label>What action proves progress?<input required value={firstForm.action_anchor} onChange={(event) => setFirstForm((current) => ({ ...current, action_anchor: event.target.value }))} /></label>
           <label>When should AutoKirk care?<input required value={firstForm.trigger_anchor} onChange={(event) => setFirstForm((current) => ({ ...current, trigger_anchor: event.target.value }))} /></label>
           <label>Rule in plain English<textarea required value={firstForm.trigger_text} onChange={(event) => setFirstForm((current) => ({ ...current, trigger_text: event.target.value }))} /></label>
           <label>Operator note<textarea value={firstForm.operator_note} onChange={(event) => setFirstForm((current) => ({ ...current, operator_note: event.target.value }))} placeholder="Optional note for the operator view" /></label>
-          <button className="primary" type="submit" disabled={firstObligation.state === "submitting"}>{firstObligation.state === "submitting" ? "Creating obligation..." : "Create first obligation"}</button>
-          {firstObligation.state === "created" && <p className="success">First obligation created. It is now open and waiting for proof.</p>}
+          <button className="primary" type="submit" disabled={firstObligation.state === "submitting"}>{firstObligation.state === "submitting" ? "Creating obligation..." : firstObligation.state === "created" ? "Create another from this form" : "Create first obligation"}</button>
+          {firstObligation.state === "created" && <p className="success">First obligation created. It is now open and waiting for proof. Continue to the board to inspect it.</p>}
           {firstObligation.state === "error" && <p className="error">{firstObligation.message}</p>}
         </form>
       </section>}
@@ -170,7 +187,7 @@ export default function PlatformPage() {
       <section className="card panel"><div><p className="eyebrow">Operating view</p><h2>AutoKirk shows what is open, ready, or exposed.</h2><p>Any system can create the signal. AutoKirk governs the obligation, the proof path, and the receipt-backed closeout.</p></div><div className="grid">{states.map(([label, body]) => <article key={label} className="mini"><h3>{label}</h3><p>{body}</p></article>)}</div></section>
     </main>
     <style jsx>{`
-      .shell{min-height:100vh;padding:24px 12px 40px;color:#f4f4f5;background:radial-gradient(circle at 50% -10%,rgba(16,163,127,.14),transparent 34rem),#070a0f}.card{width:min(1080px,100%);margin:0 auto 14px;border:1px solid rgba(255,255,255,.09);border-radius:30px;background:linear-gradient(180deg,rgba(17,22,29,.97),rgba(9,12,17,.96));box-shadow:0 24px 80px rgba(0,0,0,.44);padding:clamp(22px,3vw,34px)}.hero{min-height:520px;display:grid;align-content:center;padding:clamp(32px,5vw,64px)}.status{width:fit-content;max-width:100%;display:flex;align-items:center;gap:9px;margin-bottom:22px;border:1px solid rgba(16,163,127,.24);border-radius:999px;padding:8px 12px;color:#d7f9ee;background:rgba(16,163,127,.08);font-size:.86rem}.status span:last-child{color:#b6c2c9}.dot{width:8px;height:8px;border-radius:999px;background:#10a37f;box-shadow:0 0 18px rgba(16,163,127,.7)}.ready{background:#22c55e}.eyebrow{margin:0 0 12px;color:#9ca3af;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}h1,h2,h3,p{margin:0}h1{max-width:880px;font-size:clamp(3rem,7vw,5.85rem);line-height:.98;letter-spacing:-.064em}h2,.rule strong{max-width:760px;font-size:clamp(1.65rem,3.2vw,2.85rem);line-height:1.1;letter-spacing:-.044em;display:block}.lede{max-width:760px;margin-top:22px;color:#e4e4e7;font-size:clamp(1.08rem,2.1vw,1.35rem);line-height:1.48}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}.primary,.secondary{display:inline-flex;min-height:48px;align-items:center;justify-content:center;border-radius:999px;padding:0 20px;border:0;font:inherit;font-weight:900;text-decoration:none;cursor:pointer}.primary{color:#06130f;background:#10a37f}.secondary{border:1px solid rgba(255,255,255,.16);color:#f4f4f5;background:rgba(255,255,255,.025)}.panel{display:grid;grid-template-columns:minmax(0,.95fr) minmax(320px,1.05fr);gap:18px;align-items:start}.panel p,.mini p{color:#a1a1aa;line-height:1.5}.list,.grid,.form{display:grid;gap:10px}.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mini{border:1px solid rgba(255,255,255,.08);border-radius:20px;background:rgba(18,23,30,.74);padding:16px}.mini span{color:#10a37f;font-size:.78rem;font-weight:900;letter-spacing:.08em}.form label{display:grid;gap:7px;color:#d4d4d8;font-size:.9rem;font-weight:800}.form input,.form textarea{width:100%;border:1px solid rgba(255,255,255,.11);border-radius:16px;background:rgba(255,255,255,.04);color:#f4f4f5;padding:13px 14px;font:inherit}.form textarea{min-height:96px;resize:vertical}.success{color:#86efac!important;font-weight:800}.error{color:#fca5a5!important;font-weight:800}@media(max-width:900px){.shell{padding:16px 8px 32px}.card{border-radius:22px}.hero{min-height:auto;padding:28px 20px}.panel,.grid{grid-template-columns:1fr}.primary,.secondary{width:100%}}
+      .shell{min-height:100vh;padding:24px 12px 40px;color:#f4f4f5;background:radial-gradient(circle at 50% -10%,rgba(16,163,127,.14),transparent 34rem),#070a0f}.card{width:min(1080px,100%);margin:0 auto 14px;border:1px solid rgba(255,255,255,.09);border-radius:30px;background:linear-gradient(180deg,rgba(17,22,29,.97),rgba(9,12,17,.96));box-shadow:0 24px 80px rgba(0,0,0,.44);padding:clamp(22px,3vw,34px)}.hero{min-height:520px;display:grid;align-content:center;padding:clamp(32px,5vw,64px)}.status{width:fit-content;max-width:100%;display:flex;align-items:center;gap:9px;margin-bottom:22px;border:1px solid rgba(16,163,127,.24);border-radius:999px;padding:8px 12px;color:#d7f9ee;background:rgba(16,163,127,.08);font-size:.86rem}.status span:last-child{color:#b6c2c9}.dot{width:8px;height:8px;border-radius:999px;background:#10a37f;box-shadow:0 0 18px rgba(16,163,127,.7)}.ready{background:#22c55e}.eyebrow{margin:0 0 12px;color:#9ca3af;font-size:.78rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}h1,h2,h3,p{margin:0}h1{max-width:880px;font-size:clamp(3rem,7vw,5.85rem);line-height:.98;letter-spacing:-.064em}h2,.rule strong{max-width:760px;font-size:clamp(1.65rem,3.2vw,2.85rem);line-height:1.1;letter-spacing:-.044em;display:block}.lede{max-width:760px;margin-top:22px;color:#e4e4e7;font-size:clamp(1.08rem,2.1vw,1.35rem);line-height:1.48}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}.actions.compact{margin-top:16px}.primary,.secondary{display:inline-flex;min-height:48px;align-items:center;justify-content:center;border-radius:999px;padding:0 20px;border:0;font:inherit;font-weight:900;text-decoration:none;cursor:pointer}.primary{color:#06130f;background:#10a37f}.secondary{border:1px solid rgba(255,255,255,.16);color:#f4f4f5;background:rgba(255,255,255,.025)}.panel{display:grid;grid-template-columns:minmax(0,.95fr) minmax(320px,1.05fr);gap:18px;align-items:start}.panel p,.mini p,.nextBox p{color:#a1a1aa;line-height:1.5}.list,.grid,.form{display:grid;gap:10px}.grid{grid-template-columns:repeat(3,minmax(0,1fr))}.mini,.nextBox{border:1px solid rgba(255,255,255,.08);border-radius:20px;background:rgba(18,23,30,.74);padding:16px}.nextBox{margin-top:18px;background:rgba(16,163,127,.06);border-color:rgba(16,163,127,.24)}.mini span{color:#10a37f;font-size:.78rem;font-weight:900;letter-spacing:.08em}.form label{display:grid;gap:7px;color:#d4d4d8;font-size:.9rem;font-weight:800}.form input,.form textarea{width:100%;border:1px solid rgba(255,255,255,.11);border-radius:16px;background:rgba(255,255,255,.04);color:#f4f4f5;padding:13px 14px;font:inherit}.form textarea{min-height:96px;resize:vertical}.success{color:#86efac!important;font-weight:800}.error{color:#fca5a5!important;font-weight:800}@media(max-width:900px){.shell{padding:16px 8px 32px}.card{border-radius:22px}.hero{min-height:auto;padding:28px 20px}.panel,.grid{grid-template-columns:1fr}.primary,.secondary{width:100%}}
     `}</style>
   </>;
 }
