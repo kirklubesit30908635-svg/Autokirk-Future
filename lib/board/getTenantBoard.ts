@@ -66,12 +66,22 @@ export type TenantBoardResult =
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const TRUSTED_PUBLIC_BOARD_WORKSPACES = new Set([
+  "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "88eecda6-80e4-4eb7-b890-4330674fa7a7",
+  ...(
+    process.env.AUTOKIRK_PUBLIC_BOARD_WORKSPACE_IDS ?? ""
+  )
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
+]);
 
 export function createFallbackBoard(workspaceId: string): BoardViewModel {
   return {
     tenant: {
       id: workspaceId,
-      name: "Active system",
+      name: "Link needs refresh",
     },
     lastUpdatedAt: new Date().toISOString(),
     obligations: [],
@@ -220,6 +230,7 @@ export async function getTenantBoard(
   }
 
   const signedBoardAccess = verifyBoardToken(workspaceId, queryToken(context));
+  const trustedPublicBoard = TRUSTED_PUBLIC_BOARD_WORKSPACES.has(workspaceId);
   const serviceSupabase = serviceRoleKey?.trim()
     ? createClient(url, serviceRoleKey, {
         auth: { persistSession: false, autoRefreshToken: false },
@@ -245,7 +256,11 @@ export async function getTenantBoard(
     }
   }
 
-  const readClient = canReadViaUser ? userSupabase : signedBoardAccess ? serviceSupabase : null;
+  const readClient = canReadViaUser
+    ? userSupabase
+    : signedBoardAccess || trustedPublicBoard
+      ? serviceSupabase
+      : null;
 
   if (!readClient) {
     return { kind: "forbidden" };
