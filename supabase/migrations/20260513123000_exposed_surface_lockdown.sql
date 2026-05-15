@@ -35,4 +35,12 @@ $$;
 -- Trigger functions are still invoked by table triggers and do not need direct browser EXECUTE grants.
 comment on schema kernel is 'Internal governed kernel. Browser roles must not execute kernel functions directly.';
 comment on schema ledger is 'Internal append-only ledger and chain functions. Browser roles must not execute ledger functions directly.';
-comment on table core.proof_contracts is 'Proof contract reference data. RLS enabled as part of launch surface lockdown.';
+
+-- core.proof_contracts is absent in some clean-replay histories, so keep the optional table comment guarded.
+do $$
+begin
+    if to_regclass('core.proof_contracts') is not null then
+        comment on table core.proof_contracts is 'Proof contract reference data. RLS enabled as part of launch surface lockdown.';
+    end if;
+end;
+$$;
