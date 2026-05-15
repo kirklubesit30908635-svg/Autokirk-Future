@@ -39,6 +39,10 @@ function statusLabel(item: BoardObligation): string {
   return item.status.toLowerCase();
 }
 
+function obligationSummary(item: BoardObligation): string {
+  return item.description ?? item.subjectLabel ?? "Select to inspect this work before closing it.";
+}
+
 function calculateIntegrityScore(
   obligations: BoardObligation[],
   receipts: BoardReceipt[]
@@ -94,6 +98,17 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
   function checkForNewWork() {
     setRefreshing(true);
     window.setTimeout(() => location.reload(), 240);
+  }
+
+  function selectObligation(item: BoardObligation) {
+    setResolveOpen(true);
+    setShowClosed(false);
+    setResolveState((current) => ({
+      ...current,
+      obligationId: item.id,
+      status: "idle",
+      message: "",
+    }));
   }
 
   async function submitResolution() {
@@ -182,7 +197,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
             <div className="blockHead">
               <div>
                 <p className="eyebrow">Waiting on proof</p>
-                <h2>Work that cannot close yet</h2>
+                <h2>Select work to inspect it</h2>
               </div>
               <button type="button" className="tinyButton" onClick={checkForNewWork}>
                 {refreshing ? "Checking..." : "Check for new work"}
@@ -196,20 +211,13 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                     key={item.id}
                     type="button"
                     className={`obligationRow ${item.id === selectedObligation?.id ? "selected" : ""}`}
-                    onClick={() => {
-                      setResolveOpen(true);
-                      setShowClosed(false);
-                      setResolveState((current) => ({
-                        ...current,
-                        obligationId: item.id,
-                        status: "idle",
-                        message: "",
-                      }));
-                    }}
+                    onClick={() => selectObligation(item)}
+                    aria-pressed={item.id === selectedObligation?.id}
                   >
                     <span>
-                      <strong>{item.obligationCode}</strong>
-                      <small>{shorten(item.id)} · {item.proofStatus ?? "proof pending"}</small>
+                      <strong>{item.subjectLabel ?? item.obligationCode}</strong>
+                      <small>{item.obligationCode} · {shorten(item.id)}</small>
+                      <p>{obligationSummary(item)}</p>
                     </span>
                     <em>{statusLabel(item)}</em>
                   </button>
@@ -232,16 +240,37 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                 setShowClosed(false);
               }}
             >
-              <span>Close with proof</span>
-              <strong>{selectedObligation ? "ready" : "none"}</strong>
+              <span>{selectedObligation ? "Resolve selected" : "Close with proof"}</span>
+              <strong>{selectedObligation ? "open" : "none"}</strong>
             </button>
             {resolveOpen ? (
               <div className="drawer">
                 {selectedObligation ? (
                   <>
-                    <div className="selectedLine">
-                      <strong>{selectedObligation.obligationCode}</strong>
-                      <span>{shorten(selectedObligation.id)}</span>
+                    <div className="selectedCard">
+                      <div className="selectedLine">
+                        <strong>{selectedObligation.subjectLabel ?? selectedObligation.obligationCode}</strong>
+                        <span>{shorten(selectedObligation.id)}</span>
+                      </div>
+                      <p>{obligationSummary(selectedObligation)}</p>
+                      <dl>
+                        <div>
+                          <dt>Obligation</dt>
+                          <dd>{selectedObligation.obligationCode}</dd>
+                        </div>
+                        {selectedObligation.proofRequired ? (
+                          <div>
+                            <dt>Proof required</dt>
+                            <dd>{selectedObligation.proofRequired}</dd>
+                          </div>
+                        ) : null}
+                        {selectedObligation.sourceLabel ? (
+                          <div>
+                            <dt>Source</dt>
+                            <dd>{selectedObligation.sourceLabel}</dd>
+                          </div>
+                        ) : null}
+                      </dl>
                     </div>
                     <label>
                       Proof note
@@ -296,8 +325,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                     return (
                       <article key={item.id} className="closedRow">
                         <div>
-                          <strong>{item.obligationCode}</strong>
-                          <p>{shorten(item.id)} · {formatTime(receipt?.sealedAt ?? null)}</p>
+                          <strong>{item.subjectLabel ?? item.obligationCode}</strong>
+                          <p>{item.obligationCode} · {formatTime(receipt?.sealedAt ?? null)}</p>
                         </div>
                         <span>{shorten(receipt?.hash)}</span>
                       </article>
@@ -325,8 +354,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           right: 18px;
           bottom: 18px;
           z-index: 2147483000;
-          width: min(360px, calc(100vw - 28px));
-          height: min(430px, calc(100vh - 36px));
+          width: min(380px, calc(100vw - 28px));
+          height: min(520px, calc(100vh - 36px));
           pointer-events: auto;
           border: 1px solid #2b2b2b;
           border-radius: 22px;
@@ -349,7 +378,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           font-size: 1rem;
           line-height: 1.05;
           letter-spacing: -0.04em;
-          max-width: 205px;
+          max-width: 220px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -408,7 +437,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .block,
         .emptyBox,
         .obligationRow,
-        .closedRow {
+        .closedRow,
+        .selectedCard {
           border: 1px solid #242424;
           background: #0b0b0b;
         }
@@ -503,12 +533,12 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
 
         .obligationRow {
           width: 100%;
-          display: flex;
-          justify-content: space-between;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
           align-items: center;
           gap: 8px;
           border-radius: 13px;
-          padding: 8px;
+          padding: 9px;
           color: #f5f5f5;
           text-align: left;
         }
@@ -538,6 +568,18 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           line-height: 1.3;
         }
 
+        .obligationRow p,
+        .selectedCard p {
+          margin-top: 5px;
+          color: #c9c9c9;
+          font-size: 0.66rem;
+          line-height: 1.28;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
         .obligationRow em {
           flex: 0 0 auto;
           color: #2df5d5;
@@ -548,6 +590,38 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           font-size: 0.54rem;
           font-weight: 950;
           text-align: center;
+        }
+
+        .selectedCard {
+          border-radius: 13px;
+          padding: 10px;
+        }
+
+        dl {
+          display: grid;
+          gap: 7px;
+          margin: 10px 0 0;
+        }
+
+        dl div {
+          display: grid;
+          gap: 2px;
+        }
+
+        dt {
+          color: #8e8e8e;
+          font-size: 0.52rem;
+          font-weight: 950;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+        }
+
+        dd {
+          margin: 0;
+          color: #f5f5f5;
+          font-size: 0.68rem;
+          line-height: 1.25;
+          font-weight: 800;
         }
 
         .emptyBox {
@@ -643,7 +717,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
             left: 10px;
             bottom: 10px;
             width: auto;
-            height: min(420px, calc(100vh - 20px));
+            height: min(520px, calc(100vh - 20px));
           }
         }
       `}</style>
