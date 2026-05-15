@@ -30,6 +30,80 @@ export function HomeValueCycle() {
         </div>
       </section>
 
+      <section className="exampleCard" aria-labelledby="field-example-title">
+        <div className="sectionHeader">
+          <p className="eyebrow">Example: revenue leak prevention</p>
+          <h2 id="field-example-title">Extra work should not disappear before it is billed, rejected, or explained.</h2>
+          <p>On a jobsite, important work can start in a conversation, text, daily report, work order, or field note. AutoKirk keeps that work visible until the right proof exists and the closing decision has a record.</p>
+        </div>
+        <div className="exampleScenario">
+          <article className="exampleStory">
+            <p className="eyebrow">What happens</p>
+            <h3>A GC asks the crew to stay late for extra work.</h3>
+            <p>Labor is burned. Photos are taken. The work gets done. But the signed ticket, billing note, or follow-up work order never reaches the closeout path.</p>
+            <p>AutoKirk opens a proof-required item so the extra work cannot silently disappear.</p>
+          </article>
+          <article className="exampleProof">
+            <p className="eyebrow">Required proof</p>
+            <ul>
+              <li>Who requested the work</li>
+              <li>Foreman note or daily report reference</li>
+              <li>Labor hours or crew impact</li>
+              <li>Photo, ticket, approval, or work order link</li>
+              <li>Final disposition: billed, rejected, escalated, or failed</li>
+            </ul>
+          </article>
+        </div>
+        <div className="exampleFlow" aria-label="Proof-backed closeout example">
+          <span>GC request</span>
+          <span>Extra work performed</span>
+          <span>Proof attached</span>
+          <span>Billing confirmed</span>
+          <span>Closed with a record</span>
+        </div>
+        <div className="exampleOutcome">
+          <strong>AutoKirk keeps field-created revenue open until proof exists.</strong>
+          <p>Your tools keep running. AutoKirk governs whether the work is ready to close.</p>
+        </div>
+      </section>
+
+      <section className="exampleCard" aria-labelledby="operations-example-title">
+        <div className="sectionHeader">
+          <p className="eyebrow">Example: high-volume operations</p>
+          <h2 id="operations-example-title">A promise, charge, or follow-up should not disappear just because the main system says done.</h2>
+          <p>AutoKirk is not vertical software. This is one example of proof-gated closure infrastructure working beside existing tools. In a dealership operation, important work can start in a repair order, deal note, customer message, service visit, parts request, finance note, or internal handoff.</p>
+        </div>
+        <div className="exampleScenario">
+          <article className="exampleStory">
+            <p className="eyebrow">What happens</p>
+            <h3>The vehicle is delivered, but the obligation is not actually closed.</h3>
+            <p>A customer was promised an accessory, a warranty follow-up, a service callback, a parts update, or a corrected charge. The sale or repair order may look complete, but the promise still needs proof, billing, rejection, escalation, or failure.</p>
+            <p>AutoKirk keeps that item visible until the right proof exists and the closing decision has a record.</p>
+          </article>
+          <article className="exampleProof">
+            <p className="eyebrow">Required proof</p>
+            <ul>
+              <li>Who created the promise, request, charge, or follow-up</li>
+              <li>Deal note, repair order, service note, customer message, or parts reference</li>
+              <li>Photo, approval, invoice line, warranty note, or signed acknowledgement</li>
+              <li>Customer follow-up status</li>
+              <li>Final disposition: completed, billed, rejected, escalated, or failed</li>
+            </ul>
+          </article>
+        </div>
+        <div className="exampleFlow" aria-label="Proof-backed high-volume operations closeout example">
+          <span>Promise or charge created</span>
+          <span>Main work marked done</span>
+          <span>Proof checked</span>
+          <span>Disposition confirmed</span>
+          <span>Closed with a record</span>
+        </div>
+        <div className="exampleOutcome">
+          <strong>AutoKirk keeps important work visible until proof exists.</strong>
+          <p>The existing DMS, CRM, service, and accounting tools keep running. AutoKirk governs whether the work is actually ready to close.</p>
+        </div>
+      </section>
+
       <section className="proofStatesCard" aria-labelledby="states-title">
         <div className="sectionHeader compactHeader">
           <p className="eyebrow">Live board states</p>
