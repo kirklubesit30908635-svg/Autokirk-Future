@@ -65,11 +65,19 @@ function validate(form: FormState): string | null {
   return null;
 }
 
-function getSupabaseBrowserClient() {
+function maybeSupabaseBrowserClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !key) throw new Error("SIGN_IN_NOT_READY");
+  if (!url || !key) return null;
   return createClient(url, key);
+}
+
+async function currentAccessToken(): Promise<string | null> {
+  const supabase = maybeSupabaseBrowserClient();
+  if (!supabase) return null;
+  const { data, error } = await supabase.auth.getSession();
+  if (error) return null;
+  return data.session?.access_token ?? null;
 }
 
 function popupUrl(url: string): string {
@@ -111,7 +119,7 @@ export default function CustomerReadyPlatform() {
   }
 
   useEffect(() => {
-    void loadAccount(null);
+    void currentAccessToken().then((token) => loadAccount(token));
   }, []);
 
   async function startCheckout() {
@@ -136,14 +144,13 @@ export default function CustomerReadyPlatform() {
       const issue = validate(form);
       if (issue) throw new Error(issue);
       if (account.state !== "ready") throw new Error("Account is still loading.");
-      const supabase = getSupabaseBrowserClient();
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) throw new Error(error.message);
-      if (!session?.access_token) throw new Error("Sign in before connecting work.");
+      const accessToken = await currentAccessToken();
+      const headers: Record<string, string> = { "content-type": "application/json" };
+      if (accessToken) headers.authorization = `Bearer ${accessToken}`;
 
       const response = await fetch("/api/customer/connection-link", {
         method: "POST",
-        headers: { authorization: `Bearer ${session.access_token}`, "content-type": "application/json" },
+        headers,
         body: JSON.stringify({
           workspace_id: account.workspaceId,
           watched_work: clean(form.watchedWork),
