@@ -25,15 +25,17 @@ function shorten(value: string | null | undefined): string {
 }
 
 function formatTime(value: string | null): string {
-  if (!value) return "not sealed";
+  if (!value) return "not recorded";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return date.toLocaleString();
 }
 
 function statusLabel(item: BoardObligation): string {
-  if (item.status === "Overdue — System Acting") return "overdue";
-  if (item.status === "Needs Proof") return "proof";
+  if (item.status === "Overdue — System Acting") return "needs attention";
+  if (item.status === "Needs Proof") return "waiting";
+  if (item.status === "Failed") return "needs attention";
+  if (item.status === "Ready") return "ready to prove";
   return item.status.toLowerCase();
 }
 
@@ -68,8 +70,13 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     () => board.obligations.filter((item) => item.status === "Sealed"),
     [board.obligations]
   );
+  const needsAttentionCount = useMemo(
+    () => activeObligations.filter((item) => item.status === "Failed" || item.status === "Overdue — System Acting").length,
+    [activeObligations]
+  );
   const [showClosed, setShowClosed] = useState(false);
   const [resolveOpen, setResolveOpen] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [resolveState, setResolveState] = useState<ResolveState>(() => ({
     obligationId: activeObligations[0]?.id ?? "",
     proofNote: "",
@@ -84,12 +91,17 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     null;
   const integrityScore = calculateIntegrityScore(board.obligations, board.receipts);
 
+  function checkForNewWork() {
+    setRefreshing(true);
+    window.setTimeout(() => location.reload(), 240);
+  }
+
   async function submitResolution() {
     if (!selectedObligation) {
       setResolveState((current) => ({
         ...current,
         status: "error",
-        message: "No active obligation selected.",
+        message: "Select work that is waiting on proof.",
       }));
       return;
     }
@@ -98,7 +110,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
       setResolveState((current) => ({
         ...current,
         status: "error",
-        message: "Add proof before resolving.",
+        message: "Add proof before closing.",
       }));
       return;
     }
@@ -106,7 +118,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     setResolveState((current) => ({
       ...current,
       status: "submitting",
-      message: "Submitting proof...",
+      message: "Checking proof...",
     }));
 
     try {
@@ -117,36 +129,36 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           obligation_id: selectedObligation.id,
           proof_note: resolveState.proofNote,
           proof_photo_url: resolveState.proofUrl.trim() || undefined,
-          reason: "operator resolved from live board panel",
+          reason: "operator closed from live board panel",
         }),
       });
       const body = await response.json();
 
       if (!response.ok || !body?.ok) {
-        throw new Error(body?.error ?? "RESOLUTION_FAILED");
+        throw new Error(body?.error ?? "CLOSE_WITH_PROOF_FAILED");
       }
 
       setResolveState((current) => ({
         ...current,
         status: "done",
-        message: "Resolved. Refresh to verify receipt.",
+        message: "Closed with proof. Refresh proof history to verify the record.",
       }));
     } catch (error) {
       setResolveState((current) => ({
         ...current,
         status: "error",
-        message: error instanceof Error ? error.message : "Resolution failed.",
+        message: error instanceof Error ? error.message : "Close with proof failed.",
       }));
     }
   }
 
   return (
     <main className="liveBoardShell">
-      <section className="liveBoardPanel" aria-label="AutoKirk live board attached panel">
+      <section className="liveBoardPanel" aria-label="AutoKirk live proof board">
         <header className="panelTop">
           <div>
-            <p className="eyebrow">AutoKirk live</p>
-            <h1>{board.tenant.name ?? "Active system"}</h1>
+            <p className="eyebrow">Live proof board</p>
+            <h1>{board.tenant.name ?? "Watching work from your system"}</h1>
           </div>
           <div className="score" aria-label={`Integrity score ${integrityScore}`}>
             <strong>{integrityScore}</strong>
@@ -155,25 +167,25 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         </header>
 
         <section className="stats" aria-label="Board state summary">
-          <article><strong>{activeObligations.length}</strong><span>active</span></article>
-          <article><strong>{board.receipts.length}</strong><span>closed</span></article>
-          <article><strong>{board.systemActivity.overdueCount}</strong><span>exposed</span></article>
+          <article><strong>{activeObligations.length}</strong><span>waiting</span></article>
+          <article><strong>{board.receipts.length}</strong><span>proven</span></article>
+          <article><strong>{needsAttentionCount}</strong><span>attention</span></article>
         </section>
 
         <div className="scrollArea">
           <section className="rule">
             <span>proof rule</span>
-            <p>Work cannot close until proof exists.</p>
+            <p>Work stays open until the right proof exists.</p>
           </section>
 
           <section className="block">
             <div className="blockHead">
               <div>
-                <p className="eyebrow">Active obligations</p>
-                <h2>Still open</h2>
+                <p className="eyebrow">Waiting on proof</p>
+                <h2>Work that cannot close yet</h2>
               </div>
-              <button type="button" className="tinyButton" onClick={() => location.reload()}>
-                refresh
+              <button type="button" className="tinyButton" onClick={checkForNewWork}>
+                {refreshing ? "Checking..." : "Check for new work"}
               </button>
             </div>
 
@@ -205,8 +217,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
               </div>
             ) : (
               <div className="emptyBox">
-                <strong>No active obligations.</strong>
-                <p>Create one from the linked system.</p>
+                <strong>Nothing waiting on proof.</strong>
+                <p>New work from your connected system will appear here.</p>
               </div>
             )}
           </section>
@@ -220,8 +232,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                 setShowClosed(false);
               }}
             >
-              <span>Resolve selected</span>
-              <strong>{selectedObligation ? "open" : "none"}</strong>
+              <span>Close with proof</span>
+              <strong>{selectedObligation ? "ready" : "none"}</strong>
             </button>
             {resolveOpen ? (
               <div className="drawer">
@@ -236,7 +248,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                       <textarea
                         value={resolveState.proofNote}
                         onChange={(event) => setResolveState((current) => ({ ...current, proofNote: event.target.value, status: "idle", message: "" }))}
-                        placeholder="What proof closes this?"
+                        placeholder="What proof shows this is complete?"
                       />
                     </label>
                     <label>
@@ -253,12 +265,12 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                       disabled={resolveState.status === "submitting"}
                       onClick={submitResolution}
                     >
-                      {resolveState.status === "submitting" ? "Resolving..." : "Resolve with proof"}
+                      {resolveState.status === "submitting" ? "Closing with proof..." : "Close with proof"}
                     </button>
                     {resolveState.message ? <p className="message">{resolveState.message}</p> : null}
                   </>
                 ) : (
-                  <div className="emptyBox"><strong>Nothing selected.</strong><p>Select an active obligation.</p></div>
+                  <div className="emptyBox"><strong>Nothing selected.</strong><p>Choose work that is waiting on proof.</p></div>
                 )}
               </div>
             ) : null}
@@ -273,7 +285,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                 setResolveOpen(false);
               }}
             >
-              <span>Look up closed</span>
+              <span>Proof history</span>
               <strong>{closedObligations.length}</strong>
             </button>
             {showClosed ? (
@@ -292,7 +304,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                     );
                   })
                 ) : (
-                  <div className="emptyBox"><strong>No closed obligations.</strong><p>Receipts appear here after resolution.</p></div>
+                  <div className="emptyBox"><strong>No proof history yet.</strong><p>Completed work will appear here after it closes with proof.</p></div>
                 )}
               </div>
             ) : null}
@@ -477,8 +489,9 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           border-radius: 999px;
           background: #060606;
           padding: 6px 8px;
-          font-size: 0.62rem;
+          font-size: 0.58rem;
           font-weight: 900;
+          white-space: nowrap;
         }
 
         .obligationList,
