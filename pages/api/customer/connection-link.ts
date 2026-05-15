@@ -17,6 +17,12 @@ type ConnectionLinkBody = {
   source_type?: string | null;
 };
 
+type SupabaseServiceClient = ReturnType<typeof createClient> & {
+  schema(schema: string): {
+    from(table: string): any;
+  };
+};
+
 const DEFAULT_WORKSPACE_ID = "88eecda6-80e4-4eb7-b890-4330674fa7a7";
 
 function clean(value: unknown): string {
@@ -28,14 +34,14 @@ function codeFromLabel(value: string): string {
   return code || "client_proof_rule";
 }
 
-function serviceClient() {
+function serviceClient(): SupabaseServiceClient {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key?.trim()) throw new Error("SUPABASE_SERVICE_ROLE_KEY_REQUIRED");
-  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } }) as SupabaseServiceClient;
 }
 
 async function actorForConnection(input: {
-  supabase: ReturnType<typeof createClient>;
+  supabase: SupabaseServiceClient;
   accessToken: string | null;
   workspaceId: string;
 }): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string; detail?: string }> {
