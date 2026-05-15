@@ -94,6 +94,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     activeObligations[0] ??
     null;
   const integrityScore = calculateIntegrityScore(board.obligations, board.receipts);
+  const boardTitle = board.tenant.name ?? "Active system";
 
   function checkForNewWork() {
     setRefreshing(true);
@@ -171,9 +172,9 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     <main className="liveBoardShell">
       <section className="liveBoardPanel" aria-label="AutoKirk live proof board">
         <header className="panelTop">
-          <div>
-            <p className="eyebrow">Live proof board</p>
-            <h1>{board.tenant.name ?? "Watching work from your system"}</h1>
+          <div className="titleBlock">
+            <p className="eyebrow">AutoKirk live</p>
+            <h1 className="boardTitle" title={boardTitle}>{boardTitle}</h1>
           </div>
           <div className="score" aria-label={`Integrity score ${integrityScore}`}>
             <strong>{integrityScore}</strong>
@@ -200,7 +201,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                 <h2>Select work to inspect it</h2>
               </div>
               <button type="button" className="tinyButton" onClick={checkForNewWork}>
-                {refreshing ? "Checking..." : "Check for new work"}
+                {refreshing ? "Checking..." : "Check"}
               </button>
             </div>
 
@@ -216,7 +217,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                   >
                     <span>
                       <strong>{item.subjectLabel ?? item.obligationCode}</strong>
-                      <small>{item.obligationCode} · {shorten(item.id)}</small>
+                      <small>{item.obligationCode} - {shorten(item.id)}</small>
                       <p>{obligationSummary(item)}</p>
                     </span>
                     <em>{statusLabel(item)}</em>
@@ -326,7 +327,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                       <article key={item.id} className="closedRow">
                         <div>
                           <strong>{item.subjectLabel ?? item.obligationCode}</strong>
-                          <p>{item.obligationCode} · {formatTime(receipt?.sealedAt ?? null)}</p>
+                          <p>{item.obligationCode} - {formatTime(receipt?.sealedAt ?? null)}</p>
                         </div>
                         <span>{shorten(receipt?.hash)}</span>
                       </article>
@@ -351,16 +352,16 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
 
         .liveBoardPanel {
           position: fixed;
-          right: 18px;
-          bottom: 18px;
+          right: 14px;
+          bottom: 14px;
           z-index: 2147483000;
-          width: min(380px, calc(100vw - 28px));
-          height: min(520px, calc(100vh - 36px));
+          width: min(340px, calc(100vw - 24px));
+          height: min(456px, calc(100vh - 28px));
           pointer-events: auto;
           border: 1px solid #2b2b2b;
-          border-radius: 22px;
+          border-radius: 18px;
           background: linear-gradient(180deg, #101010, #050505);
-          box-shadow: 0 28px 92px rgba(0, 0, 0, 0.76);
+          box-shadow: 0 24px 78px rgba(0, 0, 0, 0.76);
           overflow: hidden;
         }
 
@@ -368,24 +369,27 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          gap: 10px;
-          padding: 14px 14px 8px;
+          gap: 8px;
+          padding: 12px 12px 7px;
         }
+
+        .titleBlock { min-width: 0; }
 
         h1, h2, p { margin: 0; }
 
-        h1 {
-          font-size: 1rem;
+        .boardTitle {
+          color: #f5f5f5;
+          font-size: 0.92rem;
           line-height: 1.05;
-          letter-spacing: -0.04em;
-          max-width: 220px;
+          letter-spacing: -0.035em;
+          max-width: 198px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
         h2 {
-          font-size: 0.86rem;
+          font-size: 0.8rem;
           letter-spacing: -0.03em;
         }
 
@@ -393,25 +397,25 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           color: #8e8e8e;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          font-size: 0.56rem;
+          font-size: 0.52rem;
           font-weight: 900;
-          margin-bottom: 5px;
+          margin-bottom: 4px;
         }
 
         .score {
           flex: 0 0 auto;
-          min-width: 58px;
+          min-width: 52px;
           border: 1px solid rgba(45, 245, 213, 0.5);
-          border-radius: 16px;
-          padding: 7px 8px;
+          border-radius: 14px;
+          padding: 6px 7px;
           text-align: center;
-          box-shadow: 0 0 22px rgba(45, 245, 213, 0.12);
+          box-shadow: 0 0 18px rgba(45, 245, 213, 0.12);
         }
 
         .score strong {
           display: block;
           color: #2df5d5;
-          font-size: 1.1rem;
+          font-size: 1rem;
           line-height: 1;
         }
 
@@ -419,7 +423,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           display: block;
           margin-top: 3px;
           color: #b8b8b8;
-          font-size: 0.48rem;
+          font-size: 0.44rem;
           font-weight: 900;
           letter-spacing: 0.08em;
           text-transform: uppercase;
@@ -428,8 +432,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .stats {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 6px;
-          padding: 0 10px 8px;
+          gap: 5px;
+          padding: 0 9px 7px;
         }
 
         .stats article,
@@ -444,14 +448,14 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         }
 
         .stats article {
-          border-radius: 14px;
-          padding: 8px;
+          border-radius: 12px;
+          padding: 7px;
         }
 
         .stats strong {
           display: block;
           color: #2df5d5;
-          font-size: 1rem;
+          font-size: 0.95rem;
           line-height: 1;
         }
 
@@ -459,16 +463,16 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           display: block;
           margin-top: 4px;
           color: #9a9a9a;
-          font-size: 0.55rem;
+          font-size: 0.5rem;
           font-weight: 900;
           letter-spacing: 0.08em;
           text-transform: uppercase;
         }
 
         .scrollArea {
-          height: calc(100% - 112px);
+          height: calc(100% - 96px);
           overflow-y: auto;
-          padding: 0 10px 10px;
+          padding: 0 9px 9px;
         }
 
         .scrollArea::-webkit-scrollbar { width: 6px; }
@@ -476,14 +480,14 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
 
         .rule,
         .block {
-          border-radius: 16px;
-          padding: 10px;
-          margin-bottom: 8px;
+          border-radius: 14px;
+          padding: 9px;
+          margin-bottom: 7px;
         }
 
         .rule span {
           color: #2df5d5;
-          font-size: 0.55rem;
+          font-size: 0.52rem;
           font-weight: 950;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -494,7 +498,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           color: #f5f5f5;
           font-weight: 900;
           line-height: 1.15;
-          font-size: 0.83rem;
+          font-size: 0.78rem;
         }
 
         .blockHead,
@@ -518,8 +522,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           border: 1px solid #2b2b2b;
           border-radius: 999px;
           background: #060606;
-          padding: 6px 8px;
-          font-size: 0.58rem;
+          padding: 5px 7px;
+          font-size: 0.55rem;
           font-weight: 900;
           white-space: nowrap;
         }
@@ -537,8 +541,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           grid-template-columns: minmax(0, 1fr) auto;
           align-items: center;
           gap: 8px;
-          border-radius: 13px;
-          padding: 9px;
+          border-radius: 12px;
+          padding: 8px;
           color: #f5f5f5;
           text-align: left;
         }
@@ -554,7 +558,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .selectedLine strong {
           display: block;
           color: #f5f5f5;
-          font-size: 0.77rem;
+          font-size: 0.73rem;
           line-height: 1.2;
         }
 
@@ -564,7 +568,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .message,
         label {
           color: #9a9a9a;
-          font-size: 0.64rem;
+          font-size: 0.6rem;
           line-height: 1.3;
         }
 
@@ -572,7 +576,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .selectedCard p {
           margin-top: 5px;
           color: #c9c9c9;
-          font-size: 0.66rem;
+          font-size: 0.62rem;
           line-height: 1.28;
           display: -webkit-box;
           -webkit-line-clamp: 2;
@@ -587,20 +591,20 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           border-radius: 999px;
           padding: 4px 6px;
           font-style: normal;
-          font-size: 0.54rem;
+          font-size: 0.5rem;
           font-weight: 950;
           text-align: center;
         }
 
         .selectedCard {
-          border-radius: 13px;
-          padding: 10px;
+          border-radius: 12px;
+          padding: 9px;
         }
 
         dl {
           display: grid;
           gap: 7px;
-          margin: 10px 0 0;
+          margin: 9px 0 0;
         }
 
         dl div {
@@ -610,7 +614,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
 
         dt {
           color: #8e8e8e;
-          font-size: 0.52rem;
+          font-size: 0.5rem;
           font-weight: 950;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -619,20 +623,20 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         dd {
           margin: 0;
           color: #f5f5f5;
-          font-size: 0.68rem;
+          font-size: 0.64rem;
           line-height: 1.25;
           font-weight: 800;
         }
 
         .emptyBox {
-          border-radius: 13px;
-          padding: 10px;
+          border-radius: 12px;
+          padding: 9px;
           margin-top: 8px;
         }
 
         .wideToggle {
           width: 100%;
-          min-height: 36px;
+          min-height: 34px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -642,7 +646,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           border: 1px solid #2c2c2c;
           border-radius: 999px;
           padding: 0 10px;
-          font-size: 0.76rem;
+          font-size: 0.72rem;
           font-weight: 950;
         }
 
@@ -664,11 +668,11 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         input {
           width: 100%;
           border: 1px solid #2c2c2c;
-          border-radius: 12px;
+          border-radius: 11px;
           background: #050505;
           color: #f5f5f5;
           font: inherit;
-          font-size: 0.76rem;
+          font-size: 0.72rem;
           padding: 8px;
           outline: none;
         }
@@ -680,13 +684,13 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         }
 
         textarea {
-          min-height: 58px;
+          min-height: 54px;
           resize: vertical;
         }
 
         .primaryButton {
           width: 100%;
-          min-height: 36px;
+          min-height: 34px;
           border: 0;
           border-radius: 999px;
           color: #020202;
@@ -701,24 +705,26 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           justify-content: space-between;
           gap: 8px;
           align-items: center;
-          border-radius: 13px;
+          border-radius: 12px;
           padding: 8px;
         }
 
         .closedRow span {
-          font-size: 0.6rem;
+          font-size: 0.56rem;
           font-weight: 900;
           text-align: right;
         }
 
         @media (max-width: 700px) {
           .liveBoardPanel {
-            right: 10px;
-            left: 10px;
-            bottom: 10px;
+            right: 8px;
+            left: 8px;
+            bottom: 8px;
             width: auto;
-            height: min(520px, calc(100vh - 20px));
+            height: min(456px, calc(100vh - 16px));
           }
+
+          .boardTitle { max-width: calc(100vw - 136px); }
         }
       `}</style>
     </main>
