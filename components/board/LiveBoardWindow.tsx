@@ -173,8 +173,9 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
       <section className="liveBoardPanel" aria-label="AutoKirk live proof board">
         <header className="panelTop">
           <div className="titleBlock">
-            <p className="eyebrow">AutoKirk live</p>
+            <p className="eyebrow">AutoKirk live board</p>
             <h1 className="boardTitle" title={boardTitle}>{boardTitle}</h1>
+            <p className="subcopy">Work stays open until the right proof exists.</p>
           </div>
           <div className="score" aria-label={`Integrity score ${integrityScore}`}>
             <strong>{integrityScore}</strong>
@@ -188,20 +189,15 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           <article><strong>{needsAttentionCount}</strong><span>attention</span></article>
         </section>
 
-        <div className="scrollArea">
-          <section className="rule">
-            <span>proof rule</span>
-            <p>Work stays open until the right proof exists.</p>
-          </section>
-
-          <section className="block">
+        <div className="boardGrid">
+          <section className="block workBlock">
             <div className="blockHead">
               <div>
                 <p className="eyebrow">Waiting on proof</p>
                 <h2>Select work to inspect it</h2>
               </div>
               <button type="button" className="tinyButton" onClick={checkForNewWork}>
-                {refreshing ? "Checking..." : "Check"}
+                {refreshing ? "Checking..." : "Check for new work"}
               </button>
             </div>
 
@@ -232,113 +228,120 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
             )}
           </section>
 
-          <section className="block">
-            <button
-              type="button"
-              className="wideToggle"
-              onClick={() => {
-                setResolveOpen((value) => !value);
-                setShowClosed(false);
-              }}
-            >
-              <span>{selectedObligation ? "Resolve selected" : "Close with proof"}</span>
-              <strong>{selectedObligation ? "open" : "none"}</strong>
-            </button>
-            {resolveOpen ? (
-              <div className="drawer">
-                {selectedObligation ? (
-                  <>
-                    <div className="selectedCard">
-                      <div className="selectedLine">
-                        <strong>{selectedObligation.subjectLabel ?? selectedObligation.obligationCode}</strong>
-                        <span>{shorten(selectedObligation.id)}</span>
-                      </div>
-                      <p>{obligationSummary(selectedObligation)}</p>
-                      <dl>
-                        <div>
-                          <dt>Obligation</dt>
-                          <dd>{selectedObligation.obligationCode}</dd>
-                        </div>
-                        {selectedObligation.proofRequired ? (
-                          <div>
-                            <dt>Proof required</dt>
-                            <dd>{selectedObligation.proofRequired}</dd>
-                          </div>
-                        ) : null}
-                        {selectedObligation.sourceLabel ? (
-                          <div>
-                            <dt>Source</dt>
-                            <dd>{selectedObligation.sourceLabel}</dd>
-                          </div>
-                        ) : null}
-                      </dl>
-                    </div>
-                    <label>
-                      Proof note
-                      <textarea
-                        value={resolveState.proofNote}
-                        onChange={(event) => setResolveState((current) => ({ ...current, proofNote: event.target.value, status: "idle", message: "" }))}
-                        placeholder="What proof shows this is complete?"
-                      />
-                    </label>
-                    <label>
-                      Proof link
-                      <input
-                        value={resolveState.proofUrl}
-                        onChange={(event) => setResolveState((current) => ({ ...current, proofUrl: event.target.value, status: "idle", message: "" }))}
-                        placeholder="https://..."
-                      />
-                    </label>
-                    <button
-                      type="button"
-                      className="primaryButton"
-                      disabled={resolveState.status === "submitting"}
-                      onClick={submitResolution}
-                    >
-                      {resolveState.status === "submitting" ? "Closing with proof..." : "Close with proof"}
-                    </button>
-                    {resolveState.message ? <p className="message">{resolveState.message}</p> : null}
-                  </>
-                ) : (
-                  <div className="emptyBox"><strong>Nothing selected.</strong><p>Choose work that is waiting on proof.</p></div>
-                )}
-              </div>
-            ) : null}
-          </section>
+          <aside className="sideStack">
+            <section className="block rule">
+              <span>proof rule</span>
+              <p>Work stays open until the right proof exists.</p>
+            </section>
 
-          <section className="block">
-            <button
-              type="button"
-              className="wideToggle"
-              onClick={() => {
-                setShowClosed((value) => !value);
-                setResolveOpen(false);
-              }}
-            >
-              <span>Proof history</span>
-              <strong>{closedObligations.length}</strong>
-            </button>
-            {showClosed ? (
-              <div className="drawer">
-                {closedObligations.length > 0 ? (
-                  closedObligations.slice(0, 8).map((item) => {
-                    const receipt = board.receipts.find((entry) => entry.obligationId === item.id);
-                    return (
-                      <article key={item.id} className="closedRow">
-                        <div>
-                          <strong>{item.subjectLabel ?? item.obligationCode}</strong>
-                          <p>{item.obligationCode} - {formatTime(receipt?.sealedAt ?? null)}</p>
+            <section className="block">
+              <button
+                type="button"
+                className="wideToggle"
+                onClick={() => {
+                  setResolveOpen((value) => !value);
+                  setShowClosed(false);
+                }}
+              >
+                <span>{selectedObligation ? "Resolve selected" : "Close with proof"}</span>
+                <strong>{selectedObligation ? "open" : "none"}</strong>
+              </button>
+              {resolveOpen ? (
+                <div className="drawer">
+                  {selectedObligation ? (
+                    <>
+                      <div className="selectedCard">
+                        <div className="selectedLine">
+                          <strong>{selectedObligation.subjectLabel ?? selectedObligation.obligationCode}</strong>
+                          <span>{shorten(selectedObligation.id)}</span>
                         </div>
-                        <span>{shorten(receipt?.hash)}</span>
-                      </article>
-                    );
-                  })
-                ) : (
-                  <div className="emptyBox"><strong>No proof history yet.</strong><p>Completed work will appear here after it closes with proof.</p></div>
-                )}
-              </div>
-            ) : null}
-          </section>
+                        <p>{obligationSummary(selectedObligation)}</p>
+                        <dl>
+                          <div>
+                            <dt>Obligation</dt>
+                            <dd>{selectedObligation.obligationCode}</dd>
+                          </div>
+                          {selectedObligation.proofRequired ? (
+                            <div>
+                              <dt>Proof required</dt>
+                              <dd>{selectedObligation.proofRequired}</dd>
+                            </div>
+                          ) : null}
+                          {selectedObligation.sourceLabel ? (
+                            <div>
+                              <dt>Source</dt>
+                              <dd>{selectedObligation.sourceLabel}</dd>
+                            </div>
+                          ) : null}
+                        </dl>
+                      </div>
+                      <label>
+                        Proof note
+                        <textarea
+                          value={resolveState.proofNote}
+                          onChange={(event) => setResolveState((current) => ({ ...current, proofNote: event.target.value, status: "idle", message: "" }))}
+                          placeholder="What proof shows this is complete?"
+                        />
+                      </label>
+                      <label>
+                        Proof link
+                        <input
+                          value={resolveState.proofUrl}
+                          onChange={(event) => setResolveState((current) => ({ ...current, proofUrl: event.target.value, status: "idle", message: "" }))}
+                          placeholder="https://..."
+                        />
+                      </label>
+                      <button
+                        type="button"
+                        className="primaryButton"
+                        disabled={resolveState.status === "submitting"}
+                        onClick={submitResolution}
+                      >
+                        {resolveState.status === "submitting" ? "Closing with proof..." : "Close with proof"}
+                      </button>
+                      {resolveState.message ? <p className="message">{resolveState.message}</p> : null}
+                    </>
+                  ) : (
+                    <div className="emptyBox"><strong>Nothing selected.</strong><p>Choose work that is waiting on proof.</p></div>
+                  )}
+                </div>
+              ) : null}
+            </section>
+
+            <section className="block">
+              <button
+                type="button"
+                className="wideToggle"
+                onClick={() => {
+                  setShowClosed((value) => !value);
+                  setResolveOpen(false);
+                }}
+              >
+                <span>Proof history</span>
+                <strong>{closedObligations.length}</strong>
+              </button>
+              {showClosed ? (
+                <div className="drawer">
+                  {closedObligations.length > 0 ? (
+                    closedObligations.slice(0, 8).map((item) => {
+                      const receipt = board.receipts.find((entry) => entry.obligationId === item.id);
+                      return (
+                        <article key={item.id} className="closedRow">
+                          <div>
+                            <strong>{item.subjectLabel ?? item.obligationCode}</strong>
+                            <p>{item.obligationCode} - {formatTime(receipt?.sealedAt ?? null)}</p>
+                          </div>
+                          <span>{shorten(receipt?.hash)}</span>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="emptyBox"><strong>No proof history yet.</strong><p>Completed work will appear here after it closes with proof.</p></div>
+                  )}
+                </div>
+              ) : null}
+            </section>
+          </aside>
         </div>
       </section>
 
@@ -346,22 +349,20 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .liveBoardShell {
           min-height: 100vh;
           color: #f5f5f5;
-          background: transparent;
-          pointer-events: none;
+          background:
+            radial-gradient(circle at 15% 0%, rgba(45, 245, 213, 0.14), transparent 34rem),
+            linear-gradient(180deg, #071013, #030303 56%);
+          padding: 20px;
         }
 
         .liveBoardPanel {
-          position: fixed;
-          right: 14px;
-          bottom: 14px;
-          z-index: 2147483000;
-          width: min(340px, calc(100vw - 24px));
-          height: min(456px, calc(100vh - 28px));
-          pointer-events: auto;
+          width: min(1180px, 100%);
+          min-height: calc(100vh - 40px);
+          margin: 0 auto;
           border: 1px solid #2b2b2b;
-          border-radius: 18px;
-          background: linear-gradient(180deg, #101010, #050505);
-          box-shadow: 0 24px 78px rgba(0, 0, 0, 0.76);
+          border-radius: 30px;
+          background: linear-gradient(180deg, rgba(16, 16, 16, 0.96), rgba(5, 5, 5, 0.98));
+          box-shadow: 0 28px 92px rgba(0, 0, 0, 0.76);
           overflow: hidden;
         }
 
@@ -369,8 +370,9 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          gap: 8px;
-          padding: 12px 12px 7px;
+          gap: 18px;
+          padding: clamp(24px, 4vw, 46px);
+          border-bottom: 1px solid #242424;
         }
 
         .titleBlock { min-width: 0; }
@@ -379,61 +381,65 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
 
         .boardTitle {
           color: #f5f5f5;
-          font-size: 0.92rem;
-          line-height: 1.05;
-          letter-spacing: -0.035em;
-          max-width: 198px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
+          font-size: clamp(2.7rem, 7vw, 5.6rem);
+          line-height: 0.94;
+          letter-spacing: -0.07em;
+          max-width: 860px;
+        }
+
+        .subcopy {
+          margin-top: 14px;
+          color: #a7a7a7;
+          font-size: clamp(1rem, 2vw, 1.35rem);
+          line-height: 1.4;
         }
 
         h2 {
-          font-size: 0.8rem;
-          letter-spacing: -0.03em;
+          font-size: clamp(1.3rem, 2.4vw, 2rem);
+          letter-spacing: -0.04em;
         }
 
         .eyebrow {
           color: #8e8e8e;
           letter-spacing: 0.12em;
           text-transform: uppercase;
-          font-size: 0.52rem;
+          font-size: 0.72rem;
           font-weight: 900;
-          margin-bottom: 4px;
+          margin-bottom: 8px;
         }
 
         .score {
           flex: 0 0 auto;
-          min-width: 52px;
+          min-width: 112px;
           border: 1px solid rgba(45, 245, 213, 0.5);
-          border-radius: 14px;
-          padding: 6px 7px;
+          border-radius: 24px;
+          padding: 16px 18px;
           text-align: center;
-          box-shadow: 0 0 18px rgba(45, 245, 213, 0.12);
+          box-shadow: 0 0 28px rgba(45, 245, 213, 0.13);
         }
 
         .score strong {
           display: block;
           color: #2df5d5;
-          font-size: 1rem;
+          font-size: 2rem;
           line-height: 1;
         }
 
         .score span {
           display: block;
-          margin-top: 3px;
+          margin-top: 6px;
           color: #b8b8b8;
-          font-size: 0.44rem;
+          font-size: 0.62rem;
           font-weight: 900;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.1em;
           text-transform: uppercase;
         }
 
         .stats {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 5px;
-          padding: 0 9px 7px;
+          gap: 12px;
+          padding: 18px clamp(20px, 4vw, 46px) 0;
         }
 
         .stats article,
@@ -448,57 +454,60 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         }
 
         .stats article {
-          border-radius: 12px;
-          padding: 7px;
+          border-radius: 20px;
+          padding: 18px;
         }
 
         .stats strong {
           display: block;
           color: #2df5d5;
-          font-size: 0.95rem;
+          font-size: 2rem;
           line-height: 1;
         }
 
         .stats span {
           display: block;
-          margin-top: 4px;
+          margin-top: 7px;
           color: #9a9a9a;
-          font-size: 0.5rem;
+          font-size: 0.72rem;
           font-weight: 900;
-          letter-spacing: 0.08em;
+          letter-spacing: 0.1em;
           text-transform: uppercase;
         }
 
-        .scrollArea {
-          height: calc(100% - 96px);
-          overflow-y: auto;
-          padding: 0 9px 9px;
+        .boardGrid {
+          display: grid;
+          grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.8fr);
+          gap: 16px;
+          padding: 18px clamp(20px, 4vw, 46px) clamp(24px, 4vw, 46px);
         }
 
-        .scrollArea::-webkit-scrollbar { width: 6px; }
-        .scrollArea::-webkit-scrollbar-thumb { background: #2c2c2c; border-radius: 999px; }
+        .sideStack {
+          display: grid;
+          align-content: start;
+          gap: 12px;
+        }
 
         .rule,
         .block {
-          border-radius: 14px;
-          padding: 9px;
-          margin-bottom: 7px;
+          border-radius: 22px;
+          padding: 18px;
         }
 
         .rule span {
           color: #2df5d5;
-          font-size: 0.52rem;
+          font-size: 0.72rem;
           font-weight: 950;
           letter-spacing: 0.1em;
           text-transform: uppercase;
         }
 
         .rule p {
-          margin-top: 4px;
+          margin-top: 8px;
           color: #f5f5f5;
           font-weight: 900;
           line-height: 1.15;
-          font-size: 0.78rem;
+          font-size: 1.15rem;
         }
 
         .blockHead,
@@ -506,7 +515,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          gap: 8px;
+          gap: 12px;
         }
 
         .tinyButton,
@@ -522,8 +531,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           border: 1px solid #2b2b2b;
           border-radius: 999px;
           background: #060606;
-          padding: 5px 7px;
-          font-size: 0.55rem;
+          padding: 9px 12px;
+          font-size: 0.72rem;
           font-weight: 900;
           white-space: nowrap;
         }
@@ -531,8 +540,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .obligationList,
         .drawer {
           display: grid;
-          gap: 6px;
-          margin-top: 8px;
+          gap: 10px;
+          margin-top: 16px;
         }
 
         .obligationRow {
@@ -540,9 +549,9 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           display: grid;
           grid-template-columns: minmax(0, 1fr) auto;
           align-items: center;
-          gap: 8px;
-          border-radius: 12px;
-          padding: 8px;
+          gap: 12px;
+          border-radius: 18px;
+          padding: 16px;
           color: #f5f5f5;
           text-align: left;
         }
@@ -558,7 +567,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .selectedLine strong {
           display: block;
           color: #f5f5f5;
-          font-size: 0.73rem;
+          font-size: 1rem;
           line-height: 1.2;
         }
 
@@ -568,20 +577,16 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .message,
         label {
           color: #9a9a9a;
-          font-size: 0.6rem;
-          line-height: 1.3;
+          font-size: 0.78rem;
+          line-height: 1.35;
         }
 
         .obligationRow p,
         .selectedCard p {
-          margin-top: 5px;
+          margin-top: 8px;
           color: #c9c9c9;
-          font-size: 0.62rem;
-          line-height: 1.28;
-          display: -webkit-box;
-          -webkit-line-clamp: 2;
-          -webkit-box-orient: vertical;
-          overflow: hidden;
+          font-size: 0.86rem;
+          line-height: 1.38;
         }
 
         .obligationRow em {
@@ -589,32 +594,32 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           color: #2df5d5;
           border: 1px solid rgba(45, 245, 213, 0.38);
           border-radius: 999px;
-          padding: 4px 6px;
+          padding: 7px 10px;
           font-style: normal;
-          font-size: 0.5rem;
+          font-size: 0.68rem;
           font-weight: 950;
           text-align: center;
         }
 
         .selectedCard {
-          border-radius: 12px;
-          padding: 9px;
+          border-radius: 18px;
+          padding: 14px;
         }
 
         dl {
           display: grid;
-          gap: 7px;
-          margin: 9px 0 0;
+          gap: 10px;
+          margin: 14px 0 0;
         }
 
         dl div {
           display: grid;
-          gap: 2px;
+          gap: 3px;
         }
 
         dt {
           color: #8e8e8e;
-          font-size: 0.5rem;
+          font-size: 0.62rem;
           font-weight: 950;
           letter-spacing: 0.1em;
           text-transform: uppercase;
@@ -623,20 +628,20 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         dd {
           margin: 0;
           color: #f5f5f5;
-          font-size: 0.64rem;
-          line-height: 1.25;
+          font-size: 0.86rem;
+          line-height: 1.3;
           font-weight: 800;
         }
 
         .emptyBox {
-          border-radius: 12px;
-          padding: 9px;
-          margin-top: 8px;
+          border-radius: 18px;
+          padding: 16px;
+          margin-top: 14px;
         }
 
         .wideToggle {
           width: 100%;
-          min-height: 34px;
+          min-height: 48px;
           display: flex;
           align-items: center;
           justify-content: space-between;
@@ -645,8 +650,8 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           background: #050505;
           border: 1px solid #2c2c2c;
           border-radius: 999px;
-          padding: 0 10px;
-          font-size: 0.72rem;
+          padding: 0 16px;
+          font-size: 0.95rem;
           font-weight: 950;
         }
 
@@ -658,7 +663,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
 
         label {
           display: grid;
-          gap: 5px;
+          gap: 7px;
           font-weight: 900;
           text-transform: uppercase;
           letter-spacing: 0.08em;
@@ -668,12 +673,12 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         input {
           width: 100%;
           border: 1px solid #2c2c2c;
-          border-radius: 11px;
+          border-radius: 14px;
           background: #050505;
           color: #f5f5f5;
           font: inherit;
-          font-size: 0.72rem;
-          padding: 8px;
+          font-size: 0.92rem;
+          padding: 12px;
           outline: none;
         }
 
@@ -684,13 +689,13 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         }
 
         textarea {
-          min-height: 54px;
+          min-height: 86px;
           resize: vertical;
         }
 
         .primaryButton {
           width: 100%;
-          min-height: 34px;
+          min-height: 48px;
           border: 0;
           border-radius: 999px;
           color: #020202;
@@ -703,28 +708,40 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         .closedRow {
           display: flex;
           justify-content: space-between;
-          gap: 8px;
+          gap: 12px;
           align-items: center;
-          border-radius: 12px;
-          padding: 8px;
+          border-radius: 18px;
+          padding: 14px;
         }
 
         .closedRow span {
-          font-size: 0.56rem;
+          font-size: 0.72rem;
           font-weight: 900;
           text-align: right;
         }
 
-        @media (max-width: 700px) {
+        @media (max-width: 860px) {
+          .liveBoardShell { padding: 10px; }
           .liveBoardPanel {
-            right: 8px;
-            left: 8px;
-            bottom: 8px;
-            width: auto;
-            height: min(456px, calc(100vh - 16px));
+            min-height: calc(100vh - 20px);
+            border-radius: 24px;
           }
-
-          .boardTitle { max-width: calc(100vw - 136px); }
+          .panelTop {
+            display: grid;
+            padding: 24px 18px 18px;
+          }
+          .boardTitle {
+            font-size: clamp(2.9rem, 16vw, 5rem);
+          }
+          .score {
+            justify-self: start;
+          }
+          .stats,
+          .boardGrid {
+            grid-template-columns: 1fr;
+            padding-left: 18px;
+            padding-right: 18px;
+          }
         }
       `}</style>
     </main>
