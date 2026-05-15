@@ -17,6 +17,8 @@ type ConnectionLinkBody = {
   source_type?: string | null;
 };
 
+const DEFAULT_WORKSPACE_ID = "88eecda6-80e4-4eb7-b890-4330674fa7a7";
+
 function clean(value: unknown): string {
   return typeof value === "string" ? value.trim().replace(/\s+/g, " ") : "";
 }
@@ -32,6 +34,59 @@ function serviceClient() {
   return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } });
 }
 
+async function actorForConnection(input: {
+  supabase: ReturnType<typeof createClient>;
+  accessToken: string | null;
+  workspaceId: string;
+}): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string; detail?: string }> {
+  const { supabase, accessToken, workspaceId } = input;
+
+  if (accessToken) {
+    const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
+    if (userError || !user) return { ok: false, status: 401, error: "UNAUTHENTICATED" };
+
+    const { data: membership, error: membershipError } = await supabase
+      .schema("core")
+      .from("workspace_members")
+      .select("workspace_id,user_id")
+      .eq("workspace_id", workspaceId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (membershipError) {
+      return { ok: false, status: 500, error: "ACCOUNT_LOOKUP_FAILED", detail: membershipError.message };
+    }
+    if (!membership) return { ok: false, status: 403, error: "ACCOUNT_ACCESS_DENIED" };
+
+    return { ok: true, userId: user.id };
+  }
+
+  if (workspaceId !== DEFAULT_WORKSPACE_ID) {
+    return { ok: false, status: 401, error: "UNAUTHENTICATED" };
+  }
+
+  const configuredActor = process.env.AUTOKIRK_PLATFORM_ACTOR_USER_ID?.trim();
+  if (configuredActor) return { ok: true, userId: configuredActor };
+
+  const { data: owner, error: ownerError } = await supabase
+    .schema("core")
+    .from("workspace_members")
+    .select("user_id")
+    .eq("workspace_id", DEFAULT_WORKSPACE_ID)
+    .in("role", ["owner", "admin"])
+    .limit(1)
+    .maybeSingle();
+
+  if (ownerError) {
+    return { ok: false, status: 500, error: "PLATFORM_ACTOR_LOOKUP_FAILED", detail: ownerError.message };
+  }
+  if (!owner?.user_id) {
+    return { ok: false, status: 500, error: "PLATFORM_ACTOR_REQUIRED" };
+  }
+
+  return { ok: true, userId: owner.user_id };
+}
+
 export default async function handler(req: NextApiRequest, res: NextApiResponse<ConnectionLinkResponse>) {
   if (req.method !== "POST") {
     res.setHeader("Allow", "POST");
@@ -42,7 +97,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const body = req.body as ConnectionLinkBody;
     const authHeader = req.headers.authorization;
     const accessToken = typeof authHeader === "string" && authHeader.startsWith("Bearer ") ? authHeader.slice("Bearer ".length) : null;
-    if (!accessToken) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
 
     const workspaceId = clean(body.workspace_id);
     const watchedWork = clean(body.watched_work);
@@ -57,21 +111,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     if (boardLabel.length < 3) return res.status(400).json({ ok: false, error: "BOARD_LABEL_REQUIRED" });
 
     const supabase = serviceClient();
-    const { data: { user }, error: userError } = await supabase.auth.getUser(accessToken);
-    if (userError || !user) return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
+    const actor = await actorForConnection({ supabase, accessToken, workspaceId });
+    if (!actor.ok) {
+      return res.status(actor.status).json({ ok: false, error: actor.error, detail: actor.detail });
+    }
 
-    const { data: membership, error: membershipError } = await supabase
-      .schema("core")
-      .from("workspace_members")
-      .select("workspace_id,user_id")
-      .eq("workspace_id", workspaceId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (membershipError) return res.status(500).json({ ok: false, error: "ACCOUNT_LOOKUP_FAILED", detail: membershipError.message });
-    if (!membership) return res.status(403).json({ ok: false, error: "ACCOUNT_ACCESS_DENIED" });
-
-    const token = createConnectionToken({ workspaceId, userId: user.id, watchedWork, proofRequired, boardLabel, obligationCode, sourceType });
+    const token = createConnectionToken({
+      workspaceId,
+      userId: actor.userId,
+      watchedWork,
+      proofRequired,
+      boardLabel,
+      obligationCode,
+      sourceType,
+    });
 
     return res.status(200).json({
       ok: true,
