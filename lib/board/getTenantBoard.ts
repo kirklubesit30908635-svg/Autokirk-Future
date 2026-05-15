@@ -17,6 +17,19 @@ type ObligationRow = {
   resolution_type: string | null;
 };
 
+type SourceEventRow = {
+  payload: unknown;
+  source_event_type: string | null;
+  occurred_at: string | null;
+};
+
+type ObligationSourceRow = {
+  obligation_id: string | null;
+  source_system: string | null;
+  source_event_key: string | null;
+  source_event: SourceEventRow | SourceEventRow[] | null;
+};
+
 type ReceiptRow = {
   id: string;
   obligation_id: string | null;
@@ -33,6 +46,9 @@ export type BoardObligation = {
   dueAt: string | null;
   proofStatus: string | null;
   openedAt: string | null;
+  description: string | null;
+  proofRequired: string | null;
+  sourceLabel: string | null;
 };
 
 export type BoardReceipt = {
@@ -120,6 +136,28 @@ function asNullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function sourceEventFrom(row: ObligationSourceRow | undefined): SourceEventRow | null {
+  if (!row?.source_event) return null;
+  return Array.isArray(row.source_event) ? row.source_event[0] ?? null : row.source_event;
+}
+
+function stringFromPath(payload: Record<string, unknown> | null, path: string[]): string | null {
+  let current: unknown = payload;
+  for (const part of path) {
+    const record = asRecord(current);
+    if (!record) return null;
+    current = record[part];
+  }
+
+  return asNullableString(current);
+}
+
 function queryToken(context: GetServerSidePropsContext): string | null {
   const raw = context.query.key;
   if (Array.isArray(raw)) return raw[0] ?? null;
@@ -129,6 +167,7 @@ function queryToken(context: GetServerSidePropsContext): string | null {
 function buildBoard(input: {
   workspace: { id: string; name: string | null };
   obligationRows: ObligationRow[];
+  sourceRows: ObligationSourceRow[];
   receiptRows: ReceiptRow[];
   now: Date;
 }): BoardViewModel {
@@ -137,22 +176,41 @@ function buildBoard(input: {
       .map((receipt) => receipt.obligation_id)
       .filter((value): value is string => typeof value === "string" && value.length > 0),
   );
+  const sourcesByObligationId = new Map(
+    input.sourceRows
+      .filter((row) => typeof row.obligation_id === "string")
+      .map((row) => [row.obligation_id as string, row]),
+  );
 
-  const obligations = input.obligationRows.map((row): BoardObligation => ({
-    id: row.id,
-    status: mapBoardStatus({
-      lifecycleState: row.status,
-      proofStatus: row.proof_status,
+  const obligations = input.obligationRows.map((row): BoardObligation => {
+    const sourceRow = sourcesByObligationId.get(row.id);
+    const sourceEvent = sourceEventFrom(sourceRow);
+    const payload = asRecord(sourceEvent?.payload);
+    const objectAnchor = stringFromPath(payload, ["anchors", "object"]);
+    const actionAnchor = stringFromPath(payload, ["anchors", "action"]);
+    const triggerAnchor = stringFromPath(payload, ["anchors", "trigger"]);
+    const triggerText = stringFromPath(payload, ["trigger_text"]);
+    const operatorNote = stringFromPath(payload, ["operator_note"]);
+
+    return {
+      id: row.id,
+      status: mapBoardStatus({
+        lifecycleState: row.status,
+        proofStatus: row.proof_status,
+        dueAt: row.due_at,
+        hasReceipt: receiptObligationIds.has(row.id),
+        now: input.now,
+      }),
+      obligationCode: asString(row.obligation_code, "UNSPECIFIED"),
+      subjectLabel: objectAnchor ?? asNullableString(row.entity_id),
       dueAt: row.due_at,
-      hasReceipt: receiptObligationIds.has(row.id),
-      now: input.now,
-    }),
-    obligationCode: asString(row.obligation_code, "UNSPECIFIED"),
-    subjectLabel: asNullableString(row.entity_id),
-    dueAt: row.due_at,
-    proofStatus: row.proof_status,
-    openedAt: row.created_at,
-  }));
+      proofStatus: row.proof_status,
+      openedAt: row.created_at,
+      description: triggerText ?? operatorNote ?? null,
+      proofRequired: actionAnchor,
+      sourceLabel: triggerAnchor ?? sourceRow?.source_system ?? null,
+    };
+  });
 
   const receipts = input.receiptRows.map((row): BoardReceipt => ({
     id: row.id,
@@ -281,7 +339,7 @@ export async function getTenantBoard(
     name: "Active system",
   };
 
-  const [obligationsResult, receiptsResult] = await Promise.all([
+  const [obligationsResult, sourceResult, receiptsResult] = await Promise.all([
     readClient
       .schema("core")
       .from("obligations")
@@ -292,6 +350,14 @@ export async function getTenantBoard(
       .order("created_at", { ascending: false })
       .limit(100),
     readClient
+      .schema("core")
+      .from("obligation_sources")
+      .select(
+        "obligation_id,source_system,source_event_key,source_event:source_event_id(payload,source_event_type,occurred_at)",
+      )
+      .eq("workspace_id", workspaceId)
+      .limit(100),
+    readClient
       .schema("receipts")
       .from("receipts")
       .select("id,obligation_id,emitted_at,receipt_hash,seq")
@@ -300,13 +366,14 @@ export async function getTenantBoard(
       .limit(100),
   ]);
 
-  if (obligationsResult.error || receiptsResult.error) {
+  if (obligationsResult.error || sourceResult.error || receiptsResult.error) {
     return { kind: "error" };
   }
 
   const board = buildBoard({
     workspace,
     obligationRows: (obligationsResult.data ?? []) as ObligationRow[],
+    sourceRows: (sourceResult.data ?? []) as ObligationSourceRow[],
     receiptRows: (receiptsResult.data ?? []) as ReceiptRow[],
     now: new Date(),
   });
