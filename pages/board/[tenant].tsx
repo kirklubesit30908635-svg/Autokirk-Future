@@ -14,6 +14,7 @@ type TenantBoardPageProps = {
 
 export const getServerSideProps: GetServerSideProps<TenantBoardPageProps> =
   async (context) => {
+    context.res.setHeader("Cache-Control", "no-store, max-age=0");
     const tenant = context.params?.tenant;
 
     if (typeof tenant !== "string") {
