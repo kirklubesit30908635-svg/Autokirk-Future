@@ -16,10 +16,30 @@ type OpsResponse =
     }
   | { ok: false; error: string; detail?: string };
 
-function serviceClient() {
+type SupabaseQueryResult = {
+  data: unknown[] | null;
+  error: { message: string } | null;
+};
+
+type SupabaseServiceClient = ReturnType<typeof createClient> & {
+  schema(schema: string): {
+    from(table: string): {
+      select(columns: string, options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }): Promise<{
+        count: number | null;
+        error: { message: string } | null;
+      }> & {
+        order(column: string, options?: { ascending?: boolean }): {
+          limit(count: number): Promise<SupabaseQueryResult>;
+        };
+      };
+    };
+  };
+};
+
+function serviceClient(): SupabaseServiceClient {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key?.trim()) throw new Error("SUPABASE_SERVICE_ROLE_KEY_REQUIRED");
-  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } }) as SupabaseServiceClient;
 }
 
 function opsKey(): string | null {
@@ -36,9 +56,13 @@ function authorized(req: NextApiRequest): boolean {
   return queryKey === expected || auth === expected;
 }
 
-async function countTable(supabase: ReturnType<typeof createClient>, schema: string, table: string): Promise<number | null> {
+async function countTable(supabase: SupabaseServiceClient, schema: string, table: string): Promise<number | null> {
   const { count } = await supabase.schema(schema).from(table).select("*", { count: "exact", head: true });
   return count ?? null;
+}
+
+function selectRows(supabase: SupabaseServiceClient, schema: string, table: string, columns: string, orderColumn: string): Promise<SupabaseQueryResult> {
+  return supabase.schema(schema).from(table).select(columns).order(orderColumn, { ascending: false }).limit(50);
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<OpsResponse>) {
@@ -75,30 +99,34 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     }
 
     const [connected, events, evaluations, rationales] = await Promise.all([
-      supabase
-        .schema("intake")
-        .from("connected_systems")
-        .select("id,workspace_id,source_type,connector_type,source_name,display_name,watched_work,proof_required,board_label,trust_level,requires_human_approval,allow_auto_resolution,status,last_seen_at,last_event_at,last_success_at,last_error_at,last_error,event_count,error_count,created_at")
-        .order("created_at", { ascending: false })
-        .limit(50),
-      supabase
-        .schema("intake")
-        .from("ingestion_events")
-        .select("id,connected_system_id,workspace_id,source_event_key,source_event_type,status,trust_level,agent_run_id,mcp_tool_name,workflow_chain,received_at,obligation_id,source_event_id,error")
-        .order("received_at", { ascending: false })
-        .limit(50),
-      supabase
-        .schema("proof_boundary")
-        .from("proof_evaluations")
-        .select("id,obligation_id,workspace_id,decision,evaluation_mode,rationale,cited_controls,required_follow_up,rule_version,idempotency_key,evaluated_at,claim_source_id,authority_boundary_id")
-        .order("evaluated_at", { ascending: false })
-        .limit(50),
-      supabase
-        .schema("proof_boundary")
-        .from("receipt_rationales")
-        .select("receipt_id,obligation_id,workspace_id,proof_evaluation_id,authority_decision,machine_rationale,emitted_at,claim_source_id,authority_boundary_id")
-        .order("emitted_at", { ascending: false })
-        .limit(50),
+      selectRows(
+        supabase,
+        "intake",
+        "connected_systems",
+        "id,workspace_id,source_type,connector_type,source_name,display_name,watched_work,proof_required,board_label,trust_level,requires_human_approval,allow_auto_resolution,status,last_seen_at,last_event_at,last_success_at,last_error_at,last_error,event_count,error_count,created_at",
+        "created_at"
+      ),
+      selectRows(
+        supabase,
+        "intake",
+        "ingestion_events",
+        "id,connected_system_id,workspace_id,source_event_key,source_event_type,status,trust_level,agent_run_id,mcp_tool_name,workflow_chain,received_at,obligation_id,source_event_id,error",
+        "received_at"
+      ),
+      selectRows(
+        supabase,
+        "proof_boundary",
+        "proof_evaluations",
+        "id,obligation_id,workspace_id,decision,evaluation_mode,rationale,cited_controls,required_follow_up,rule_version,idempotency_key,evaluated_at,claim_source_id,authority_boundary_id",
+        "evaluated_at"
+      ),
+      selectRows(
+        supabase,
+        "proof_boundary",
+        "receipt_rationales",
+        "receipt_id,obligation_id,workspace_id,proof_evaluation_id,authority_decision,machine_rationale,emitted_at,claim_source_id,authority_boundary_id",
+        "emitted_at"
+      ),
     ]);
 
     return res.status(200).json({
