@@ -4,7 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 import { serialize } from "cookie";
 import { createClient } from "@supabase/supabase-js";
 
-import { verifyBoardToken } from "../../../lib/board/signedBoardUrl";
+import { verifyProofActionToken } from "../../../lib/board/signedBoardUrl";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -93,6 +93,12 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
+function platformActorId(): string {
+  const actor = process.env.AUTOKIRK_PLATFORM_ACTOR_USER_ID?.trim();
+  if (!actor) throw new Error("AUTOKIRK_PLATFORM_ACTOR_USER_ID_REQUIRED");
+  return actor;
+}
+
 function buildIdempotencyKey(payload: {
   obligationId: string;
   proofNote: string;
@@ -104,26 +110,6 @@ function buildIdempotencyKey(payload: {
     .digest("hex");
 
   return `system-proof-board-${digest}`;
-}
-
-async function actorForSignedBoard(input: {
-  serviceSupabase: SupabaseServiceClient;
-  workspaceId: string;
-}): Promise<string | null> {
-  const configuredActor = process.env.AUTOKIRK_PLATFORM_ACTOR_USER_ID?.trim();
-  if (configuredActor) return configuredActor;
-
-  const { data: owner, error } = await input.serviceSupabase
-    .schema("core")
-    .from("workspace_members")
-    .select("user_id")
-    .eq("workspace_id", input.workspaceId)
-    .in("role", ["owner", "admin"])
-    .limit(1)
-    .maybeSingle();
-
-  if (error || !owner?.user_id) return null;
-  return owner.user_id;
 }
 
 export default async function handler(
@@ -167,7 +153,7 @@ export default async function handler(
       "PROOF_NOTE_REQUIRED"
     );
     const proofPhotoUrl = optionalTrimmedString(requestBody.proof_photo_url);
-    const boardKey = optionalTrimmedString(requestBody.board_key);
+    const proofActionToken = optionalTrimmedString(requestBody.proof_action_token);
     const reason =
       optionalTrimmedString(requestBody.reason) ??
       "operator proof submitted from system proof board";
@@ -240,11 +226,15 @@ export default async function handler(
       if (membership) actorId = user.id;
     }
 
-    if (!actorId && boardKey && verifyBoardToken(obligation.workspace_id, boardKey)) {
-      actorId = await actorForSignedBoard({
-        serviceSupabase,
+    if (
+      !actorId &&
+      verifyProofActionToken({
         workspaceId: obligation.workspace_id,
-      });
+        obligationId,
+        token: proofActionToken,
+      })
+    ) {
+      actorId = platformActorId();
     }
 
     if (!actorId) {
