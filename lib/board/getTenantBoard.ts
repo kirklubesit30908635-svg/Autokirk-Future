@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { serialize } from "cookie";
 
 import { mapBoardStatus, type BoardStatus } from "./status";
-import { supabaseUrl, verifyBoardToken } from "./signedBoardUrl";
+import { signProofActionToken, supabaseUrl, verifyBoardToken } from "./signedBoardUrl";
 
 type ObligationRow = {
   id: string;
@@ -49,6 +49,7 @@ export type BoardObligation = {
   description: string | null;
   proofRequired: string | null;
   sourceLabel: string | null;
+  proofActionToken: string | null;
 };
 
 export type BoardReceipt = {
@@ -170,6 +171,7 @@ function buildBoard(input: {
   sourceRows: ObligationSourceRow[];
   receiptRows: ReceiptRow[];
   now: Date;
+  canCloseWithScopedActions: boolean;
 }): BoardViewModel {
   const receiptObligationIds = new Set(
     input.receiptRows
@@ -191,16 +193,17 @@ function buildBoard(input: {
     const triggerAnchor = stringFromPath(payload, ["anchors", "trigger"]);
     const triggerText = stringFromPath(payload, ["trigger_text"]);
     const operatorNote = stringFromPath(payload, ["operator_note"]);
+    const status = mapBoardStatus({
+      lifecycleState: row.status,
+      proofStatus: row.proof_status,
+      dueAt: row.due_at,
+      hasReceipt: receiptObligationIds.has(row.id),
+      now: input.now,
+    });
 
     return {
       id: row.id,
-      status: mapBoardStatus({
-        lifecycleState: row.status,
-        proofStatus: row.proof_status,
-        dueAt: row.due_at,
-        hasReceipt: receiptObligationIds.has(row.id),
-        now: input.now,
-      }),
+      status,
       obligationCode: asString(row.obligation_code, "UNSPECIFIED"),
       subjectLabel: objectAnchor ?? asNullableString(row.entity_id),
       dueAt: row.due_at,
@@ -209,6 +212,13 @@ function buildBoard(input: {
       description: triggerText ?? operatorNote ?? null,
       proofRequired: actionAnchor,
       sourceLabel: triggerAnchor ?? sourceRow?.source_system ?? null,
+      proofActionToken:
+        input.canCloseWithScopedActions && status !== "Sealed"
+          ? signProofActionToken({
+              workspaceId: input.workspace.id,
+              obligationId: row.id,
+            })
+          : null,
     };
   });
 
@@ -317,9 +327,10 @@ export async function getTenantBoard(
     }
   }
 
+  const canReadViaBoard = signedBoardAccess || trustedPublicBoard;
   const readClient = canReadViaUser
     ? userSupabase
-    : signedBoardAccess || trustedPublicBoard
+    : canReadViaBoard
       ? serviceSupabase
       : null;
 
@@ -376,6 +387,7 @@ export async function getTenantBoard(
     sourceRows: (sourceResult.data ?? []) as ObligationSourceRow[],
     receiptRows: (receiptsResult.data ?? []) as ReceiptRow[],
     now: new Date(),
+    canCloseWithScopedActions: canReadViaUser || canReadViaBoard,
   });
 
   return {
