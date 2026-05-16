@@ -1,8 +1,8 @@
-import { createHmac, timingSafeEqual } from "crypto";
+import { createHash, createHmac, timingSafeEqual } from "crypto";
 
 const VERSION = "v1";
 
-type ConnectionPayload = {
+export type ConnectionPayload = {
   workspaceId: string;
   userId: string;
   watchedWork: string;
@@ -10,6 +10,8 @@ type ConnectionPayload = {
   boardLabel: string;
   obligationCode: string;
   sourceType: string;
+  connectedSystemId?: string;
+  connectorType?: string;
 };
 
 function signingKey(): string {
@@ -43,6 +45,10 @@ export function createConnectionToken(payload: ConnectionPayload): string {
   return `${encoded}.${signature(encoded)}`;
 }
 
+export function hashConnectionToken(token: string): string {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 export function verifyConnectionToken(token: string | null | undefined): ConnectionPayload | null {
   if (!token || !token.includes(".")) return null;
 
@@ -68,17 +74,44 @@ export function verifyConnectionToken(token: string | null | undefined): Connect
     boardLabel: decoded.boardLabel,
     obligationCode: decoded.obligationCode,
     sourceType: decoded.sourceType,
+    connectedSystemId: decoded.connectedSystemId,
+    connectorType: decoded.connectorType,
   };
 }
 
-export function buildConnectionUrl(token: string): string {
+function pathForSourceType(sourceType: string): string {
+  switch (sourceType) {
+    case "crm":
+      return "crm";
+    case "website-form":
+      return "form";
+    case "email":
+      return "email";
+    case "agent":
+      return "agent";
+    case "mcp":
+      return "mcp";
+    case "automation":
+      return "automation";
+    case "payment":
+    case "job-system":
+    case "api":
+    case "webhook":
+    case "other":
+      return "webhook";
+    default:
+      return "source";
+  }
+}
+
+export function buildConnectionUrl(token: string, sourceType = "source"): string {
   const configured =
     process.env.NEXT_PUBLIC_SITE_URL ??
     process.env.SITE_URL ??
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ??
     "https://autokirk.com";
   const baseUrl = configured.replace(/\/$/, "");
-  const url = new URL("/api/intake/source", baseUrl);
+  const url = new URL(`/api/intake/${pathForSourceType(sourceType)}`, baseUrl);
   url.searchParams.set("key", token);
   return url.toString();
 }
