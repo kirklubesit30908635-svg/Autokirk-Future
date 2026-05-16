@@ -15,13 +15,24 @@ type CapabilityStatus =
     }
   | { ok: false; error: string; detail?: string };
 
-function serviceClient() {
+type SupabaseServiceClient = ReturnType<typeof createClient> & {
+  schema(schema: string): {
+    from(table: string): {
+      select(columns: string, options?: { count?: "exact" | "planned" | "estimated"; head?: boolean }): Promise<{
+        count: number | null;
+        error: { message: string } | null;
+      }>;
+    };
+  };
+};
+
+function serviceClient(): SupabaseServiceClient {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key?.trim()) throw new Error("SUPABASE_SERVICE_ROLE_KEY_REQUIRED");
-  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } });
+  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } }) as SupabaseServiceClient;
 }
 
-async function tableCount(supabase: ReturnType<typeof createClient>, schema: string, table: string): Promise<CountResult> {
+async function tableCount(supabase: SupabaseServiceClient, schema: string, table: string): Promise<CountResult> {
   const { count, error } = await supabase.schema(schema).from(table).select("*", { count: "exact", head: true });
   return { count: count ?? null, error: error?.message ?? null };
 }
@@ -71,6 +82,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         "/platform",
         "/intake",
         "/agent-proof",
+        "/ops",
         "/api/customer/connection-link",
         "/api/intake/webhook",
         "/api/intake/crm",
