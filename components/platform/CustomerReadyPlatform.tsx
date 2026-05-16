@@ -207,7 +207,7 @@ export default function CustomerReadyPlatform() {
             <div className="pill"><span />{account.state === "ready" ? "Account ready" : account.state === "loading" ? "Preparing account" : account.message}</div>
             <p className="eyebrow">Setup</p>
             <h2>Create one proof rule.</h2>
-            <p className="muted">Answer plain-English questions. AutoKirk will give you a connection link for the system where work starts.</p>
+            <p className="muted">Define what work enters AutoKirk, what proof is required, and how it should appear on the live board.</p>
             {setup.state === "ready" || setup.state === "testing" || setup.state === "tested" ? (
               <div className="nextBox">
                 <p className="eyebrow">Connection link</p>
