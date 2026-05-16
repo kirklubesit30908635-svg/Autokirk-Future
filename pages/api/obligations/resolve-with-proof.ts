@@ -8,6 +8,10 @@ import { verifyBoardToken } from "../../../lib/board/signedBoardUrl";
 
 type JsonRecord = Record<string, unknown>;
 
+type SupabaseServiceClient = ReturnType<typeof createClient> & {
+  schema(schema: string): any;
+};
+
 type ResolveExistingObligationSuccess = {
   ok: true;
   obligation: JsonRecord;
@@ -103,7 +107,7 @@ function buildIdempotencyKey(payload: {
 }
 
 async function actorForSignedBoard(input: {
-  serviceSupabase: ReturnType<typeof createClient>;
+  serviceSupabase: SupabaseServiceClient;
   workspaceId: string;
 }): Promise<string | null> {
   const configuredActor = process.env.AUTOKIRK_PLATFORM_ACTOR_USER_ID?.trim();
@@ -193,7 +197,7 @@ export default async function handler(
     });
     const serviceSupabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
-    });
+    }) as SupabaseServiceClient;
 
     const { data: obligation, error: obligationError } = await serviceSupabase
       .schema("core")
