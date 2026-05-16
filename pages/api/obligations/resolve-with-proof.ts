@@ -4,6 +4,8 @@ import { createServerClient } from "@supabase/ssr";
 import { serialize } from "cookie";
 import { createClient } from "@supabase/supabase-js";
 
+import { verifyBoardToken } from "../../../lib/board/signedBoardUrl";
+
 type JsonRecord = Record<string, unknown>;
 
 type ResolveExistingObligationSuccess = {
@@ -100,6 +102,26 @@ function buildIdempotencyKey(payload: {
   return `system-proof-board-${digest}`;
 }
 
+async function actorForSignedBoard(input: {
+  serviceSupabase: ReturnType<typeof createClient>;
+  workspaceId: string;
+}): Promise<string | null> {
+  const configuredActor = process.env.AUTOKIRK_PLATFORM_ACTOR_USER_ID?.trim();
+  if (configuredActor) return configuredActor;
+
+  const { data: owner, error } = await input.serviceSupabase
+    .schema("core")
+    .from("workspace_members")
+    .select("user_id")
+    .eq("workspace_id", input.workspaceId)
+    .in("role", ["owner", "admin"])
+    .limit(1)
+    .maybeSingle();
+
+  if (error || !owner?.user_id) return null;
+  return owner.user_id;
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<ApiResponse>
@@ -141,6 +163,7 @@ export default async function handler(
       "PROOF_NOTE_REQUIRED"
     );
     const proofPhotoUrl = optionalTrimmedString(requestBody.proof_photo_url);
+    const boardKey = optionalTrimmedString(requestBody.board_key);
     const reason =
       optionalTrimmedString(requestBody.reason) ??
       "operator proof submitted from system proof board";
@@ -172,15 +195,6 @@ export default async function handler(
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const {
-      data: { user },
-      error: userError,
-    } = await userSupabase.auth.getUser();
-
-    if (userError || !user) {
-      return res.status(401).json({ ok: false, error: "NOT_AUTHENTICATED" });
-    }
-
     const { data: obligation, error: obligationError } = await serviceSupabase
       .schema("core")
       .from("obligations")
@@ -196,22 +210,40 @@ export default async function handler(
       return res.status(404).json({ ok: false, error: "OBLIGATION_NOT_FOUND" });
     }
 
-    const { data: membership, error: membershipError } = await serviceSupabase
-      .schema("core")
-      .from("workspace_members")
-      .select("workspace_id,user_id")
-      .eq("workspace_id", obligation.workspace_id)
-      .eq("user_id", user.id)
-      .maybeSingle();
+    const {
+      data: { user },
+      error: userError,
+    } = await userSupabase.auth.getUser();
 
-    if (membershipError) {
-      return res.status(500).json({
-        ok: false,
-        error: `MEMBERSHIP_LOOKUP_FAILED: ${membershipError.message}`,
+    let actorId: string | null = null;
+
+    if (!userError && user) {
+      const { data: membership, error: membershipError } = await serviceSupabase
+        .schema("core")
+        .from("workspace_members")
+        .select("workspace_id,user_id")
+        .eq("workspace_id", obligation.workspace_id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (membershipError) {
+        return res.status(500).json({
+          ok: false,
+          error: `MEMBERSHIP_LOOKUP_FAILED: ${membershipError.message}`,
+        });
+      }
+
+      if (membership) actorId = user.id;
+    }
+
+    if (!actorId && boardKey && verifyBoardToken(obligation.workspace_id, boardKey)) {
+      actorId = await actorForSignedBoard({
+        serviceSupabase,
+        workspaceId: obligation.workspace_id,
       });
     }
 
-    if (!membership) {
+    if (!actorId) {
       return res.status(403).json({
         ok: false,
         error: "INVALID_WORKSPACE_ACCESS",
@@ -229,7 +261,7 @@ export default async function handler(
       .schema("api")
       .rpc("resolve_with_proof", {
         p_obligation_id: obligationId,
-        p_actor_id: user.id,
+        p_actor_id: actorId,
         p_reason: reason,
         p_evidence_present: {
           source: "system-proof-board",
