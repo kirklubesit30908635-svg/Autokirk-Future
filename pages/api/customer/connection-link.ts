@@ -1,11 +1,12 @@
+import { randomUUID } from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createClient } from "@supabase/supabase-js";
 
-import { buildConnectionUrl, createConnectionToken } from "../../../lib/customer/connectionLink";
+import { buildConnectionUrl, createConnectionToken, hashConnectionToken } from "../../../lib/customer/connectionLink";
 import { supabaseUrl } from "../../../lib/board/signedBoardUrl";
 
 type ConnectionLinkResponse =
-  | { ok: true; connection_url: string; source_type: string; helper_text: string }
+  | { ok: true; connection_url: string; source_type: string; connected_system_id: string; helper_text: string }
   | { ok: false; error: string; detail?: string };
 
 type ConnectionLinkBody = {
@@ -15,12 +16,6 @@ type ConnectionLinkBody = {
   board_label?: string | null;
   obligation_code?: string | null;
   source_type?: string | null;
-};
-
-type SupabaseServiceClient = ReturnType<typeof createClient> & {
-  schema(schema: string): {
-    from(table: string): any;
-  };
 };
 
 const DEFAULT_WORKSPACE_ID = "88eecda6-80e4-4eb7-b890-4330674fa7a7";
@@ -34,17 +29,42 @@ function codeFromLabel(value: string): string {
   return code || "client_proof_rule";
 }
 
-function serviceClient(): SupabaseServiceClient {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key?.trim()) throw new Error("SUPABASE_SERVICE_ROLE_KEY_REQUIRED");
-  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } }) as SupabaseServiceClient;
+function connectorType(sourceType: string): string {
+  switch (sourceType) {
+    case "crm": return "crm";
+    case "website-form": return "form";
+    case "email": return "email";
+    case "agent": return "agent";
+    case "mcp": return "mcp";
+    case "automation": return "automation";
+    case "payment": return "payment";
+    case "job-system": return "job_system";
+    case "api": return "api";
+    case "webhook": return "webhook";
+    case "manual": return "manual";
+    default: return "other";
+  }
 }
 
-async function actorForConnection(input: {
-  supabase: SupabaseServiceClient;
-  accessToken: string | null;
-  workspaceId: string;
-}): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string; detail?: string }> {
+function claimSourceType(sourceType: string): string {
+  switch (sourceType) {
+    case "manual": return "human";
+    case "api":
+    case "webhook": return "api";
+    case "automation": return "automation";
+    case "agent":
+    case "mcp": return "agent";
+    default: return "external_system";
+  }
+}
+
+function serviceClient(): any {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!key?.trim()) throw new Error("SUPABASE_SERVICE_ROLE_KEY_REQUIRED");
+  return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+async function actorForConnection(input: { supabase: any; accessToken: string | null; workspaceId: string }): Promise<{ ok: true; userId: string } | { ok: false; status: number; error: string; detail?: string }> {
   const { supabase, accessToken, workspaceId } = input;
 
   if (accessToken) {
@@ -59,17 +79,12 @@ async function actorForConnection(input: {
       .eq("user_id", user.id)
       .maybeSingle();
 
-    if (membershipError) {
-      return { ok: false, status: 500, error: "ACCOUNT_LOOKUP_FAILED", detail: membershipError.message };
-    }
+    if (membershipError) return { ok: false, status: 500, error: "ACCOUNT_LOOKUP_FAILED", detail: membershipError.message };
     if (!membership) return { ok: false, status: 403, error: "ACCOUNT_ACCESS_DENIED" };
-
     return { ok: true, userId: user.id };
   }
 
-  if (workspaceId !== DEFAULT_WORKSPACE_ID) {
-    return { ok: false, status: 401, error: "UNAUTHENTICATED" };
-  }
+  if (workspaceId !== DEFAULT_WORKSPACE_ID) return { ok: false, status: 401, error: "UNAUTHENTICATED" };
 
   const configuredActor = process.env.AUTOKIRK_PLATFORM_ACTOR_USER_ID?.trim();
   if (configuredActor) return { ok: true, userId: configuredActor };
@@ -83,13 +98,8 @@ async function actorForConnection(input: {
     .limit(1)
     .maybeSingle();
 
-  if (ownerError) {
-    return { ok: false, status: 500, error: "PLATFORM_ACTOR_LOOKUP_FAILED", detail: ownerError.message };
-  }
-  if (!owner?.user_id) {
-    return { ok: false, status: 500, error: "PLATFORM_ACTOR_REQUIRED" };
-  }
-
+  if (ownerError) return { ok: false, status: 500, error: "PLATFORM_ACTOR_LOOKUP_FAILED", detail: ownerError.message };
+  if (!owner?.user_id) return { ok: false, status: 500, error: "PLATFORM_ACTOR_REQUIRED" };
   return { ok: true, userId: owner.user_id };
 }
 
@@ -118,25 +128,48 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     const supabase = serviceClient();
     const actor = await actorForConnection({ supabase, accessToken, workspaceId });
-    if (!actor.ok) {
-      return res.status(actor.status).json({ ok: false, error: actor.error, detail: actor.detail });
+    if (!actor.ok) return res.status(actor.status).json({ ok: false, error: actor.error, detail: actor.detail });
+
+    const connectedSystemId = randomUUID();
+    const connector = connectorType(sourceType);
+    const token = createConnectionToken({ workspaceId, userId: actor.userId, watchedWork, proofRequired, boardLabel, obligationCode, sourceType, connectedSystemId, connectorType: connector });
+    const tokenFingerprint = hashConnectionToken(token);
+
+    const { data: registration, error: registrationError } = await supabase.schema("api").rpc("register_connected_system", {
+      p_workspace_id: workspaceId,
+      p_actor_id: actor.userId,
+      p_connected_system_id: connectedSystemId,
+      p_source_type: claimSourceType(sourceType),
+      p_connector_type: connector,
+      p_source_name: `${sourceType}:${boardLabel}`,
+      p_display_name: boardLabel,
+      p_watched_work: watchedWork,
+      p_proof_required: proofRequired,
+      p_board_label: boardLabel,
+      p_obligation_code: obligationCode,
+      p_ingestion_scopes: ["open_obligation", "attach_provenance"],
+      p_trust_level: sourceType === "agent" || sourceType === "mcp" ? "unverified" : "standard",
+      p_requires_human_approval: sourceType === "agent" || sourceType === "mcp",
+      p_allow_auto_resolution: false,
+      p_governing_policy_ref: "autokirk-connected-intake-v1",
+      p_token_fingerprint: tokenFingerprint,
+      p_token_hint: tokenFingerprint.slice(0, 12),
+    });
+
+    if (registrationError) {
+      return res.status(400).json({ ok: false, error: "CONNECTED_SYSTEM_NOT_REGISTERED", detail: registrationError.message });
     }
 
-    const token = createConnectionToken({
-      workspaceId,
-      userId: actor.userId,
-      watchedWork,
-      proofRequired,
-      boardLabel,
-      obligationCode,
-      sourceType,
-    });
+    const registeredId = registration && typeof registration === "object" && !Array.isArray(registration)
+      ? String((registration as Record<string, unknown>).connected_system_id ?? connectedSystemId)
+      : connectedSystemId;
 
     return res.status(200).json({
       ok: true,
-      connection_url: buildConnectionUrl(token),
+      connection_url: buildConnectionUrl(token, sourceType),
       source_type: sourceType,
-      helper_text: "Copy this connection link into the system where new work starts, or send it to the person who manages that system. Use Send test work before leaving setup.",
+      connected_system_id: registeredId,
+      helper_text: "Copy this connection link into the system where new work starts. AutoKirk will register the source, preserve provenance, and keep work open until proof exists.",
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: "CONNECTION_LINK_FAILED", detail: error instanceof Error ? error.message : "unknown_error" });
