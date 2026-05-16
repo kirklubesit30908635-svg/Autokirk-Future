@@ -7,11 +7,13 @@ type CountResult = { count: number | null; error: string | null };
 type CapabilityStatus =
   | {
       ok: true;
+      authorized: boolean;
       vocabulary: string[];
       tables: Record<string, CountResult>;
       routes: string[];
       rpcBoundary: string;
       productState: string;
+      message?: string;
     }
   | { ok: false; error: string; detail?: string };
 
@@ -32,6 +34,20 @@ function serviceClient(): SupabaseServiceClient {
   return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } }) as SupabaseServiceClient;
 }
 
+function opsKey(): string | null {
+  return process.env.AUTOKIRK_OPS_KEY ?? null;
+}
+
+function authorized(req: NextApiRequest): boolean {
+  const expected = opsKey();
+  if (!expected) return false;
+  const queryKey = Array.isArray(req.query.key) ? req.query.key[0] : req.query.key;
+  const auth = typeof req.headers.authorization === "string" && req.headers.authorization.toLowerCase().startsWith("bearer ")
+    ? req.headers.authorization.slice("bearer ".length).trim()
+    : null;
+  return queryKey === expected || auth === expected;
+}
+
 async function tableCount(supabase: SupabaseServiceClient, schema: string, table: string): Promise<CountResult> {
   const { count, error } = await supabase.schema(schema).from(table).select("*", { count: "exact", head: true });
   return { count: count ?? null, error: error?.message ?? null };
@@ -41,6 +57,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
   if (req.method !== "GET") {
     res.setHeader("Allow", "GET");
     return res.status(405).json({ ok: false, error: "METHOD_NOT_ALLOWED" });
+  }
+
+  if (!authorized(req)) {
+    return res.status(401).json({ ok: false, error: "OPS_KEY_REQUIRED" });
   }
 
   try {
@@ -65,6 +85,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
     return res.status(200).json({
       ok: true,
+      authorized: true,
       vocabulary: [
         "connected system",
         "connector type",
@@ -95,7 +116,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
         "/api/ops/intake-registry",
       ],
       rpcBoundary: "Governed-write RPCs are service-role only; UI access is through server API routes.",
-      productState: "Operational ingestion and agentic proof boundary are live in Supabase and accessible through product routes.",
+      productState: "Operational ingestion and agentic proof boundary are live in Supabase and accessible through protected product routes.",
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: "CAPABILITY_STATUS_FAILED", detail: error instanceof Error ? error.message : "unknown_error" });
