@@ -65,6 +65,11 @@ function calculateIntegrityScore(
   return Math.max(0, Math.min(100, score));
 }
 
+function boardAccessKey(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("key");
+}
+
 export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
   const activeObligations = useMemo(
     () => board.obligations.filter((item) => item.status !== "Sealed"),
@@ -79,7 +84,6 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
     [activeObligations]
   );
   const [showClosed, setShowClosed] = useState(false);
-  const [resolveOpen, setResolveOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [resolveState, setResolveState] = useState<ResolveState>(() => ({
     obligationId: activeObligations[0]?.id ?? "",
@@ -102,7 +106,6 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
   }
 
   function selectObligation(item: BoardObligation) {
-    setResolveOpen(true);
     setShowClosed(false);
     setResolveState((current) => ({
       ...current,
@@ -146,6 +149,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           proof_note: resolveState.proofNote,
           proof_photo_url: resolveState.proofUrl.trim() || undefined,
           reason: "operator closed from live board panel",
+          board_key: boardAccessKey() || undefined,
         }),
       });
       const body = await response.json();
@@ -157,7 +161,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
       setResolveState((current) => ({
         ...current,
         status: "done",
-        message: "Closed with proof. Refresh proof history to verify the record.",
+        message: "Closed with proof. Receipt recorded. Refresh proof history to view it.",
       }));
     } catch (error) {
       setResolveState((current) => ({
