@@ -3,14 +3,14 @@ export function HomeValueCycle() {
     <section className="homeShell" aria-labelledby="home-title">
       <section className="hero" aria-labelledby="home-title">
         <p className="eyebrow">Proof-backed completion for existing tools</p>
-        <h1 id="home-title">Work waiting on proof should not disappear.</h1>
-        <p className="lede">AutoKirk connects to where work starts, keeps important work open, and only lets it close when the right proof exists.</p>
+        <h1 id="home-title">Work is not complete until it is proven.</h1>
+        <p className="lede">AutoKirk connects to the tools you already use and keeps important work from closing until the right proof exists.</p>
         <div className="liveStrip" aria-label="AutoKirk live proof states">
           <span><strong>Open</strong> until proven</span>
-          <span><strong>Proof</strong> required before close</span>
-          <span><strong>Closed</strong> with a record</span>
+          <span><strong>Proof ready</strong> when evidence exists</span>
+          <span><strong>Closed</strong> with proof</span>
         </div>
-        <p className="support">Your tools keep running. AutoKirk becomes the live proof board beside them: what is open, what is waiting on proof, and what has been completed with proof.</p>
+        <p className="support">Your tools keep running. AutoKirk governs the closing decision: what is open, what is ready to close, and what has been completed with proof.</p>
         <div className="actions" aria-label="Homepage actions">
           <a href="/platform" className="primaryAction">Start with one proof rule</a>
           <a href="#how-it-works" className="secondaryAction">See how it works</a>
@@ -34,14 +34,14 @@ export function HomeValueCycle() {
         <div className="sectionHeader">
           <p className="eyebrow">Example: revenue leak prevention</p>
           <h2 id="field-example-title">Extra work should not disappear before the proof rule is satisfied.</h2>
-          <p>On a jobsite, important work can start in a conversation, text, daily report, work order, or field note. AutoKirk can create a signed connection link for that source and put new work on the live board.</p>
+          <p>On a jobsite, important work can start in a conversation, text, daily report, work order, or field note. AutoKirk keeps that work visible until the right proof exists.</p>
         </div>
         <div className="exampleScenario">
           <article className="exampleStory">
-            <p className="eyebrow">What the current setup can do</p>
+            <p className="eyebrow">What the setup does</p>
             <h3>Create a proof rule for field-created extra work.</h3>
-            <p>Use the platform setup to define what AutoKirk should watch, what proof is required, and what the board should call it.</p>
-            <p>The generated connection link sends new work through the governed intake path so it appears as open work instead of disappearing outside the board.</p>
+            <p>Choose what AutoKirk should watch, what proof is required, and what the board should call it.</p>
+            <p>New work can be sent to AutoKirk and shown on the live board instead of disappearing outside the closeout process.</p>
           </article>
           <article className="exampleProof">
             <p className="eyebrow">Example proof rule</p>
@@ -50,16 +50,16 @@ export function HomeValueCycle() {
               <li>Required proof: requester, note, hours, photo, ticket, or approval link</li>
               <li>Board label: Unresolved field extra</li>
               <li>Source: job system, form, manual entry, or other system</li>
-              <li>Current test path: send test work through the signed connection link</li>
+              <li>Result: work stays visible until proof exists</li>
             </ul>
           </article>
         </div>
-        <div className="exampleFlow" aria-label="Operable proof-rule intake example">
+        <div className="exampleFlow" aria-label="Proof-rule setup example">
           <span>Create proof rule</span>
-          <span>Generate signed link</span>
+          <span>Choose source</span>
           <span>Send test work</span>
-          <span>Board opens</span>
-          <span>Work stays visible</span>
+          <span>View board</span>
+          <span>Keep open until proof exists</span>
         </div>
         <div className="exampleOutcome">
           <strong>AutoKirk keeps field-created work visible until proof exists.</strong>
@@ -75,10 +75,10 @@ export function HomeValueCycle() {
         </div>
         <div className="exampleScenario">
           <article className="exampleStory">
-            <p className="eyebrow">What the current setup can do</p>
+            <p className="eyebrow">What the setup does</p>
             <h3>Create a proof rule for an unresolved customer promise.</h3>
-            <p>Use the same platform setup to name the work, define the proof required, choose where it starts, and generate a connection link.</p>
-            <p>New work sent to that link enters AutoKirk through the governed intake path and appears on the live board as work waiting on proof.</p>
+            <p>Name the work, define the proof required, choose where it starts, and show it on the live board.</p>
+            <p>AutoKirk keeps the item visible as work waiting on proof instead of letting it disappear behind a status change.</p>
           </article>
           <article className="exampleProof">
             <p className="eyebrow">Example proof rule</p>
@@ -87,16 +87,16 @@ export function HomeValueCycle() {
               <li>Required proof: message, note, approval, invoice line, or signed acknowledgement</li>
               <li>Board label: Customer promise follow-up</li>
               <li>Source: CRM, job system, manual entry, or other system</li>
-              <li>Current test path: send test work through the signed connection link</li>
+              <li>Result: work stays visible until proof exists</li>
             </ul>
           </article>
         </div>
-        <div className="exampleFlow" aria-label="Operable high-volume operations intake example">
+        <div className="exampleFlow" aria-label="High-volume operations proof-rule setup example">
           <span>Create proof rule</span>
-          <span>Generate signed link</span>
+          <span>Choose source</span>
           <span>Send test work</span>
-          <span>Board opens</span>
-          <span>Work stays visible</span>
+          <span>View board</span>
+          <span>Keep open until proof exists</span>
         </div>
         <div className="exampleOutcome">
           <strong>AutoKirk keeps important work visible until proof exists.</strong>
@@ -107,12 +107,12 @@ export function HomeValueCycle() {
       <section className="proofStatesCard" aria-labelledby="states-title">
         <div className="sectionHeader compactHeader">
           <p className="eyebrow">Live board states</p>
-          <h2 id="states-title">Open. Waiting on proof. Closed with a record.</h2>
-          <p>The board turns attention into action. It shows what is still open, what is waiting on proof, and what closed with a record.</p>
+          <h2 id="states-title">Open. Proof ready. Closed with proof.</h2>
+          <p>The board turns attention into action. It shows what is still open, what is ready to close, and what closed with proof.</p>
         </div>
         <div className="stateGrid">
           <article className="stateCard"><span className="stepNumber">01</span><h3>Open until proven</h3><p>Work is visible because proof is still missing.</p></article>
-          <article className="stateCard"><span className="stepNumber">02</span><h3>Proof required</h3><p>The proof rule defines what has to exist before anyone calls it done.</p></article>
+          <article className="stateCard"><span className="stepNumber">02</span><h3>Proof ready</h3><p>The right evidence exists to support completion.</p></article>
           <article className="stateCard"><span className="stepNumber">03</span><h3>Completed with proof</h3><p>The work closes with a proof-backed record.</p></article>
         </div>
       </section>
