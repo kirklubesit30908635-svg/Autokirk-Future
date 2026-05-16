@@ -3,19 +3,27 @@ import { createClient } from "@supabase/supabase-js";
 
 import { supabaseUrl } from "../../../lib/board/signedBoardUrl";
 
-type CapabilityStatus = {
-  ok: true;
-  schemas: Record<string, boolean>;
-  tables: Record<string, boolean>;
-  rls: Array<{ schema_name: string; table_name: string; rls_enabled: boolean }>;
-  rpc: Array<{ function_name: string; anon_can_execute: boolean; authenticated_can_execute: boolean; service_role_can_execute: boolean }>;
-  vocabulary: string[];
-} | { ok: false; error: string; detail?: string };
+type CountResult = { count: number | null; error: string | null };
+type CapabilityStatus =
+  | {
+      ok: true;
+      vocabulary: string[];
+      tables: Record<string, CountResult>;
+      routes: string[];
+      rpcBoundary: string;
+      productState: string;
+    }
+  | { ok: false; error: string; detail?: string };
 
 function serviceClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!key?.trim()) throw new Error("SUPABASE_SERVICE_ROLE_KEY_REQUIRED");
   return createClient(supabaseUrl(), key, { auth: { persistSession: false, autoRefreshToken: false } });
+}
+
+async function tableCount(supabase: ReturnType<typeof createClient>, schema: string, table: string): Promise<CountResult> {
+  const { count, error } = await supabase.schema(schema).from(table).select("*", { count: "exact", head: true });
+  return { count: count ?? null, error: error?.message ?? null };
 }
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse<CapabilityStatus>) {
@@ -26,57 +34,56 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
 
   try {
     const supabase = serviceClient();
-    const { data, error } = await supabase.rpc("exec_sql", { query: "select 1" });
-    void data;
-    void error;
+    const tableEntries = await Promise.all([
+      ["intake.connected_systems", tableCount(supabase, "intake", "connected_systems")] as const,
+      ["intake.ingestion_events", tableCount(supabase, "intake", "ingestion_events")] as const,
+      ["proof_boundary.claim_sources", tableCount(supabase, "proof_boundary", "claim_sources")] as const,
+      ["proof_boundary.authority_boundaries", tableCount(supabase, "proof_boundary", "authority_boundaries")] as const,
+      ["proof_boundary.obligation_claim_contexts", tableCount(supabase, "proof_boundary", "obligation_claim_contexts")] as const,
+      ["proof_boundary.proof_evaluations", tableCount(supabase, "proof_boundary", "proof_evaluations")] as const,
+      ["proof_boundary.proof_evaluation_receipts", tableCount(supabase, "proof_boundary", "proof_evaluation_receipts")] as const,
+      ["proof_boundary.receipt_rationales", tableCount(supabase, "proof_boundary", "receipt_rationales")] as const,
+      ["ingest.source_events", tableCount(supabase, "ingest", "source_events")] as const,
+      ["core.obligation_sources", tableCount(supabase, "core", "obligation_sources")] as const,
+      ["core.obligations", tableCount(supabase, "core", "obligations")] as const,
+      ["receipts.receipts", tableCount(supabase, "receipts", "receipts")] as const,
+    ]);
 
-    const { data: shape, error: shapeError } = await supabase
-      .from("pg_catalog.pg_namespace")
-      .select("nspname")
-      .limit(1);
-    void shape;
-    void shapeError;
-
-    const { data: statusRows, error: statusError } = await supabase.rpc("run_capability_status");
-    if (!statusError && statusRows) {
-      return res.status(200).json(statusRows as CapabilityStatus);
-    }
+    const tables: Record<string, CountResult> = {};
+    for (const [name, resultPromise] of tableEntries) tables[name] = await resultPromise;
 
     return res.status(200).json({
       ok: true,
-      schemas: {
-        intake: true,
-        proof_boundary: true,
-        ingest: true,
-        core: true,
-        receipts: true,
-      },
-      tables: {
-        "intake.connected_systems": true,
-        "intake.ingestion_events": true,
-        "proof_boundary.claim_sources": true,
-        "proof_boundary.authority_boundaries": true,
-        "proof_boundary.obligation_claim_contexts": true,
-        "proof_boundary.proof_evaluations": true,
-        "proof_boundary.proof_evaluation_receipts": true,
-        "proof_boundary.receipt_rationales": true,
-        "ingest.source_events": true,
-        "core.obligation_sources": true,
-        "core.obligations": true,
-        "receipts.receipts": true,
-      },
-      rls: [],
-      rpc: [],
       vocabulary: [
         "connected system",
+        "connector type",
         "claim source",
         "authority boundary",
         "ingestion event",
         "source event",
         "governed obligation",
+        "obligation claim context",
         "proof evaluation",
         "receipt rationale",
       ],
+      tables,
+      routes: [
+        "/platform",
+        "/intake",
+        "/agent-proof",
+        "/api/customer/connection-link",
+        "/api/intake/webhook",
+        "/api/intake/crm",
+        "/api/intake/form",
+        "/api/intake/email",
+        "/api/intake/agent",
+        "/api/intake/mcp",
+        "/api/intake/automation",
+        "/api/ops/capability-status",
+        "/api/ops/intake-registry",
+      ],
+      rpcBoundary: "Governed-write RPCs are service-role only; UI access is through server API routes.",
+      productState: "Operational ingestion and agentic proof boundary are live in Supabase and accessible through product routes.",
     });
   } catch (error) {
     return res.status(500).json({ ok: false, error: "CAPABILITY_STATUS_FAILED", detail: error instanceof Error ? error.message : "unknown_error" });
