@@ -38,7 +38,7 @@ const sourceOptions: Array<[WorkSource, string, string]> = [
   ["crm", "CRM or lead system", "Use this when a new lead or customer starts work."],
   ["job-system", "Job system", "Use this when a job, booking, or request is created."],
   ["payment", "Payment or checkout", "Use this when payment should open work."],
-  ["other", "Other system", "Send the connection instructions to the person who manages it."],
+  ["other", "Other system", "Send the AutoKirk instructions to the person who manages it."],
 ];
 
 function defaultForm(): FormState {
@@ -161,10 +161,10 @@ export default function CustomerReadyPlatform() {
         }),
       });
       const body = (await response.json()) as ConnectionLinkResponse;
-      if (!response.ok || !body.ok) throw new Error(body.ok ? "Connection link not ready." : body.detail || body.error);
+      if (!response.ok || !body.ok) throw new Error(body.ok ? "AutoKirk link not ready." : body.detail || body.error);
       setSetup({ state: "ready", connectionUrl: body.connection_url, helperText: body.helper_text });
     } catch (error) {
-      setSetup({ state: "error", message: error instanceof Error ? error.message : "Connection not ready." });
+      setSetup({ state: "error", message: error instanceof Error ? error.message : "AutoKirk link not ready." });
     }
   }
 
@@ -207,16 +207,16 @@ export default function CustomerReadyPlatform() {
             <div className="pill"><span />{account.state === "ready" ? "Account ready" : account.state === "loading" ? "Preparing account" : account.message}</div>
             <p className="eyebrow">Setup</p>
             <h2>Create one proof rule.</h2>
-            <p className="muted">Define what work enters AutoKirk, what proof is required, and how it should appear on the live board.</p>
+            <p className="muted">Answer plain-English questions. AutoKirk will give you an AutoKirk link for the system where work starts.</p>
             {setup.state === "ready" || setup.state === "testing" || setup.state === "tested" ? (
               <div className="nextBox">
-                <p className="eyebrow">Connection link</p>
+                <p className="eyebrow">AutoKirk link</p>
                 <h3>Send new work here.</h3>
                 <p>{setup.helperText}</p>
                 <div className="copyBox">{setup.connectionUrl}</div>
                 <div className="actions compact">
                   <button className="primary" type="button" onClick={sendTestWork}>{setup.state === "testing" ? "Sending test..." : "Send test work"}</button>
-                  <button className="secondary" type="button" onClick={() => navigator.clipboard?.writeText(setup.connectionUrl)}>Copy link</button>
+                  <button className="secondary" type="button" onClick={() => navigator.clipboard?.writeText(setup.connectionUrl)}>Copy AutoKirk link</button>
                 </div>
                 {setup.state === "tested" && <p className="success">Test work accepted. Open the board to view it.</p>}
               </div>
@@ -228,7 +228,7 @@ export default function CustomerReadyPlatform() {
             <label>What proof is required before it is done?<textarea value={form.proofRequired} onChange={(event) => setForm((current) => ({ ...current, proofRequired: event.target.value }))} /></label>
             <label>What should the board call this?<input value={form.boardLabel} onChange={(event) => setForm((current) => ({ ...current, boardLabel: event.target.value }))} /></label>
             <fieldset><legend>Where does this work start?</legend><div className="sourceGrid">{sourceOptions.map(([value, label, body]) => <button key={value} type="button" className={form.sourceType === value ? "source selected" : "source"} onClick={() => setForm((current) => ({ ...current, sourceType: value }))}><strong>{label}</strong><span>{body}</span></button>)}</div></fieldset>
-            <button className="primary" type="submit" disabled={setup.state === "starting" || account.state !== "ready"}>{setup.state === "starting" ? "Creating..." : "Create connection link"}</button>
+            <button className="primary" type="submit" disabled={setup.state === "starting" || account.state !== "ready"}>{setup.state === "starting" ? "Creating..." : "Create AutoKirk link"}</button>
             {selectedSource && <p className="muted">Selected: {selectedSource[1]}</p>}
             {setup.state === "error" && <p className="error">{setup.message}</p>}
           </form>
