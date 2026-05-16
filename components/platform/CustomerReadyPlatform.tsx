@@ -7,17 +7,28 @@ type AccountLinkResponse =
   | { ok: false; error: string; detail?: string };
 type CheckoutCreateResponse = { ok: true; url: string; id: string } | { ok: false; error: string };
 type ConnectionLinkResponse =
-  | { ok: true; connection_url: string; source_type: string; helper_text: string }
+  | { ok: true; connection_url: string; source_type: string; connected_system_id?: string; helper_text: string }
   | { ok: false; error: string; detail?: string };
 type SourceResponse =
-  | { ok: true; status: "created" | "duplicate"; title: string; board_label: string }
+  | { ok: true; status: "created" | "duplicate"; title: string; board_label: string; connected_system_id?: string; obligation_id?: string; source_event_id?: string }
   | { ok: false; error: string; detail?: string };
 
 type AccountState =
   | { state: "loading" }
   | { state: "ready"; workspaceId: string; boardUrl: string; workspaceName: string | null }
   | { state: "error"; message: string };
-type WorkSource = "manual" | "website-form" | "crm" | "job-system" | "payment" | "other";
+type WorkSource =
+  | "manual"
+  | "webhook"
+  | "website-form"
+  | "crm"
+  | "email"
+  | "agent"
+  | "mcp"
+  | "automation"
+  | "job-system"
+  | "payment"
+  | "other";
 type FormState = {
   watchedWork: string;
   proofRequired: string;
@@ -34,8 +45,13 @@ type SetupState =
 
 const sourceOptions: Array<[WorkSource, string, string]> = [
   ["manual", "Manual entry", "Start inside AutoKirk while your system is being connected."],
+  ["webhook", "Webhook or API", "Use this when another system can POST new work to AutoKirk."],
   ["website-form", "Website form", "Use this when a form submission creates work."],
   ["crm", "CRM or lead system", "Use this when a new lead or customer starts work."],
+  ["email", "Email intake", "Use this when work starts from inbox or forwarded messages."],
+  ["agent", "AI agent", "Use this when an agent claims it created, moved, or completed work."],
+  ["mcp", "MCP-connected tool", "Use this when an agent uses tools and AutoKirk should govern the claim."],
+  ["automation", "Automation workflow", "Use this when Zapier, Make, scripts, or backend jobs create work."],
   ["job-system", "Job system", "Use this when a job, booking, or request is created."],
   ["payment", "Payment or checkout", "Use this when payment should open work."],
   ["other", "Other system", "Send the AutoKirk instructions to the person who manages it."],
@@ -194,7 +210,7 @@ export default function CustomerReadyPlatform() {
         <section className="card hero">
           <p className="eyebrow">AutoKirk</p>
           <h1>Connect where work starts.</h1>
-          <p className="lede">AutoKirk keeps important work open until proof exists.</p>
+          <p className="lede">AutoKirk keeps important work, system events, and agent claims open until proof exists.</p>
           <div className="actions">
             <button className="primary" type="button" onClick={startCheckout} disabled={checkout === "starting"}>{checkout === "starting" ? "Opening checkout..." : "Activate AutoKirk"}</button>
             {boardUrl && <button className="secondary" type="button" onClick={() => openBoard(boardUrl)}>Open live board</button>}
@@ -207,11 +223,11 @@ export default function CustomerReadyPlatform() {
             <div className="pill"><span />{account.state === "ready" ? "Account ready" : account.state === "loading" ? "Preparing account" : account.message}</div>
             <p className="eyebrow">Setup</p>
             <h2>Create one proof rule.</h2>
-            <p className="muted">Answer plain-English questions. AutoKirk will give you an AutoKirk link for the system where work starts.</p>
+            <p className="muted">Answer plain-English questions. AutoKirk will register the connected source and give you an intake link for the system, automation, or agent where work starts.</p>
             {setup.state === "ready" || setup.state === "testing" || setup.state === "tested" ? (
               <div className="nextBox">
-                <p className="eyebrow">AutoKirk link</p>
-                <h3>Send new work here.</h3>
+                <p className="eyebrow">AutoKirk intake link</p>
+                <h3>Send new work, agent claims, or system events here.</h3>
                 <p>{setup.helperText}</p>
                 <div className="copyBox">{setup.connectionUrl}</div>
                 <div className="actions compact">
@@ -228,7 +244,7 @@ export default function CustomerReadyPlatform() {
             <label>What proof is required before it is done?<textarea value={form.proofRequired} onChange={(event) => setForm((current) => ({ ...current, proofRequired: event.target.value }))} /></label>
             <label>What should the board call this?<input value={form.boardLabel} onChange={(event) => setForm((current) => ({ ...current, boardLabel: event.target.value }))} /></label>
             <fieldset><legend>Where does this work start?</legend><div className="sourceGrid">{sourceOptions.map(([value, label, body]) => <button key={value} type="button" className={form.sourceType === value ? "source selected" : "source"} onClick={() => setForm((current) => ({ ...current, sourceType: value }))}><strong>{label}</strong><span>{body}</span></button>)}</div></fieldset>
-            <button className="primary" type="submit" disabled={setup.state === "starting" || account.state !== "ready"}>{setup.state === "starting" ? "Creating..." : "Create AutoKirk link"}</button>
+            <button className="primary" type="submit" disabled={setup.state === "starting" || account.state !== "ready"}>{setup.state === "starting" ? "Creating..." : "Create AutoKirk intake link"}</button>
             {selectedSource && <p className="muted">Selected: {selectedSource[1]}</p>}
             {setup.state === "error" && <p className="error">{setup.message}</p>}
           </form>
