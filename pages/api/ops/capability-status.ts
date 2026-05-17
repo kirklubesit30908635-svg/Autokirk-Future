@@ -41,11 +41,10 @@ function opsKey(): string | null {
 function authorized(req: NextApiRequest): boolean {
   const expected = opsKey();
   if (!expected) return false;
-  const queryKey = Array.isArray(req.query.key) ? req.query.key[0] : req.query.key;
   const auth = typeof req.headers.authorization === "string" && req.headers.authorization.toLowerCase().startsWith("bearer ")
     ? req.headers.authorization.slice("bearer ".length).trim()
     : null;
-  return queryKey === expected || auth === expected;
+  return auth === expected;
 }
 
 async function tableCount(supabase: SupabaseServiceClient, schema: string, table: string): Promise<CountResult> {
