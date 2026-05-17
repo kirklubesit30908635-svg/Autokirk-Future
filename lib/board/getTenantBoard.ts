@@ -85,6 +85,7 @@ const UUID_PATTERN =
 const TRUSTED_PUBLIC_BOARD_WORKSPACES = new Set([
   "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
   "88eecda6-80e4-4eb7-b890-4330674fa7a7",
+  "dc6b0abc-c219-444d-9608-8c43306ee838",
   ...(process.env.AUTOKIRK_PUBLIC_BOARD_WORKSPACE_IDS ?? "")
     .split(",")
     .map((value) => value.trim())
