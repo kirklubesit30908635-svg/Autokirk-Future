@@ -19,6 +19,20 @@ function Get-SupabaseRows {
     return $parsed
 }
 
+function Test-ExpectedFailedFixtureEntity {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$EntityId
+    )
+
+    $expectedFailedFixtureEntityIds = @(
+        '33333333-3333-3333-3333-333333333333',
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'
+    )
+
+    return $expectedFailedFixtureEntityIds -contains $EntityId
+}
+
 $repoRoot = Split-Path -Parent $PSScriptRoot
 
 $terminalScript = Join-Path $PSScriptRoot "verify-terminal-states.ps1"
@@ -144,7 +158,7 @@ foreach ($row in $classificationRows) {
         throw "ENTITY_INTEGRITY_CLASSIFICATION_BASIS_NULL"
     }
 
-    if ([string]$row.entity_id -eq '33333333-3333-3333-3333-333333333333' -and
+    if ((Test-ExpectedFailedFixtureEntity -EntityId ([string]$row.entity_id)) -and
         [string]$row.integrity_label_key -eq 'failed' -and
         [string]$row.action_mode -eq 'contractual') {
         $hasFailedClassification = $true
@@ -198,7 +212,7 @@ foreach ($row in $integrityEventsRows) {
         throw "INTEGRITY_EVENTS_CLASSIFICATION_MISMATCH"
     }
 
-    if ([string]$row.entity_id -eq '33333333-3333-3333-3333-333333333333') {
+    if (Test-ExpectedFailedFixtureEntity -EntityId ([string]$row.entity_id)) {
         $hasFailedIntegrityEvent = $true
     }
 }
@@ -250,7 +264,7 @@ foreach ($row in $integrityWatchdogRows) {
         throw "INTEGRITY_WATCHDOG_CANDIDATES_OCCURRED_AT_NULL"
     }
 
-    if ([string]$row.entity_id -eq '33333333-3333-3333-3333-333333333333' -and
+    if ((Test-ExpectedFailedFixtureEntity -EntityId ([string]$row.entity_id)) -and
         [string]$row.action_mode -eq 'contractual') {
         $hasFailedIntegrityWatchdogCandidate = $true
     }
