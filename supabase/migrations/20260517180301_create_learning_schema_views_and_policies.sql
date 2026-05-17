@@ -157,7 +157,7 @@ as
   union all
 
   select
-    coalesce(we.workspace_id, o.workspace_id) as workspace_id,
+    o.workspace_id,
     we.obligation_id,
     null::uuid as receipt_id,
     null::uuid as ledger_event_id,
@@ -176,14 +176,10 @@ as
       'delivery_status', we.delivery_status,
       'attempt_count', we.attempt_count,
       'next_retry_at', we.next_retry_at,
-      'severity', we.severity,
-      'emission_key', we.emission_key,
-      'watchdog_detection_id', we.watchdog_detection_id,
       'payload', we.payload
     ) as payload
   from control.watchdog_emissions we
-  left join core.obligations o on o.id = we.obligation_id
-  where coalesce(we.workspace_id, o.workspace_id) is not null;
+  join core.obligations o on o.id = we.obligation_id;
 
 comment on view learning.active_system_exhaust is 'Canonical active-system learning exhaust for AutoKirk-Future. Replaces legacy ak.job_events and ak.audit_log references.';
 
