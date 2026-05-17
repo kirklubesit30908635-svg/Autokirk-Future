@@ -35,11 +35,10 @@ function serviceClient(): ServiceClient {
 function isAuthorized(req: NextApiRequest): boolean {
   const expected = process.env.AUTOKIRK_OPS_KEY;
   if (!expected?.trim()) return false;
-  const queryKey = Array.isArray(req.query.key) ? req.query.key[0] : req.query.key;
   const bearer = typeof req.headers.authorization === "string" && req.headers.authorization.toLowerCase().startsWith("bearer ")
     ? req.headers.authorization.slice("bearer ".length).trim()
     : null;
-  return queryKey === expected || bearer === expected;
+  return bearer === expected;
 }
 
 async function countTable(db: ServiceClient, schema: string, table: string): Promise<number | null> {
