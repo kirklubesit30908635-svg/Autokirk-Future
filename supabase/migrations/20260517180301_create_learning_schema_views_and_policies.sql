@@ -170,13 +170,14 @@ as
     'control'::text as source_schema,
     'watchdog_emissions'::text as source_table,
     we.id as source_id,
-    coalesce(we.emitted_at, we.created_at) as occurred_at,
+    we.created_at as occurred_at,
     jsonb_build_object(
       'delivery_target', we.delivery_target,
       'delivery_status', we.delivery_status,
       'attempt_count', we.attempt_count,
+      'last_attempt_at', we.last_attempt_at,
       'next_retry_at', we.next_retry_at,
-      'payload', we.payload
+      'max_attempts', we.max_attempts
     ) as payload
   from control.watchdog_emissions we
   join core.obligations o on o.id = we.obligation_id;
