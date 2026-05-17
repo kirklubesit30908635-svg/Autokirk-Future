@@ -82,15 +82,12 @@ export type TenantBoardResult =
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
-const TRUSTED_PUBLIC_BOARD_WORKSPACES = new Set([
-  "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-  "88eecda6-80e4-4eb7-b890-4330674fa7a7",
-  "dc6b0abc-c219-444d-9608-8c43306ee838",
-  ...(process.env.AUTOKIRK_PUBLIC_BOARD_WORKSPACE_IDS ?? "")
+const TRUSTED_PUBLIC_BOARD_WORKSPACES = new Set(
+  (process.env.AUTOKIRK_PUBLIC_BOARD_WORKSPACE_IDS ?? "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean),
-]);
+);
 
 export function createFallbackBoard(workspaceId: string): BoardViewModel {
   return {
