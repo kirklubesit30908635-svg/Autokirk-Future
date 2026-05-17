@@ -28,10 +28,30 @@ export default function HomePage() {
   return (
     <>
       <Head>
-        <title>AutoKirk Future</title>
+        <title>AutoKirk — Governed Obligation Infrastructure</title>
         <meta
           name="description"
-          content="AutoKirk turns business promises into governed obligations that close only with proof."
+          content="AutoKirk is governed obligation infrastructure for autonomous work. It keeps claims open until authority, proof, and receipt-backed completion exist."
+        />
+        <meta
+          property="og:title"
+          content="AutoKirk — Governed Obligation Infrastructure"
+        />
+        <meta
+          property="og:description"
+          content="AutoKirk proves whether autonomous work should count by governing claims, proof, authority boundaries, and receipt-backed completion."
+        />
+        <meta property="og:site_name" content="AutoKirk" />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://autokirk.com/" />
+        <meta name="twitter:card" content="summary" />
+        <meta
+          name="twitter:title"
+          content="AutoKirk — Governed Obligation Infrastructure"
+        />
+        <meta
+          name="twitter:description"
+          content="Governed obligation infrastructure for autonomous work, proof boundaries, and receipt-backed completion."
         />
       </Head>
       <HomeValueCycle />
