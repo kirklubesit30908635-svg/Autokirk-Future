@@ -54,11 +54,9 @@ export default async function handler(
     const supabase = serviceClient();
 
     if (!accessToken) {
-      return res.status(200).json({
-        ok: true,
-        workspace_id: DEFAULT_WORKSPACE_ID,
-        board_url: buildSignedBoardUrl(DEFAULT_WORKSPACE_ID),
-        workspace_name: DEFAULT_WORKSPACE_NAME,
+      return res.status(401).json({
+        ok: false,
+        error: "AUTH_REQUIRED",
       });
     }
 
@@ -189,3 +187,4 @@ export default async function handler(
     });
   }
 }
+
