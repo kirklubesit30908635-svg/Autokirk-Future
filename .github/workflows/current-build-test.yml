@@ -12,7 +12,7 @@ permissions:
 jobs:
   build:
     name: CURRENT_BUILD_TEST
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 15
 
     steps:
@@ -32,16 +32,16 @@ jobs:
         run: npm run build
 
       - name: Emit build test artifact
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          {
-            echo "CURRENT_BUILD_TEST=PASS"
-            echo "commit=${GITHUB_SHA}"
-            echo "branch=${GITHUB_REF_NAME}"
-            echo "event=${GITHUB_EVENT_NAME}"
-            date -u +"generated_at=%Y-%m-%dT%H:%M:%SZ"
-          } > current-build-test.txt
+          $ErrorActionPreference = "Stop"
+          @(
+            "CURRENT_BUILD_TEST=PASS"
+            "commit=$env:GITHUB_SHA"
+            "branch=$env:GITHUB_REF_NAME"
+            "event=$env:GITHUB_EVENT_NAME"
+            "generated_at=$((Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ssZ'))"
+          ) | Set-Content -Path current-build-test.txt
 
       - name: Upload build test artifact
         uses: actions/upload-artifact@v4
