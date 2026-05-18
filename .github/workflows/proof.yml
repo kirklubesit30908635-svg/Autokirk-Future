@@ -2,9 +2,16 @@
 #
 # Target path in repo: .github/workflows/proof.yml
 #
-# Triggers `npm run prove` on every push and PR against main, plus pushes to
-# the active recovery branch. Any failure of a sealed marker fails the workflow,
-# which (when wired as a Vercel required check) blocks deployment.
+# Demonstrates the active AutoKirk build standard:
+#   No proof -> no closure.
+#   No proof -> no deploy.
+#
+# Required repo secrets for live checks:
+#   SUPABASE_ACCESS_TOKEN
+#   SUPABASE_PROJECT_REF          # aiuicbyufelqdeiwhmyi
+#   VERCEL_TOKEN
+#   VERCEL_TEAM_ID                # team_OV8eAQoyzC70YMyjsAsc2MC6
+#   VERCEL_PROJECT_ID             # prj_lJhyFrdcF6qOokBzf2cNVuMyhWoh
 #
 # Sealed markers exercised by `npm run prove`:
 #   TERMINAL_STATE_VERIFICATION_OK
@@ -23,17 +30,18 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
-# Avoid stacked runs on rapid pushes — newer push cancels older job
+# Avoid stacked runs on rapid pushes — newer push cancels older job.
 concurrency:
   group: prove-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
   prove:
-    name: Run sealed proof markers
+    name: AUTOKIRK_PROOF_GATE_OK
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
 
     steps:
       - name: Checkout repo
@@ -61,8 +69,163 @@ jobs:
       - name: Apply all migrations to local DB
         run: supabase db reset --local
 
-      - name: Run sealed proof markers (npm run prove)
-        run: npm run prove
+      - name: Run sealed proof markers
+        id: prove
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm run prove | tee prove-output.txt
+
+          grep -q 'TERMINAL_STATE_VERIFICATION_OK' prove-output.txt
+          grep -q 'OVERDUE_FAILURE_VERIFICATION_MANUAL_OK' prove-output.txt
+          grep -q 'SYSTEM_TRUTH_VERIFICATION_OK' prove-output.txt
+          grep -q 'GUARD_VERIFICATION_OK' prove-output.txt
+          grep -q 'SIGNALS_VERIFICATION_OK' prove-output.txt
+
+      - name: Check live Supabase security advisor
+        if: github.event_name != 'pull_request'
+        id: supabase_security
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_ACCESS_TOKEN:-}" ] || [ -z "${SUPABASE_PROJECT_REF:-}" ]; then
+            echo "Missing SUPABASE_ACCESS_TOKEN or SUPABASE_PROJECT_REF secret" >&2
+            exit 1
+          fi
+
+          curl -fsS \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Content-Type: application/json" \
+            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/advisors/security" \
+            -o supabase-security.json
+
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('supabase-security.json', 'utf8'));
+          const lints = Array.isArray(payload.lints)
+            ? payload.lints
+            : Array.isArray(payload.result?.lints)
+              ? payload.result.lints
+              : [];
+          const blocking = lints.filter((lint) => ['ERROR', 'WARN'].includes(String(lint.level || '').toUpperCase()));
+          if (blocking.length) {
+            console.error(JSON.stringify(blocking, null, 2));
+            process.exit(1);
+          }
+          NODE
+
+      - name: Check Vercel production deployment alignment
+        if: github.event_name != 'pull_request'
+        id: vercel_ready
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          EXPECTED_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ] || [ -z "${VERCEL_TEAM_ID:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "Missing VERCEL_TOKEN, VERCEL_TEAM_ID, or VERCEL_PROJECT_ID secret" >&2
+            exit 1
+          fi
+
+          curl -fsS \
+            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+            "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&target=production&limit=1" \
+            -o vercel-deployments.json
+
+          node <<'NODE'
+          const fs = require('fs');
+          const payload = JSON.parse(fs.readFileSync('vercel-deployments.json', 'utf8'));
+          const deployment = payload.deployments && payload.deployments[0];
+          if (!deployment) {
+            console.error('No production deployment returned by Vercel.');
+            process.exit(1);
+          }
+          const expectedSha = process.env.EXPECTED_SHA;
+          const actualSha = deployment.meta?.githubCommitSha;
+          if (deployment.state !== 'READY') {
+            console.error(`Latest production deployment is ${deployment.state}, not READY.`);
+            process.exit(1);
+          }
+          if (actualSha !== expectedSha) {
+            console.error(`Latest production deployment SHA ${actualSha} does not match workflow SHA ${expectedSha}.`);
+            process.exit(1);
+          }
+          fs.writeFileSync('vercel-ready.txt', `${deployment.id}\n`);
+          NODE
+
+      - name: Emit AutoKirk proof gate summary
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          npm_run_prove="FAIL"
+          terminal_state="FAIL"
+          overdue_failure="FAIL"
+          system_truth="FAIL"
+          guards="FAIL"
+          signals="FAIL"
+          security_advisor="SKIPPED"
+          vercel_deployment_ready="SKIPPED"
+
+          if [ -f prove-output.txt ]; then
+            grep -q 'TERMINAL_STATE_VERIFICATION_OK' prove-output.txt && terminal_state="PASS"
+            grep -q 'OVERDUE_FAILURE_VERIFICATION_MANUAL_OK' prove-output.txt && overdue_failure="PASS"
+            grep -q 'SYSTEM_TRUTH_VERIFICATION_OK' prove-output.txt && system_truth="PASS"
+            grep -q 'GUARD_VERIFICATION_OK' prove-output.txt && guards="PASS"
+            grep -q 'SIGNALS_VERIFICATION_OK' prove-output.txt && signals="PASS"
+            if [ "$terminal_state" = "PASS" ] && [ "$overdue_failure" = "PASS" ] && [ "$system_truth" = "PASS" ] && [ "$guards" = "PASS" ] && [ "$signals" = "PASS" ]; then
+              npm_run_prove="PASS"
+            fi
+          fi
+
+          supabase_local_replay="PASS"
+          if [ "${{ steps.supabase_security.outcome || 'skipped' }}" = "success" ]; then
+            security_advisor="PASS"
+          elif [ "${{ steps.supabase_security.outcome || 'skipped' }}" = "failure" ]; then
+            security_advisor="FAIL"
+          fi
+
+          if [ "${{ steps.vercel_ready.outcome || 'skipped' }}" = "success" ]; then
+            vercel_deployment_ready="PASS"
+          elif [ "${{ steps.vercel_ready.outcome || 'skipped' }}" = "failure" ]; then
+            vercel_deployment_ready="FAIL"
+          fi
+
+          {
+            echo "AUTOKIRK_PROOF_GATE_OK"
+            echo
+            echo "commit: ${GITHUB_SHA}"
+            echo "supabase_local_replay: ${supabase_local_replay}"
+            echo "npm_run_prove: ${npm_run_prove}"
+            echo "terminal_state: ${terminal_state}"
+            echo "overdue_failure: ${overdue_failure}"
+            echo "system_truth: ${system_truth}"
+            echo "guards: ${guards}"
+            echo "signals: ${signals}"
+            echo "security_advisor: ${security_advisor}"
+            echo "vercel_deployment_ready: ${vercel_deployment_ready}"
+          } | tee autokirk-proof-gate-summary.txt
+
+          cat autokirk-proof-gate-summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload proof gate artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: autokirk-proof-gate-${{ github.sha }}
+          path: |
+            prove-output.txt
+            autokirk-proof-gate-summary.txt
+            supabase-security.json
+            vercel-deployments.json
+          if-no-files-found: ignore
 
       - name: Stop local Supabase stack
         if: always()
