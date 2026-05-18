@@ -16,6 +16,12 @@
 #   VERCEL_TEAM_ID                # team_OV8eAQoyzC70YMyjsAsc2MC6
 #   VERCEL_PROJECT_ID             # prj_lJhyFrdcF6qOokBzf2cNVuMyhWoh
 #
+# Required local runner capabilities:
+#   Windows self-hosted runner online
+#   Node available through setup-node
+#   Docker Desktop running for Supabase local stack
+#   PowerShell available
+#
 # Sealed markers exercised by `npm run prove`:
 #   TERMINAL_STATE_VERIFICATION_OK
 #   OVERDUE_FAILURE_VERIFICATION_MANUAL_OK
@@ -42,7 +48,7 @@ concurrency:
 jobs:
   prove:
     name: AUTOKIRK_PROOF_GATE_OK
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     timeout-minutes: 40
 
     steps:
@@ -56,7 +62,17 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          npm ci
+
+      - name: Build canonical app
+        id: npm_build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          npm run build
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -65,44 +81,72 @@ jobs:
 
       - name: Start local Supabase stack
         id: supabase_start
-        run: supabase start
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          supabase start
 
       - name: Apply all migrations to local DB
         id: supabase_replay
-        run: supabase db reset --local
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          supabase db reset --local
 
       - name: Run sealed proof markers
-        id: prove
-        shell: bash
+        id: prove_markers
+        shell: pwsh
         run: |
-          set -euo pipefail
-          npm run prove | tee prove-output.txt
+          $ErrorActionPreference = "Stop"
 
-          grep -q 'TERMINAL_STATE_VERIFICATION_OK' prove-output.txt
-          grep -q 'OVERDUE_FAILURE_VERIFICATION_MANUAL_OK' prove-output.txt
-          grep -q 'SYSTEM_TRUTH_VERIFICATION_OK' prove-output.txt
-          grep -q 'GUARD_VERIFICATION_OK' prove-output.txt
-          grep -q 'SIGNALS_VERIFICATION_OK' prove-output.txt
+          npm run prove | Tee-Object -FilePath prove-output.txt
+
+          $proof = Get-Content -Raw -Path prove-output.txt
+
+          $requiredMarkers = @(
+            "TERMINAL_STATE_VERIFICATION_OK",
+            "OVERDUE_FAILURE_VERIFICATION_MANUAL_OK",
+            "SYSTEM_TRUTH_VERIFICATION_OK",
+            "GUARD_VERIFICATION_OK",
+            "SIGNALS_VERIFICATION_OK"
+          )
+
+          foreach ($marker in $requiredMarkers) {
+            if ($proof -notlike "*$marker*") {
+              throw "Missing sealed proof marker: $marker"
+            }
+          }
 
       - name: Check live Supabase security advisor
         if: github.event_name != 'pull_request'
         id: supabase_security
+        shell: pwsh
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-        shell: bash
         run: |
-          set -euo pipefail
-          : "${SUPABASE_ACCESS_TOKEN:?Missing SUPABASE_ACCESS_TOKEN secret}"
-          : "${SUPABASE_PROJECT_REF:?Missing SUPABASE_PROJECT_REF secret}"
+          $ErrorActionPreference = "Stop"
 
-          curl -fsS \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/advisors/security" \
-            -o supabase-security.json
+          if (-not $env:SUPABASE_ACCESS_TOKEN) {
+            throw "Missing SUPABASE_ACCESS_TOKEN secret"
+          }
 
-          node <<'NODE'
+          if (-not $env:SUPABASE_PROJECT_REF) {
+            throw "Missing SUPABASE_PROJECT_REF secret"
+          }
+
+          $headers = @{
+            Authorization = "Bearer $env:SUPABASE_ACCESS_TOKEN"
+            "Content-Type" = "application/json"
+          }
+
+          $url = "https://api.supabase.com/v1/projects/$env:SUPABASE_PROJECT_REF/advisors/security"
+
+          Invoke-RestMethod -Uri $url -Headers $headers -Method Get |
+            ConvertTo-Json -Depth 20 |
+            Set-Content -Path supabase-security.json
+
+          node -e "
           const fs = require('fs');
           const payload = JSON.parse(fs.readFileSync('supabase-security.json', 'utf8'));
           const lints = Array.isArray(payload.lints)
@@ -110,76 +154,106 @@ jobs:
             : Array.isArray(payload.result?.lints)
               ? payload.result.lints
               : [];
-          const blocking = lints.filter((lint) => ['ERROR', 'WARN'].includes(String(lint.level || '').toUpperCase()));
+          const blocking = lints.filter((lint) =>
+            ['ERROR', 'WARN'].includes(String(lint.level || '').toUpperCase())
+          );
           if (blocking.length) {
             console.error(JSON.stringify(blocking, null, 2));
             process.exit(1);
           }
-          NODE
+          "
 
       - name: Check Vercel production deployment alignment
         if: github.event_name != 'pull_request'
         id: vercel_ready
+        shell: pwsh
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           EXPECTED_SHA: ${{ github.sha }}
-        shell: bash
         run: |
-          set -euo pipefail
-          : "${VERCEL_TOKEN:?Missing VERCEL_TOKEN secret}"
-          : "${VERCEL_TEAM_ID:?Missing VERCEL_TEAM_ID secret}"
-          : "${VERCEL_PROJECT_ID:?Missing VERCEL_PROJECT_ID secret}"
+          $ErrorActionPreference = "Stop"
 
-          for attempt in $(seq 1 30); do
-            curl -fsS \
-              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&target=production&limit=20" \
-              -o vercel-deployments.json
+          if (-not $env:VERCEL_TOKEN) {
+            throw "Missing VERCEL_TOKEN secret"
+          }
 
-            node <<'NODE' && exit 0 || status=$?
+          if (-not $env:VERCEL_TEAM_ID) {
+            throw "Missing VERCEL_TEAM_ID secret"
+          }
+
+          if (-not $env:VERCEL_PROJECT_ID) {
+            throw "Missing VERCEL_PROJECT_ID secret"
+          }
+
+          $headers = @{
+            Authorization = "Bearer $env:VERCEL_TOKEN"
+          }
+
+          $url = "https://api.vercel.com/v6/deployments?projectId=$env:VERCEL_PROJECT_ID&teamId=$env:VERCEL_TEAM_ID&target=production&limit=20"
+
+          $matched = $false
+
+          for ($attempt = 1; $attempt -le 30; $attempt++) {
+            Invoke-RestMethod -Uri $url -Headers $headers -Method Get |
+              ConvertTo-Json -Depth 20 |
+              Set-Content -Path vercel-deployments.json
+
+            node -e "
             const fs = require('fs');
             const payload = JSON.parse(fs.readFileSync('vercel-deployments.json', 'utf8'));
             const expectedSha = process.env.EXPECTED_SHA;
             const deployments = payload.deployments || [];
             const match = deployments.find((deployment) => deployment.meta?.githubCommitSha === expectedSha);
+
             if (!match) {
               console.error(`No production deployment found yet for ${expectedSha}.`);
               process.exit(2);
             }
+
             if (match.state !== 'READY') {
               console.error(`Production deployment ${match.id} for ${expectedSha} is ${match.state}, not READY yet.`);
               process.exit(3);
             }
+
             fs.writeFileSync('vercel-ready.txt', `${match.id}\n`);
-            NODE
+            "
 
-            if [ "$status" -ne 2 ] && [ "$status" -ne 3 ]; then
-              exit "$status"
-            fi
-            echo "Waiting for Vercel production deployment for ${EXPECTED_SHA}; attempt ${attempt}/30"
-            sleep 10
-          done
+            if ($LASTEXITCODE -eq 0) {
+              $matched = $true
+              break
+            }
 
-          echo "Timed out waiting for Vercel production deployment for ${EXPECTED_SHA}" >&2
-          exit 1
+            if ($LASTEXITCODE -ne 2 -and $LASTEXITCODE -ne 3) {
+              throw "Vercel deployment alignment check failed with exit code $LASTEXITCODE"
+            }
+
+            Write-Host "Waiting for Vercel production deployment for $env:EXPECTED_SHA; attempt $attempt/30"
+            Start-Sleep -Seconds 10
+          }
+
+          if (-not $matched) {
+            throw "Timed out waiting for Vercel production deployment for $env:EXPECTED_SHA"
+          }
 
       - name: Emit strict AutoKirk proof gate receipt
         if: always()
         id: receipt
-        shell: bash
+        shell: pwsh
         env:
+          NPM_BUILD_OUTCOME: ${{ steps.npm_build.outcome || 'failure' }}
           SUPABASE_REPLAY_OUTCOME: ${{ steps.supabase_replay.outcome || 'failure' }}
+          PROVE_MARKERS_OUTCOME: ${{ steps.prove_markers.outcome || 'failure' }}
           SUPABASE_SECURITY_OUTCOME: ${{ steps.supabase_security.outcome || 'skipped' }}
           VERCEL_READY_OUTCOME: ${{ steps.vercel_ready.outcome || 'skipped' }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
           VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
         run: |
-          set -euo pipefail
+          $ErrorActionPreference = "Stop"
 
-          node <<'NODE'
+          node -e "
           const fs = require('fs');
           const crypto = require('crypto');
 
@@ -190,6 +264,7 @@ jobs:
           const status = (ok) => ok ? 'PASS' : 'FAIL';
 
           const checks = {
+            npm_build: status(env.NPM_BUILD_OUTCOME === 'success'),
             supabase_local_replay: status(env.SUPABASE_REPLAY_OUTCOME === 'success'),
             npm_run_prove: 'FAIL',
             terminal_state: status(has('TERMINAL_STATE_VERIFICATION_OK')),
@@ -214,6 +289,7 @@ jobs:
           ].every((value) => value === 'PASS'));
 
           const localProofPassed = [
+            checks.npm_build,
             checks.supabase_local_replay,
             checks.npm_run_prove,
             checks.terminal_state,
@@ -235,7 +311,7 @@ jobs:
             : null;
 
           const receipt = {
-            schema: 'autokirk.release_receipt.v2.strict',
+            schema: 'autokirk.release_receipt.v3.windows_self_hosted',
             doctrine: 'no_proof_no_closure_no_proof_no_deploy',
             receipt_id: `${receiptKind}:${env.GITHUB_REPOSITORY}:${env.GITHUB_SHA}:${env.GITHUB_RUN_ID}:${env.GITHUB_RUN_ATTEMPT}`,
             receipt_kind: receiptKind,
@@ -258,6 +334,8 @@ jobs:
             artifacts: {
               proof_output: fs.existsSync('prove-output.txt') ? 'prove-output.txt' : null,
               summary: 'autokirk-proof-gate-summary.txt',
+              receipt: 'autokirk-release-receipt.json',
+              receipt_status: 'autokirk-receipt-status.txt',
               supabase_security: fs.existsSync('supabase-security.json') ? 'supabase-security.json' : null,
               vercel_deployments: fs.existsSync('vercel-deployments.json') ? 'vercel-deployments.json' : null,
               vercel_ready: fs.existsSync('vercel-ready.txt') ? 'vercel-ready.txt' : null
@@ -276,6 +354,7 @@ jobs:
             'AUTOKIRK_PROOF_GATE_OK',
             '',
             `commit: ${env.GITHUB_SHA}`,
+            `npm_build: ${checks.npm_build}`,
             `supabase_local_replay: ${checks.supabase_local_replay}`,
             `npm_run_prove: ${checks.npm_run_prove}`,
             `terminal_state: ${checks.terminal_state}`,
@@ -293,8 +372,11 @@ jobs:
           fs.writeFileSync('autokirk-proof-gate-summary.txt', summaryLines.join('\n') + '\n');
           fs.writeFileSync('autokirk-release-receipt.json', JSON.stringify(receipt, null, 2) + '\n');
           fs.writeFileSync('autokirk-receipt-status.txt', receiptStatus + '\n');
-          fs.appendFileSync(env.GITHUB_STEP_SUMMARY, summaryLines.join('\n') + '\n');
-          NODE
+
+          if (env.GITHUB_STEP_SUMMARY) {
+            fs.appendFileSync(env.GITHUB_STEP_SUMMARY, summaryLines.join('\n') + '\n');
+          }
+          "
 
       - name: Upload proof gate artifacts
         if: always()
@@ -313,19 +395,26 @@ jobs:
 
       - name: Enforce strict AutoKirk proof result
         if: always()
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          if [ ! -f autokirk-receipt-status.txt ]; then
-            echo "Missing AutoKirk release receipt status artifact" >&2
+          $ErrorActionPreference = "Stop"
+
+          if (-not (Test-Path -Path autokirk-receipt-status.txt)) {
+            throw "Missing AutoKirk release receipt status artifact"
+          }
+
+          $status = (Get-Content -Raw -Path autokirk-receipt-status.txt).Trim()
+
+          if ($status -ne "PASS") {
+            Write-Error "AutoKirk proof gate did not produce a PASS receipt"
+            if (Test-Path -Path autokirk-release-receipt.json) {
+              Get-Content -Raw -Path autokirk-release-receipt.json | Write-Error
+            }
             exit 1
-          fi
-          if [ "$(cat autokirk-receipt-status.txt)" != "PASS" ]; then
-            echo "AutoKirk proof gate did not produce a PASS receipt" >&2
-            cat autokirk-release-receipt.json >&2 || true
-            exit 1
-          fi
+          }
 
       - name: Stop local Supabase stack
         if: always()
-        run: supabase stop --no-backup
+        shell: pwsh
+        run: |
+          supabase stop --no-backup
