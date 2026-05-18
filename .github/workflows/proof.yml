@@ -7,6 +7,7 @@
 #   No proof -> no deploy.
 #   No ambiguous release receipt.
 #   No production release receipt without live Supabase and Vercel verification.
+#   Failed proofs still emit evidence artifacts.
 #
 # Required repo secrets for push/main production release checks:
 #   SUPABASE_ACCESS_TOKEN
@@ -166,6 +167,7 @@ jobs:
 
       - name: Emit strict AutoKirk proof gate receipt
         if: always()
+        id: receipt
         shell: bash
         env:
           SUPABASE_REPLAY_OUTCOME: ${{ steps.supabase_replay.outcome || 'failure' }}
@@ -290,12 +292,8 @@ jobs:
 
           fs.writeFileSync('autokirk-proof-gate-summary.txt', summaryLines.join('\n') + '\n');
           fs.writeFileSync('autokirk-release-receipt.json', JSON.stringify(receipt, null, 2) + '\n');
+          fs.writeFileSync('autokirk-receipt-status.txt', receiptStatus + '\n');
           fs.appendFileSync(env.GITHUB_STEP_SUMMARY, summaryLines.join('\n') + '\n');
-
-          if (receiptStatus !== 'PASS') {
-            console.error(JSON.stringify(receipt, null, 2));
-            process.exit(1);
-          }
           NODE
 
       - name: Upload proof gate artifacts
@@ -307,10 +305,26 @@ jobs:
             prove-output.txt
             autokirk-proof-gate-summary.txt
             autokirk-release-receipt.json
+            autokirk-receipt-status.txt
             supabase-security.json
             vercel-deployments.json
             vercel-ready.txt
           if-no-files-found: ignore
+
+      - name: Enforce strict AutoKirk proof result
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ ! -f autokirk-receipt-status.txt ]; then
+            echo "Missing AutoKirk release receipt status artifact" >&2
+            exit 1
+          fi
+          if [ "$(cat autokirk-receipt-status.txt)" != "PASS" ]; then
+            echo "AutoKirk proof gate did not produce a PASS receipt" >&2
+            cat autokirk-release-receipt.json >&2 || true
+            exit 1
+          fi
 
       - name: Stop local Supabase stack
         if: always()
