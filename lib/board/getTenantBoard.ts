@@ -376,6 +376,12 @@ export async function getTenantBoard(
   ]);
 
   if (obligationsResult.error || sourceResult.error || receiptsResult.error) {
+    console.error("BOARD_QUERY_ERROR", {
+      obligationsError: obligationsResult.error,
+      sourceError: sourceResult.error,
+      receiptsError: receiptsResult.error,
+    });
+
     return { kind: "error" };
   }
 
@@ -393,3 +399,4 @@ export async function getTenantBoard(
     board,
   };
 }
+
