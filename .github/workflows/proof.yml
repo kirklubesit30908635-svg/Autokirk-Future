@@ -41,7 +41,7 @@ jobs:
   prove:
     name: AUTOKIRK_PROOF_GATE_OK
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repo
@@ -64,9 +64,11 @@ jobs:
       # Local Supabase boots Postgres + Edge runtime in Docker.
       # GitHub-hosted runners include Docker by default.
       - name: Start local Supabase stack
+        id: supabase_start
         run: supabase start
 
       - name: Apply all migrations to local DB
+        id: supabase_replay
         run: supabase db reset --local
 
       - name: Run sealed proof markers
@@ -133,31 +135,38 @@ jobs:
             exit 1
           fi
 
-          curl -fsS \
-            -H "Authorization: Bearer ${VERCEL_TOKEN}" \
-            "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&target=production&limit=1" \
-            -o vercel-deployments.json
+          for attempt in $(seq 1 30); do
+            curl -fsS \
+              -H "Authorization: Bearer ${VERCEL_TOKEN}" \
+              "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&target=production&limit=20" \
+              -o vercel-deployments.json
 
-          node <<'NODE'
-          const fs = require('fs');
-          const payload = JSON.parse(fs.readFileSync('vercel-deployments.json', 'utf8'));
-          const deployment = payload.deployments && payload.deployments[0];
-          if (!deployment) {
-            console.error('No production deployment returned by Vercel.');
-            process.exit(1);
-          }
-          const expectedSha = process.env.EXPECTED_SHA;
-          const actualSha = deployment.meta?.githubCommitSha;
-          if (deployment.state !== 'READY') {
-            console.error(`Latest production deployment is ${deployment.state}, not READY.`);
-            process.exit(1);
-          }
-          if (actualSha !== expectedSha) {
-            console.error(`Latest production deployment SHA ${actualSha} does not match workflow SHA ${expectedSha}.`);
-            process.exit(1);
-          }
-          fs.writeFileSync('vercel-ready.txt', `${deployment.id}\n`);
-          NODE
+            node <<'NODE' && exit 0 || status=$?
+            const fs = require('fs');
+            const payload = JSON.parse(fs.readFileSync('vercel-deployments.json', 'utf8'));
+            const expectedSha = process.env.EXPECTED_SHA;
+            const deployments = payload.deployments || [];
+            const match = deployments.find((deployment) => deployment.meta?.githubCommitSha === expectedSha);
+            if (!match) {
+              console.error(`No production deployment found yet for ${expectedSha}.`);
+              process.exit(2);
+            }
+            if (match.state !== 'READY') {
+              console.error(`Production deployment ${match.id} for ${expectedSha} is ${match.state}, not READY yet.`);
+              process.exit(3);
+            }
+            fs.writeFileSync('vercel-ready.txt', `${match.id}\n`);
+            NODE
+
+            if [ "$status" -ne 2 ] && [ "$status" -ne 3 ]; then
+              exit "$status"
+            fi
+            echo "Waiting for Vercel production deployment for ${EXPECTED_SHA}; attempt ${attempt}/30"
+            sleep 10
+          done
+
+          echo "Timed out waiting for Vercel production deployment for ${EXPECTED_SHA}" >&2
+          exit 1
 
       - name: Emit AutoKirk proof gate summary
         if: always()
@@ -173,6 +182,11 @@ jobs:
           signals="FAIL"
           security_advisor="SKIPPED"
           vercel_deployment_ready="SKIPPED"
+          supabase_local_replay="FAIL"
+
+          if [ "${{ steps.supabase_replay.outcome || 'failure' }}" = "success" ]; then
+            supabase_local_replay="PASS"
+          fi
 
           if [ -f prove-output.txt ]; then
             grep -q 'TERMINAL_STATE_VERIFICATION_OK' prove-output.txt && terminal_state="PASS"
@@ -185,7 +199,6 @@ jobs:
             fi
           fi
 
-          supabase_local_replay="PASS"
           if [ "${{ steps.supabase_security.outcome || 'skipped' }}" = "success" ]; then
             security_advisor="PASS"
           elif [ "${{ steps.supabase_security.outcome || 'skipped' }}" = "failure" ]; then
@@ -225,6 +238,7 @@ jobs:
             autokirk-proof-gate-summary.txt
             supabase-security.json
             vercel-deployments.json
+            vercel-ready.txt
           if-no-files-found: ignore
 
       - name: Stop local Supabase stack
