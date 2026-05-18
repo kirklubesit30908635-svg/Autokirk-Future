@@ -4,7 +4,6 @@ import { createServerClient } from "@supabase/ssr";
 import { serialize } from "cookie";
 import { createClient } from "@supabase/supabase-js";
 
-import { verifyProofActionToken } from "../../../lib/board/signedBoardUrl";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -66,11 +65,6 @@ function isValidHttpUrl(value: string): boolean {
   }
 }
 
-function platformActorId(): string {
-  const actor = process.env.AUTOKIRK_PLATFORM_ACTOR_USER_ID?.trim();
-  if (!actor) throw new Error("AUTOKIRK_PLATFORM_ACTOR_USER_ID_REQUIRED");
-  return actor;
-}
 
 function buildIdempotencyKey(payload: { obligationId: string; proofNote: string; proofPhotoUrl: string | null; reason: string }): string {
   const digest = createHash("sha256").update(JSON.stringify(payload)).digest("hex");
@@ -94,7 +88,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     const obligationId = requireTrimmedString(requestBody.obligation_id, "OBLIGATION_ID_REQUIRED");
     const proofNote = requireTrimmedString(requestBody.proof_note, "PROOF_NOTE_REQUIRED");
     const proofPhotoUrl = optionalTrimmedString(requestBody.proof_photo_url);
-    const proofActionToken = optionalTrimmedString(requestBody.proof_action_token);
     const reason = optionalTrimmedString(requestBody.reason) ?? "operator proof submitted from system proof board";
 
     if (proofPhotoUrl && !isValidHttpUrl(proofPhotoUrl)) throw new RequestValidationError("PROOF_PHOTO_URL_INVALID");
@@ -134,11 +127,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
       if (membership) actorId = user.id;
     }
 
-    if (!actorId && verifyProofActionToken({ workspaceId: obligation.workspace_id, obligationId, token: proofActionToken })) {
-      actorId = platformActorId();
-    }
-
-    if (!actorId) return res.status(403).json({ ok: false, error: "INVALID_WORKSPACE_ACCESS" });
+    if (!actorId) return res.status(401).json({ ok: false, error: "AUTH_REQUIRED" });
 
     const idempotencyKey = buildIdempotencyKey({ obligationId, proofNote, proofPhotoUrl, reason });
 
@@ -200,3 +189,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse<
     return res.status(statusCode).json({ ok: false, error: err instanceof Error ? `${err.name}: ${err.message}` : "UNKNOWN_ERROR" });
   }
 }
+
