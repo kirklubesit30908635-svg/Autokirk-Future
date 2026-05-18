@@ -6,6 +6,7 @@ type LoginState =
   | { state: "idle" }
   | { state: "checking" }
   | { state: "sending" }
+  | { state: "resolving_workspace" }
   | { state: "sent"; email: string }
   | { state: "signed_in"; email: string | null }
   | { state: "error"; message: string };
@@ -29,18 +30,32 @@ function getSessionId(): string | null {
   return window.localStorage.getItem(SESSION_KEY);
 }
 
-function getPlatformPath(): string {
-  const sessionId = getSessionId();
-  return sessionId ? `/platform?session_id=${encodeURIComponent(sessionId)}` : "/platform";
-}
-
 function getRedirectUrl(): string {
   return `${window.location.origin}/login`;
+}
+
+async function resolveWorkspaceAccess(): Promise<string> {
+  const response = await fetch('/api/customer/returning-access', {
+    method: 'GET',
+    credentials: 'include',
+    headers: {
+      accept: 'application/json',
+    },
+  })
+
+  const body = await response.json()
+
+  if (!response.ok || !body.ok || typeof body.board_path !== 'string') {
+    throw new Error(body?.error ?? 'WORKSPACE_ACCESS_RESOLUTION_FAILED')
+  }
+
+  return body.board_path
 }
 
 function copyFor(status: LoginState): { label: string; body: string } {
   if (status.state === "checking") return { label: "Checking login", body: "AutoKirk is checking whether this browser is already signed in." };
   if (status.state === "sending") return { label: "Sending login link", body: "AutoKirk is sending a secure sign-in link." };
+  if (status.state === "resolving_workspace") return { label: "Opening workspace", body: "AutoKirk is resolving your governed workspace access." };
   if (status.state === "sent") return { label: "Check your email", body: `A secure login link was sent to ${status.email}.` };
   if (status.state === "signed_in") return { label: "Signed in", body: status.email ? `Continuing as ${status.email}.` : "Continuing to AutoKirk." };
   if (status.state === "error") return { label: "Login needs attention", body: status.message };
@@ -53,21 +68,39 @@ export default function LoginPage() {
   const copy = useMemo(() => copyFor(status), [status]);
 
   useEffect(() => {
-    try {
-      getSessionId();
-      const supabase = getSupabaseBrowserClient();
-      supabase.auth.getSession().then(({ data, error }) => {
-        if (error) return setStatus({ state: "error", message: error.message });
-        if (data.session) {
-          setStatus({ state: "signed_in", email: data.session.user.email ?? null });
-          window.setTimeout(() => window.location.replace(getPlatformPath()), 250);
-          return;
+    async function bootstrap() {
+      try {
+        getSessionId();
+        const supabase = getSupabaseBrowserClient();
+        const { data, error } = await supabase.auth.getSession()
+
+        if (error) {
+          setStatus({ state: 'error', message: error.message })
+          return
         }
-        setStatus({ state: "idle" });
-      });
-    } catch (err) {
-      setStatus({ state: "error", message: err instanceof Error ? err.message : "Login is not configured." });
+
+        if (!data.session) {
+          setStatus({ state: 'idle' })
+          return
+        }
+
+        setStatus({
+          state: 'signed_in',
+          email: data.session.user.email ?? null,
+        })
+
+        setStatus({ state: 'resolving_workspace' })
+        const boardPath = await resolveWorkspaceAccess()
+        window.location.replace(boardPath)
+      } catch (err) {
+        setStatus({
+          state: 'error',
+          message: err instanceof Error ? err.message : 'Workspace access failed.',
+        })
+      }
     }
+
+    bootstrap()
   }, []);
 
   async function sendLoginLink() {
@@ -88,10 +121,6 @@ export default function LoginPage() {
     }
   }
 
-  function continueToPlatform() {
-    window.location.replace(getPlatformPath());
-  }
-
   return (
     <>
       <Head>
@@ -107,9 +136,11 @@ export default function LoginPage() {
           </div>
           <p className="eyebrow">AutoKirk login</p>
           <h1 id="login-title">Sign in to continue.</h1>
-          <p className="lede">After checkout, use this login to enter AutoKirk. For daily use, come back here and continue to the same governed workspace.</p>
-          {status.state === "signed_in" ? (
-            <button className="primary" type="button" onClick={continueToPlatform}>Continue to AutoKirk</button>
+          <p className="lede">After checkout, use this login to enter AutoKirk. Returning customers sign in once and continue directly to their governed workspace board.</p>
+          {status.state === "signed_in" || status.state === "resolving_workspace" ? (
+            <button className="primary" type="button" disabled>
+              Opening workspace...
+            </button>
           ) : (
             <form className="form" onSubmit={(event) => { event.preventDefault(); sendLoginLink(); }}>
               <label>Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label>
@@ -117,9 +148,9 @@ export default function LoginPage() {
             </form>
           )}
           <div className="steps" aria-label="Login flow">
-            <article><span>01</span><strong>Pay through Stripe</strong><p>Checkout confirms activation.</p></article>
-            <article><span>02</span><strong>Sign in by email</strong><p>No workspace ID is shown to the customer.</p></article>
-            <article><span>03</span><strong>Use AutoKirk daily</strong><p>Create obligations, prove work, and preserve receipts.</p></article>
+            <article><span>01</span><strong>Pay through Stripe once</strong><p>Checkout provisions the governed workspace.</p></article>
+            <article><span>02</span><strong>Sign in by email</strong><p>Passwordless login restores tenant-safe access.</p></article>
+            <article><span>03</span><strong>Continue to your board</strong><p>AutoKirk resolves workspace membership and opens the board directly.</p></article>
           </div>
         </section>
       </main>
