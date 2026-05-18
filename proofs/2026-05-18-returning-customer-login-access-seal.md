@@ -93,19 +93,34 @@ A controlled design-partner customer should pay once, then use email login for f
 
 This seal does not claim broad self-serve readiness, enterprise readiness, legal-proof status, compliance readiness, or third-party audit validation.
 
+## Captured smoke evidence
+
+Preview deployment for branch commit `7bc6747664c26e7a709440daa212fa02b2ce8e55` reached Vercel `READY` as deployment `dpl_4jx35Na13fREGA5mgpGwzpQzSC6g`.
+
+Unauthenticated live request to the preview deployment proved the returning-access resolver does not open a workspace without an auth session:
+
+```text
+GET /api/customer/returning-access
+HTTP 401 Unauthorized
+{"ok":false,"error":"Auth session missing!"}
+```
+
+The first GitHub Actions proof-gate run for commit `7bc6747664c26e7a709440daa212fa02b2ce8e55` ended in `startup_failure` before creating jobs or artifacts. That run could not be retried through GitHub. This document update intentionally creates a new branch commit to trigger a fresh proof-gate attempt.
+
 ## Remaining proof work
 
 Before promoting this as production-sealed, run and capture:
 
 ```text
-1. Build/typecheck result for branch
-2. Successful Stripe test checkout redirecting to /activate?session_id=...
-3. Verified activation page exposing Continue to email login only after paid session
-4. Returning email login resolving to /board/[tenant]
-5. No-auth /api/customer/returning-access -> 401
-6. Signed-in user with no billing/membership -> denied
-7. Inactive/canceled billing -> denied
-8. Wrong-tenant board access -> forbidden
+1. GitHub proof gate result for latest branch commit
+2. Build/typecheck result for branch
+3. Successful Stripe test checkout redirecting to /activate?session_id=...
+4. Verified activation page exposing Continue to email login only after paid session
+5. Returning email login resolving to /board/[tenant]
+6. No-auth /api/customer/returning-access -> 401
+7. Signed-in user with no billing/membership -> denied
+8. Inactive/canceled billing -> denied
+9. Wrong-tenant board access -> forbidden
 ```
 
 ## Verdict
