@@ -49,6 +49,10 @@ export type BoardObligation = {
   openedAt: string | null;
   description: string | null;
   proofRequired: string | null;
+  displayTitle: string;
+  displayDescription: string | null;
+  proofRequirement: string | null;
+  sourceType: string | null;
   sourceLabel: string | null;
   proofActionToken: string | null;
 };
@@ -192,6 +196,25 @@ function buildBoard(input: {
     const triggerAnchor = stringFromPath(payload, ["anchors", "trigger"]);
     const triggerText = stringFromPath(payload, ["trigger_text"]);
     const operatorNote = stringFromPath(payload, ["operator_note"]);
+    const sourceType =
+      stringFromPath(payload, ["source_type"]) ??
+      sourceEvent?.source_event_type ??
+      sourceRow?.source_system ??
+      null;
+    const displayTitle =
+      stringFromPath(payload, ["board_label"]) ??
+      stringFromPath(payload, ["watched_work"]) ??
+      row.obligation_code ??
+      "Untitled obligation";
+    const displayDescription =
+      stringFromPath(payload, ["watched_work"]) ??
+      triggerText ??
+      operatorNote ??
+      null;
+    const proofRequirement =
+      stringFromPath(payload, ["proof_required"]) ??
+      actionAnchor ??
+      null;
     const status = mapBoardStatus({
       lifecycleState: row.status,
       proofStatus: row.proof_status,
@@ -208,9 +231,13 @@ function buildBoard(input: {
       dueAt: row.due_at,
       proofStatus: row.proof_status,
       openedAt: row.created_at,
-      description: triggerText ?? operatorNote ?? null,
-      proofRequired: actionAnchor,
-      sourceLabel: triggerAnchor ?? sourceRow?.source_system ?? null,
+      description: displayDescription,
+      proofRequired: proofRequirement,
+      displayTitle,
+      displayDescription,
+      proofRequirement,
+      sourceType,
+      sourceLabel: triggerAnchor ?? sourceType ?? sourceRow?.source_system ?? null,
       proofActionToken:
         input.canCloseWithScopedActions && status !== "Sealed"
           ? signProofActionToken({
@@ -363,7 +390,7 @@ export async function getTenantBoard(
       .schema("core")
       .from("obligation_sources")
       .select(
-        "obligation_id,source_system,source_event_key,source_event_id",
+        "obligation_id,source_system,source_event_key,source_event_id,source_event:source_event_id(payload,source_event_type,occurred_at)",
       )
       .eq("workspace_id", workspaceId)
       .limit(100),
@@ -392,7 +419,7 @@ export async function getTenantBoard(
     sourceRows: (sourceResult.data ?? []) as ObligationSourceRow[],
     receiptRows: (receiptsResult.data ?? []) as ReceiptRow[],
     now: new Date(),
-    canCloseWithScopedActions: canReadViaUser || canReadViaBoard,
+    canCloseWithScopedActions: canReadViaUser,
   });
 
   return {
@@ -400,5 +427,3 @@ export async function getTenantBoard(
     board,
   };
 }
-
-
