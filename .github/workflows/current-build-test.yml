@@ -9,8 +9,6 @@ on:
 permissions:
   contents: read
 
-actions: {}
-
 jobs:
   build:
     name: CURRENT_BUILD_TEST
