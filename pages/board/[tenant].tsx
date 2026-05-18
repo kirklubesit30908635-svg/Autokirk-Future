@@ -31,9 +31,20 @@ export const getServerSideProps: GetServerSideProps<TenantBoardPageProps> =
       };
     }
 
+    console.error("BOARD_LOAD_FAILED", {
+      tenant,
+      kind: result.kind,
+    });
+
     return {
       props: {
-        board: createFallbackBoard(tenant),
+        board: {
+          ...createFallbackBoard(tenant),
+          tenant: {
+            id: tenant,
+            name: `Board unavailable: ${result.kind}`,
+          },
+        },
       },
     };
   };
