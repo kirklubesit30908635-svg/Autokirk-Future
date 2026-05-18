@@ -27,6 +27,7 @@ type ObligationSourceRow = {
   obligation_id: string | null;
   source_system: string | null;
   source_event_key: string | null;
+  source_event_id?: string | null;
   source_event: SourceEventRow | SourceEventRow[] | null;
 };
 
@@ -362,7 +363,7 @@ export async function getTenantBoard(
       .schema("core")
       .from("obligation_sources")
       .select(
-        "obligation_id,source_system,source_event_key,source_event:source_event_id(payload,source_event_type,occurred_at)",
+        "obligation_id,source_system,source_event_key,source_event_id",
       )
       .eq("workspace_id", workspaceId)
       .limit(100),
@@ -399,4 +400,5 @@ export async function getTenantBoard(
     board,
   };
 }
+
 
