@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useMemo, useState } from "react";
 
 type LoginState =
@@ -8,7 +8,12 @@ type LoginState =
   | { state: "sending" }
   | { state: "sent"; email: string }
   | { state: "signed_in"; email: string | null }
+  | { state: "linking"; email: string | null }
   | { state: "error"; message: string };
+
+type AccountLinkResponse =
+  | { ok: true; workspace_id: string; board_url: string; workspace_name: string | null }
+  | { ok: false; error: string; detail?: string };
 
 const SESSION_KEY = "autokirk.pendingCheckoutSessionId";
 
@@ -29,13 +34,60 @@ function getSessionId(): string | null {
   return window.localStorage.getItem(SESSION_KEY);
 }
 
+function getNextPath(): string | null {
+  const params = new URLSearchParams(window.location.search);
+  const next = params.get("next");
+  if (!next || !next.startsWith("/")) return null;
+  if (next.startsWith("//")) return null;
+  return next;
+}
+
 function getPlatformPath(): string {
   const sessionId = getSessionId();
   return sessionId ? `/platform?session_id=${encodeURIComponent(sessionId)}` : "/platform";
 }
 
 function getRedirectUrl(): string {
-  return `${window.location.origin}/login`;
+  const sessionId = getSessionId();
+  const next = getNextPath();
+  const params = new URLSearchParams();
+
+  if (sessionId) params.set("session_id", sessionId);
+  if (next) params.set("next", next);
+
+  const query = params.toString();
+  return `${window.location.origin}/login${query ? `?${query}` : ""}`;
+}
+
+function accountLinkPath(): string {
+  const sessionId = getSessionId();
+  return sessionId
+    ? `/api/platform/account-link?session_id=${encodeURIComponent(sessionId)}`
+    : "/api/platform/account-link";
+}
+
+async function linkAndEnterWorkspace(supabase: SupabaseClient): Promise<void> {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) throw error;
+  const accessToken = data.session?.access_token;
+  if (!accessToken) throw new Error("AUTH_SESSION_NOT_READY");
+
+  const response = await fetch(accountLinkPath(), {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${accessToken}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({ session_id: getSessionId() }),
+  });
+
+  const body = (await response.json()) as AccountLinkResponse;
+  if (!response.ok || !body.ok) {
+    throw new Error(body.ok ? "ACCOUNT_LINK_FAILED" : body.detail ?? body.error);
+  }
+
+  window.localStorage.removeItem(SESSION_KEY);
+  window.location.replace(body.board_url || `/board/${body.workspace_id}`);
 }
 
 function copyFor(status: LoginState): { label: string; body: string } {
@@ -43,6 +95,7 @@ function copyFor(status: LoginState): { label: string; body: string } {
   if (status.state === "sending") return { label: "Sending login link", body: "AutoKirk is sending a secure sign-in link." };
   if (status.state === "sent") return { label: "Check your email", body: `A secure login link was sent to ${status.email}.` };
   if (status.state === "signed_in") return { label: "Signed in", body: status.email ? `Continuing as ${status.email}.` : "Continuing to AutoKirk." };
+  if (status.state === "linking") return { label: "Opening workspace", body: status.email ? `Returning ${status.email} to the correct tenant workspace.` : "Returning to the correct tenant workspace." };
   if (status.state === "error") return { label: "Login needs attention", body: status.message };
   return { label: "Daily login", body: "Sign in after checkout and return whenever you need to run AutoKirk." };
 }
@@ -59,8 +112,11 @@ export default function LoginPage() {
       supabase.auth.getSession().then(({ data, error }) => {
         if (error) return setStatus({ state: "error", message: error.message });
         if (data.session) {
-          setStatus({ state: "signed_in", email: data.session.user.email ?? null });
-          window.setTimeout(() => window.location.replace(getPlatformPath()), 250);
+          const userEmail = data.session.user.email ?? null;
+          setStatus({ state: "linking", email: userEmail });
+          linkAndEnterWorkspace(supabase).catch((err) => {
+            setStatus({ state: "error", message: err instanceof Error ? err.message : "Could not open workspace." });
+          });
           return;
         }
         setStatus({ state: "idle" });
@@ -101,15 +157,15 @@ export default function LoginPage() {
       <main className="shell">
         <section className="card" aria-labelledby="login-title">
           <div className="status" aria-live="polite">
-            <span className={status.state === "signed_in" || status.state === "sent" ? "dot ready" : "dot"} />
+            <span className={status.state === "signed_in" || status.state === "sent" || status.state === "linking" ? "dot ready" : "dot"} />
             <strong>{copy.label}</strong>
             <span>{copy.body}</span>
           </div>
           <p className="eyebrow">AutoKirk login</p>
           <h1 id="login-title">Sign in to continue.</h1>
           <p className="lede">After checkout, use this login to enter AutoKirk. For daily use, come back here and continue to the same governed workspace.</p>
-          {status.state === "signed_in" ? (
-            <button className="primary" type="button" onClick={continueToPlatform}>Continue to AutoKirk</button>
+          {status.state === "signed_in" || status.state === "linking" ? (
+            <button className="primary" type="button" onClick={continueToPlatform} disabled={status.state === "linking"}>{status.state === "linking" ? "Opening workspace..." : "Continue to AutoKirk"}</button>
           ) : (
             <form className="form" onSubmit={(event) => { event.preventDefault(); sendLoginLink(); }}>
               <label>Email address<input required type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@company.com" /></label>
@@ -119,7 +175,7 @@ export default function LoginPage() {
           <div className="steps" aria-label="Login flow">
             <article><span>01</span><strong>Pay through Stripe</strong><p>Checkout confirms activation.</p></article>
             <article><span>02</span><strong>Sign in by email</strong><p>No workspace ID is shown to the customer.</p></article>
-            <article><span>03</span><strong>Use AutoKirk daily</strong><p>Create obligations, prove work, and preserve receipts.</p></article>
+            <article><span>03</span><strong>Enter tenant workspace</strong><p>AutoKirk returns you to the governed board attached to your account.</p></article>
           </div>
         </section>
       </main>
