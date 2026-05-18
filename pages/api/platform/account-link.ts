@@ -12,8 +12,19 @@ type AccountLinkResponse =
     }
   | { ok: false; error: string; detail?: string };
 
-const DEFAULT_WORKSPACE_ID = "88eecda6-80e4-4eb7-b890-4330674fa7a7";
+type StripeCheckoutSession = {
+  id: string;
+  status?: string | null;
+  payment_status?: string | null;
+  customer?: string | { id?: string } | null;
+  subscription?: string | { id?: string } | null;
+  customer_email?: string | null;
+  customer_details?: { email?: string | null } | null;
+  metadata?: Record<string, string> | null;
+};
+
 const DEFAULT_WORKSPACE_NAME = "AutoKirk Platform Launch Workspace";
+const CHECKOUT_SESSION_PATTERN = /^cs_(test|live)_[A-Za-z0-9_]+$/;
 
 function slugPart(value: string | null | undefined): string {
   const clean = (value ?? "customer")
@@ -36,6 +47,105 @@ function serviceClient() {
   });
 }
 
+function idFrom(value: string | { id?: string } | null | undefined): string | null {
+  if (!value) return null;
+  if (typeof value === "string") return value;
+  return value.id ?? null;
+}
+
+function normalizedEmail(value: string | null | undefined): string | null {
+  const email = value?.trim().toLowerCase();
+  return email && email.includes("@") ? email : null;
+}
+
+function requestCheckoutSessionId(req: NextApiRequest): string | null {
+  const raw = req.method === "GET" ? req.query.session_id : req.body?.session_id;
+  const value = Array.isArray(raw) ? raw[0] : raw;
+
+  if (typeof value !== "string" || !value.trim()) return null;
+
+  const trimmed = value.trim();
+  if (!CHECKOUT_SESSION_PATTERN.test(trimmed)) {
+    throw new Error("INVALID_CHECKOUT_SESSION_ID");
+  }
+
+  return trimmed;
+}
+
+async function fetchStripeCheckoutSession(sessionId: string): Promise<StripeCheckoutSession> {
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  if (!stripeSecretKey?.trim()) {
+    throw new Error("STRIPE_SECRET_KEY_REQUIRED_FOR_CHECKOUT_BINDING");
+  }
+
+  const response = await fetch(
+    `https://api.stripe.com/v1/checkout/sessions/${encodeURIComponent(sessionId)}`,
+    {
+      method: "GET",
+      headers: {
+        authorization: `Bearer ${stripeSecretKey}`,
+      },
+    }
+  );
+
+  const body = await response.json();
+  if (!response.ok) {
+    const message = typeof body?.error?.message === "string" ? body.error.message : "STRIPE_SESSION_LOOKUP_FAILED";
+    throw new Error(message);
+  }
+
+  return body as StripeCheckoutSession;
+}
+
+async function bindCheckoutSession(input: {
+  supabase: ReturnType<typeof serviceClient>;
+  sessionId: string;
+  userEmail: string | null;
+  userId: string;
+  workspaceId: string;
+}): Promise<void> {
+  const checkout = await fetchStripeCheckoutSession(input.sessionId);
+
+  if (checkout.status && checkout.status !== "complete") {
+    throw new Error("CHECKOUT_SESSION_NOT_COMPLETE");
+  }
+
+  const checkoutEmail =
+    normalizedEmail(checkout.customer_details?.email) ??
+    normalizedEmail(checkout.customer_email);
+
+  if (checkoutEmail && input.userEmail && checkoutEmail !== input.userEmail) {
+    throw new Error("CHECKOUT_EMAIL_MISMATCH");
+  }
+
+  const customerId = idFrom(checkout.customer);
+  if (!customerId) {
+    throw new Error("CHECKOUT_CUSTOMER_NOT_RESOLVED");
+  }
+
+  const { error } = await input.supabase.schema("billing").from("accounts").upsert(
+    {
+      workspace_id: input.workspaceId,
+      actor_id: input.userId,
+      stripe_customer_id: customerId,
+      stripe_subscription_id: idFrom(checkout.subscription),
+      stripe_checkout_session_id: checkout.id,
+      customer_email: checkoutEmail ?? input.userEmail,
+      status: "active",
+      metadata: {
+        ...(checkout.metadata ?? {}),
+        autokirk_bound_user_id: input.userId,
+        autokirk_post_checkout_workspace_id: input.workspaceId,
+      },
+    },
+    { onConflict: "stripe_customer_id" }
+  );
+
+  if (error) {
+    throw new Error(`CHECKOUT_BILLING_BIND_FAILED:${error.message}`);
+  }
+}
+
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<AccountLinkResponse>
@@ -46,6 +156,7 @@ export default async function handler(
   }
 
   try {
+    const checkoutSessionId = requestCheckoutSessionId(req);
     const authHeader = req.headers.authorization;
     const accessToken =
       typeof authHeader === "string" && authHeader.startsWith("Bearer ")
@@ -69,7 +180,7 @@ export default async function handler(
       return res.status(401).json({ ok: false, error: "UNAUTHENTICATED" });
     }
 
-    const email = user.email ?? "customer@autokirk.com";
+    const email = normalizedEmail(user.email) ?? "customer@autokirk.com";
     const baseName = slugPart(email.split("@")[0]);
     const personalWorkspaceName = `${baseName} AutoKirk Board`;
 
@@ -138,7 +249,7 @@ export default async function handler(
       const { data: workspace, error: workspaceError } = await supabase
         .schema("core")
         .from("workspaces")
-        .insert({ name: personalWorkspaceName, entity_id: entity.id })
+        .insert({ name: personalWorkspaceName || DEFAULT_WORKSPACE_NAME, entity_id: entity.id })
         .select("id,name")
         .single();
 
@@ -171,6 +282,16 @@ export default async function handler(
       return res.status(500).json({ ok: false, error: "WORKSPACE_ID_NOT_RESOLVED" });
     }
 
+    if (checkoutSessionId) {
+      await bindCheckoutSession({
+        supabase,
+        sessionId: checkoutSessionId,
+        userEmail: email,
+        userId: user.id,
+        workspaceId,
+      });
+    }
+
     const resolvedWorkspaceId: string = workspaceId;
 
     return res.status(200).json({
@@ -187,4 +308,3 @@ export default async function handler(
     });
   }
 }
-
