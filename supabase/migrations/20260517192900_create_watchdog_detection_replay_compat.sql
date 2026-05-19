@@ -83,6 +83,19 @@ create table if not exists control.watchdog_detections (
   unique (workspace_id, detection_key)
 );
 
+-- 20260517193000 reads these optional Watchdog v2 emission links before the
+-- full Watchdog v2 migration (20260517203000) adds them. Add them here so the
+-- learning exhaust view can compile during clean replay without bypassing the
+-- later Watchdog v2 migration, which still owns the operational behavior.
+alter table control.watchdog_emissions
+  add column if not exists workspace_id uuid references core.workspaces(id) on delete cascade,
+  add column if not exists watchdog_detection_id uuid references control.watchdog_detections(id) on delete set null,
+  add column if not exists rule_id uuid references control.watchdog_rules(id) on delete set null,
+  add column if not exists severity text not null default 'medium',
+  add column if not exists emission_key text,
+  add column if not exists acknowledged_at timestamptz,
+  add column if not exists resolved_at timestamptz;
+
 comment on table control.watchdog_detections is 'Durable Watchdog v2 risk detections. Created before learning exhaust so clean replay can compile optional Watchdog signal reads.';
 
 commit;
