@@ -85,7 +85,7 @@ export default async function handler(
   const mode = checkoutMode()
   const params = new URLSearchParams({
     mode,
-    success_url: `${baseUrl}/login?session_id={CHECKOUT_SESSION_ID}&next=/platform`,
+    success_url: `${baseUrl}/activate?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${baseUrl}/platform?checkout=cancelled`,
     'line_items[0][price]': stripePriceId,
     'line_items[0][quantity]': '1',

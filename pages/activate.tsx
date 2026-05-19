@@ -63,6 +63,10 @@ function useSessionId(): string | null {
   return sessionId;
 }
 
+function loginPath(sessionId: string | null): string {
+  return sessionId ? `/login?session_id=${encodeURIComponent(sessionId)}` : "/login";
+}
+
 function useActivationStatus(sessionId: string | null): ActivationStatus {
   const [status, setStatus] = useState<ActivationStatus>({ state: "missing" });
 
@@ -125,15 +129,15 @@ function statusCopy(status: ActivationStatus): {
       return {
         eyebrow: "Verifying payment",
         title: "Checking your Stripe session.",
-        body: "AutoKirk is confirming checkout before opening setup.",
+        body: "AutoKirk is confirming checkout before opening the login path for this workspace.",
       };
     case "ready":
       return {
         eyebrow: "Payment verified",
         title: status.customerEmail
           ? `Ready for ${status.customerEmail}`
-          : "Payment verified. Start setup.",
-        body: "Your payment is confirmed. Start with one workflow, define the proof rule, and create the first proof-gated item.",
+          : "Payment verified. Continue to login.",
+        body: "Your payment is confirmed. Sign in by email to open the governed workspace board. You will not go through Stripe again for normal access.",
       };
     case "not_paid":
       return {
@@ -152,7 +156,7 @@ function statusCopy(status: ActivationStatus): {
       return {
         eyebrow: "Activate your first workflow",
         title: "Activate your first proof-gated workflow.",
-        body: "After checkout, AutoKirk verifies your activation and opens setup automatically.",
+        body: "After checkout, AutoKirk verifies your activation and sends you to email login for workspace access.",
       };
   }
 }
@@ -162,6 +166,7 @@ export default function ActivatePage() {
   const activationStatus = useActivationStatus(sessionId);
   const copy = useMemo(() => statusCopy(activationStatus), [activationStatus]);
   const activationReady = activationStatus.state === "ready";
+  const loginHref = loginPath(sessionId);
 
   return (
     <>
@@ -169,7 +174,7 @@ export default function ActivatePage() {
         <title>Activate AutoKirk</title>
         <meta
           name="description"
-          content="Activate AutoKirk with one link and attach proof-gated closure to the tools you already use."
+          content="Activate AutoKirk with one Stripe checkout, then sign in by email for returning workspace access."
         />
       </Head>
 
@@ -185,19 +190,25 @@ export default function ActivatePage() {
             <span className={activationReady ? "statusDot ready" : "statusDot"} />
             <div>
               <strong>
-                {activationReady ? "Payment verified. Start setup." : "Ready after checkout"}
+                {activationReady ? "Payment verified. Login is ready." : "Ready after checkout"}
               </strong>
               <p>
                 {sessionId
-                  ? "Checkout session received. AutoKirk is verifying activation."
-                  : "After checkout, AutoKirk verifies your activation and opens setup automatically."}
+                  ? "Checkout session received. AutoKirk is verifying activation before login."
+                  : "After checkout, AutoKirk verifies your activation and enables the daily login path."}
               </p>
             </div>
           </div>
           <div className="actions" aria-label="Activation actions">
-            <a className="primaryAction" href="#choose-intake">
-              Start activation
-            </a>
+            {activationReady ? (
+              <a className="primaryAction" href={loginHref}>
+                Continue to email login
+              </a>
+            ) : (
+              <a className="primaryAction" href="#choose-intake">
+                Start activation
+              </a>
+            )}
             <a className="secondaryAction" href="#proof-standard">
               Define proof standard
             </a>
@@ -207,16 +218,16 @@ export default function ActivatePage() {
         <section className="flowCard" aria-labelledby="flow-title">
           <div>
             <p className="eyebrow">How it works</p>
-            <h2 id="flow-title">One payment. One activation path. One first workflow.</h2>
+            <h2 id="flow-title">Stripe once. Login thereafter. Board access stays tenant-gated.</h2>
           </div>
           <div className="flowGrid" aria-label="Activation flow">
             <div className="flowStep">Customer pays</div>
             <div className="flowArrow" aria-hidden="true">→</div>
             <div className="flowStep">Stripe verifies checkout</div>
             <div className="flowArrow" aria-hidden="true">→</div>
-            <div className="flowStep">AutoKirk opens activation</div>
+            <div className="flowStep">Email login opens access</div>
             <div className="flowArrow" aria-hidden="true">→</div>
-            <div className="flowStep">First workflow starts</div>
+            <div className="flowStep">Workspace board opens</div>
           </div>
         </section>
 
@@ -257,7 +268,7 @@ export default function ActivatePage() {
           <p className="eyebrow">Activation proof</p>
           <h2 id="outcome-title">The first successful moment is simple.</h2>
           <p>
-            The customer sees that important work stayed visible until proof existed. When proof was sufficient, the work resolved. When proof was missing, it did not disappear.
+            The customer pays once, signs in by email, lands on the governed workspace board, and sees that important work stays visible until proof exists.
           </p>
         </section>
       </main>
