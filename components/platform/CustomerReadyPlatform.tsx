@@ -57,6 +57,13 @@ const sourceOptions: Array<[WorkSource, string, string]> = [
   ["other", "Other system", "Send the AutoKirk instructions to the person who manages it."],
 ];
 
+const sdlcProofBoundaryForm: FormState = {
+  watchedWork: "AutoKirk SDLC claims from GitHub, GitHub Actions, Supabase, and Vercel",
+  proofRequired: "branch protection evidence, current-main proof gate success, and live Supabase phase snapshot evidence",
+  boardLabel: "Customer 0000 SDLC proof boundary",
+  sourceType: "automation",
+};
+
 function defaultForm(): FormState {
   return {
     watchedWork: "Call every new lead back",
@@ -154,6 +161,11 @@ export default function CustomerReadyPlatform() {
     }
   }
 
+  function applySdlcProofBoundary() {
+    setForm(sdlcProofBoundaryForm);
+    setSetup({ state: "idle" });
+  }
+
   async function createConnection() {
     setSetup({ state: "starting" });
     try {
@@ -218,6 +230,20 @@ export default function CustomerReadyPlatform() {
           {checkout === "error" && <p className="error">Checkout needs attention.</p>}
         </section>
 
+        <section className="card sdlcCard">
+          <div>
+            <p className="eyebrow">Customer #0000</p>
+            <h2>Attach AutoKirk to its own SDLC.</h2>
+            <p className="muted">Use the same platform flow a customer uses. GitHub, GitHub Actions, Supabase, and Vercel keep doing their jobs; AutoKirk governs whether their claims are allowed to close.</p>
+          </div>
+          <div className="sdlcChecks">
+            <span>branch_protection_main</span>
+            <span>ci_proof_gate_green</span>
+            <span>phase_seal_current</span>
+          </div>
+          <button className="secondary" type="button" onClick={applySdlcProofBoundary}>Use SDLC proof boundary preset</button>
+        </section>
+
         <section className="card panel">
           <div>
             <div className="pill"><span />{account.state === "ready" ? "Account ready" : account.state === "loading" ? "Preparing account" : account.message}</div>
@@ -251,7 +277,7 @@ export default function CustomerReadyPlatform() {
         </section>
       </main>
       <style jsx>{`
-        .shell{min-height:100vh;padding:24px 12px 42px;color:#f5f5f5;background:radial-gradient(circle at 50% -10%,rgba(45,245,213,.14),transparent 34rem),#030303}.card{width:min(1080px,100%);margin:0 auto 14px;border:1px solid #242424;border-radius:30px;background:linear-gradient(180deg,#101010,#060606);box-shadow:0 24px 80px rgba(0,0,0,.58);padding:clamp(22px,3vw,38px)}.hero{min-height:420px;display:grid;align-content:center}h1,h2,h3,p{margin:0}h1{max-width:860px;font-size:clamp(3rem,7vw,5.7rem);line-height:.98;letter-spacing:-.064em}h2{font-size:clamp(1.8rem,3.4vw,3rem);letter-spacing:-.045em;line-height:1.05}.lede{max-width:720px;margin-top:20px;color:#d4d4d4;font-size:clamp(1.1rem,2vw,1.35rem);line-height:1.45}.eyebrow{margin:0 0 12px;color:#9a9a9a;font-size:.78rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}.actions.compact{margin-top:16px}.primary,.secondary{min-height:48px;border-radius:999px;padding:0 20px;font:inherit;font-weight:950;cursor:pointer}.primary{border:0;color:#020202;background:#2df5d5}.secondary{border:1px solid #2c2c2c;color:#f5f5f5;background:#080808}.panel{display:grid;grid-template-columns:minmax(0,.9fr) minmax(340px,1.1fr);gap:18px}.muted,.nextBox p{color:#a3a3a3;line-height:1.5}.pill{width:fit-content;display:flex;gap:8px;align-items:center;border:1px solid rgba(45,245,213,.28);border-radius:999px;padding:8px 12px;margin-bottom:22px;background:rgba(45,245,213,.08);color:#dffefa;font-weight:850}.pill span{width:8px;height:8px;border-radius:999px;background:#2df5d5;box-shadow:0 0 18px rgba(45,245,213,.7)}.form{display:grid;gap:12px}.form label{display:grid;gap:7px;color:#d4d4d4;font-weight:900}.form input,.form textarea{width:100%;border:1px solid #2c2c2c;border-radius:16px;background:#050505;color:#f5f5f5;padding:13px 14px;font:inherit}.form textarea{min-height:104px;resize:vertical}.form input:focus,.form textarea:focus{outline:none;border-color:#2df5d5;box-shadow:0 0 0 1px rgba(45,245,213,.2)}fieldset{border:1px solid #242424;border-radius:20px;padding:12px}legend{padding:0 8px;color:#d4d4d4;font-weight:950}.sourceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.source{border:1px solid #242424;border-radius:16px;background:#080808;color:#f5f5f5;text-align:left;padding:12px;cursor:pointer;font:inherit}.source.selected{border-color:#2df5d5;box-shadow:0 0 0 1px rgba(45,245,213,.18)}.source strong,.source span{display:block}.source span{margin-top:6px;color:#a3a3a3;font-size:.8rem;line-height:1.35}.nextBox{margin-top:18px;border:1px solid rgba(45,245,213,.28);border-radius:20px;background:rgba(45,245,213,.06);padding:16px}.copyBox{margin-top:12px;border:1px solid #242424;border-radius:14px;background:#050505;color:#d7d7d7;padding:12px;word-break:break-all;font-size:.82rem;line-height:1.45}.success{color:#2df5d5!important;font-weight:900}.error{margin-top:12px;border:1px solid #3a3a3a;border-radius:14px;background:#0b0b0b;color:#f5f5f5;padding:10px;font-weight:900}@media(max-width:900px){.shell{padding:16px 8px 32px}.card{border-radius:22px}.panel,.sourceGrid{grid-template-columns:1fr}.primary,.secondary{width:100%}.hero{min-height:auto}}
+        .shell{min-height:100vh;padding:24px 12px 42px;color:#f5f5f5;background:radial-gradient(circle at 50% -10%,rgba(45,245,213,.14),transparent 34rem),#030303}.card{width:min(1080px,100%);margin:0 auto 14px;border:1px solid #242424;border-radius:30px;background:linear-gradient(180deg,#101010,#060606);box-shadow:0 24px 80px rgba(0,0,0,.58);padding:clamp(22px,3vw,38px)}.hero{min-height:420px;display:grid;align-content:center}h1,h2,h3,p{margin:0}h1{max-width:860px;font-size:clamp(3rem,7vw,5.7rem);line-height:.98;letter-spacing:-.064em}h2{font-size:clamp(1.8rem,3.4vw,3rem);letter-spacing:-.045em;line-height:1.05}.lede{max-width:720px;margin-top:20px;color:#d4d4d4;font-size:clamp(1.1rem,2vw,1.35rem);line-height:1.45}.eyebrow{margin:0 0 12px;color:#9a9a9a;font-size:.78rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase}.actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:28px}.actions.compact{margin-top:16px}.primary,.secondary{min-height:48px;border-radius:999px;padding:0 20px;font:inherit;font-weight:950;cursor:pointer}.primary{border:0;color:#020202;background:#2df5d5}.secondary{border:1px solid #2c2c2c;color:#f5f5f5;background:#080808}.panel{display:grid;grid-template-columns:minmax(0,.9fr) minmax(340px,1.1fr);gap:18px}.sdlcCard{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:18px;align-items:center;border-color:rgba(45,245,213,.3);background:linear-gradient(135deg,rgba(45,245,213,.09),#060606 44%)}.sdlcCard .secondary{justify-self:end}.sdlcChecks{display:flex;flex-wrap:wrap;gap:8px;grid-column:1 / -1}.sdlcChecks span{border:1px solid rgba(45,245,213,.24);border-radius:999px;padding:8px 10px;background:rgba(45,245,213,.06);color:#dffefa;font-size:.78rem;font-weight:950}.muted,.nextBox p{color:#a3a3a3;line-height:1.5}.pill{width:fit-content;display:flex;gap:8px;align-items:center;border:1px solid rgba(45,245,213,.28);border-radius:999px;padding:8px 12px;margin-bottom:22px;background:rgba(45,245,213,.08);color:#dffefa;font-weight:850}.pill span{width:8px;height:8px;border-radius:999px;background:#2df5d5;box-shadow:0 0 18px rgba(45,245,213,.7)}.form{display:grid;gap:12px}.form label{display:grid;gap:7px;color:#d4d4d4;font-weight:900}.form input,.form textarea{width:100%;border:1px solid #2c2c2c;border-radius:16px;background:#050505;color:#f5f5f5;padding:13px 14px;font:inherit}.form textarea{min-height:104px;resize:vertical}.form input:focus,.form textarea:focus{outline:none;border-color:#2df5d5;box-shadow:0 0 0 1px rgba(45,245,213,.2)}fieldset{border:1px solid #242424;border-radius:20px;padding:12px}legend{padding:0 8px;color:#d4d4d4;font-weight:950}.sourceGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.source{border:1px solid #242424;border-radius:16px;background:#080808;color:#f5f5f5;text-align:left;padding:12px;cursor:pointer;font:inherit}.source.selected{border-color:#2df5d5;box-shadow:0 0 0 1px rgba(45,245,213,.18)}.source strong,.source span{display:block}.source span{margin-top:6px;color:#a3a3a3;font-size:.8rem;line-height:1.35}.nextBox{margin-top:18px;border:1px solid rgba(45,245,213,.28);border-radius:20px;background:rgba(45,245,213,.06);padding:16px}.copyBox{margin-top:12px;border:1px solid #242424;border-radius:14px;background:#050505;color:#d7d7d7;padding:12px;word-break:break-all;font-size:.82rem;line-height:1.45}.success{color:#2df5d5!important;font-weight:900}.error{margin-top:12px;border:1px solid #3a3a3a;border-radius:14px;background:#0b0b0b;color:#f5f5f5;padding:10px;font-weight:900}@media(max-width:900px){.shell{padding:16px 8px 32px}.card{border-radius:22px}.panel,.sourceGrid,.sdlcCard{grid-template-columns:1fr}.primary,.secondary,.sdlcCard .secondary{width:100%;justify-self:stretch}.hero{min-height:auto}}
       `}</style>
     </>
   );
