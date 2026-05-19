@@ -94,6 +94,7 @@ alter table control.watchdog_emissions
   add column if not exists severity text not null default 'medium',
   add column if not exists emission_key text,
   add column if not exists emitted_at timestamptz,
+  add column if not exists payload jsonb not null default '{}'::jsonb,
   add column if not exists acknowledged_at timestamptz,
   add column if not exists resolved_at timestamptz;
 
