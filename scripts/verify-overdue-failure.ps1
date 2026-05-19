@@ -97,19 +97,19 @@ select api.ingest_event_to_obligation(
   '{}'::jsonb,
   now() - interval '2 days'
 );
-" --output table
+" --output json
 
 Write-Host ""
 Write-Host "==> Running overdue mutation (16)" -ForegroundColor Cyan
-supabase db query --file $proveOverduePath --output table
+supabase db query --file $proveOverduePath --output json
 
 Write-Host ""
 Write-Host "==> Materializing overdue failure through kernel authority" -ForegroundColor Cyan
-supabase db query "select * from api.resolve_overdue_obligations();" --output table
+supabase db query "select * from api.resolve_overdue_obligations();" --output json
 
 Write-Host ""
 Write-Host "==> Running overdue truth check (17)" -ForegroundColor Cyan
-supabase db query --file $alignOverduePath --output table
+supabase db query --file $alignOverduePath --output json
 
 Write-Host ""
 Write-Host "==> Running watchdog delivery alignment check (23)" -ForegroundColor Cyan
@@ -159,7 +159,7 @@ values (
   'pending'
 )
 on conflict (obligation_id, delivery_target) do nothing;
-" --output table | Out-Null
+" --output json | Out-Null
 
 supabase db query "
 insert into control.watchdog_emissions (
@@ -173,7 +173,7 @@ values (
   'pending'
 )
 on conflict (obligation_id, delivery_target) do nothing;
-" --output table | Out-Null
+" --output json | Out-Null
 
 $pendingStateJson = supabase db query "
 select
@@ -206,7 +206,7 @@ select (api.record_watchdog_attempt(
   'failed',
   now() - interval '1 minute'
 )).id::text as emission_id;
-" --output table | Out-Null
+" --output json | Out-Null
 
 $retryStateJson = supabase db query "
 select
@@ -226,7 +226,7 @@ select (api.record_watchdog_attempt(
   'delivered',
   null
 )).id::text as emission_id;
-" --output table | Out-Null
+" --output json | Out-Null
 
 $finalStateJson = supabase db query "
 select
