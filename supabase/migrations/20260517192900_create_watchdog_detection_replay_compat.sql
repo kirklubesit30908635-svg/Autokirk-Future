@@ -93,6 +93,7 @@ alter table control.watchdog_emissions
   add column if not exists rule_id uuid references control.watchdog_rules(id) on delete set null,
   add column if not exists severity text not null default 'medium',
   add column if not exists emission_key text,
+  add column if not exists emitted_at timestamptz,
   add column if not exists acknowledged_at timestamptz,
   add column if not exists resolved_at timestamptz;
 
