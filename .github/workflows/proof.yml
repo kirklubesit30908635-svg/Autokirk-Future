@@ -138,22 +138,12 @@ jobs:
               "https://api.vercel.com/v6/deployments?projectId=${VERCEL_PROJECT_ID}&teamId=${VERCEL_TEAM_ID}&target=production&limit=20" \
               -o vercel-deployments.json
 
-            node <<'NODE' && exit 0 || status=$?
-            const fs = require('fs');
-            const payload = JSON.parse(fs.readFileSync('vercel-deployments.json', 'utf8'));
-            const expectedSha = process.env.EXPECTED_SHA;
-            const deployments = payload.deployments || [];
-            const match = deployments.find((deployment) => deployment.meta?.githubCommitSha === expectedSha);
-            if (!match) {
-              console.error(`No production deployment found yet for ${expectedSha}.`);
-              process.exit(2);
-            }
-            if (match.state !== 'READY') {
-              console.error(`Production deployment ${match.id} for ${expectedSha} is ${match.state}, not READY yet.`);
-              process.exit(3);
-            }
-            fs.writeFileSync('vercel-ready.txt', `${match.id}\n`);
-            NODE
+            node -e "const fs=require('fs'); const payload=JSON.parse(fs.readFileSync('vercel-deployments.json','utf8')); const expectedSha=process.env.EXPECTED_SHA; const deployments=payload.deployments||[]; const match=deployments.find((deployment)=>deployment.meta?.githubCommitSha===expectedSha); if(!match){ console.error('No production deployment found yet for '+expectedSha+'.'); process.exit(2); } if(match.state!=='READY'){ console.error('Production deployment '+match.id+' for '+expectedSha+' is '+match.state+', not READY yet.'); process.exit(3); } fs.writeFileSync('vercel-ready.txt', match.id+'\n');"
+            status=$?
+
+            if [ "$status" -eq 0 ]; then
+              exit 0
+            fi
 
             if [ "$status" -ne 2 ] && [ "$status" -ne 3 ]; then
               exit "$status"
