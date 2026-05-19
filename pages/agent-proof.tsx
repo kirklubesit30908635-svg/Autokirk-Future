@@ -29,7 +29,7 @@ export default function AgentProofPage() {
 
           <div className="actions">
             <a href="/platform" className="primary">Start with one proof rule</a>
-            <a href="/board/demo" className="secondary">View proof board</a>
+            <a href="/proof-demo" className="secondary">View proof demo</a>
           </div>
         </section>
 
