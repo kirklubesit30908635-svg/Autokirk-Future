@@ -40,6 +40,29 @@ function formatTime(value: string | null): string {
   return date.toLocaleString();
 }
 
+function formatRelativeTime(value: string | null): string {
+  if (!value) return "Opened recently";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Opened recently";
+
+  const diffMs = Date.now() - date.getTime();
+  const minutes = Math.max(1, Math.floor(diffMs / 60000));
+
+  if (minutes < 60) {
+    return `Opened ${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  }
+
+  const hours = Math.floor(minutes / 60);
+
+  if (hours < 24) {
+    return `Opened ${hours} hour${hours === 1 ? "" : "s"} ago`;
+  }
+
+  const days = Math.floor(hours / 24);
+  return `Opened ${days} day${days === 1 ? "" : "s"} ago`;
+}
+
 function nullableString(value: unknown): string | null {
   return typeof value === "string" && value.trim() ? value : null;
 }
@@ -67,10 +90,6 @@ function statusLabel(item: BoardObligation): string {
   if (item.status === "Failed") return "needs attention";
   if (item.status === "Open") return "ready to prove";
   return item.status.toLowerCase();
-}
-
-function obligationSummary(item: BoardObligation): string {
-  return item.description ?? item.subjectLabel ?? "Select to inspect this work before closing it.";
 }
 
 function calculateIntegrityScore(
@@ -165,7 +184,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
       setResolveState((current) => ({
         ...current,
         status: "error",
-        message: "Refresh this board before closing with proof.",
+        message: "Sign in to close this work.",
       }));
       return;
     }
@@ -189,10 +208,17 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
           proof_action_token: selectedObligation.proofActionToken,
         }),
       });
+
       const body = await response.json();
 
       if (!response.ok || !body?.ok) {
-        throw new Error(body?.error ?? "CLOSE_WITH_PROOF_FAILED");
+        const rawError = body?.error;
+
+        if (rawError === "AUTH_REQUIRED") {
+          throw new Error("Sign in to close this work.");
+        }
+
+        throw new Error(rawError ?? "CLOSE_WITH_PROOF_FAILED");
       }
 
       const receipt = receiptFromResponse(body.receipt);
@@ -255,12 +281,20 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
                     onClick={() => selectObligation(item)}
                     aria-pressed={item.id === selectedObligation?.id}
                   >
-                    <span>
-                      <strong>{item.subjectLabel ?? item.obligationCode}</strong>
-                      <small>{item.obligationCode} - {shorten(item.id)}</small>
-                      <p>{obligationSummary(item)}</p>
+                    <span className="cardCopy">
+                      <strong>{item.displayTitle}</strong>
+                      <small>
+                        {(item.sourceLabel ?? item.sourceType ?? "Connected intake")} · {statusLabel(item)}
+                      </small>
+                      {item.displayDescription && <p>{item.displayDescription}</p>}
+                      {item.proofRequirement && (
+                        <div className="proofRequirement">
+                          Proof required: {item.proofRequirement}
+                        </div>
+                      )}
+                      <div className="openedAt">{formatRelativeTime(item.openedAt)}</div>
                     </span>
-                    <em>{statusLabel(item)}</em>
+                    <em>{item.proofActionToken ? "Close with proof" : "Open"}</em>
                   </button>
                 ))}
               </div>
@@ -276,22 +310,46 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
             <div className="blockHead">
               <div>
                 <p className="eyebrow">Proof panel</p>
-                <h2>{selectedObligation ? "Close with proof" : "Nothing selected"}</h2>
+                <h2>{selectedObligation ? selectedObligation.displayTitle : "Nothing selected"}</h2>
               </div>
             </div>
 
             {selectedObligation ? (
               <div className="resolveBox">
-                <p className="detailText">{selectedObligation.proofRequired ?? "Add evidence that proves the work is complete."}</p>
+                <p className="detailText">
+                  {selectedObligation.proofRequirement ?? "Add evidence that proves the work is complete."}
+                </p>
+
+                {!selectedObligation.proofActionToken && (
+                  <div className="authNotice">
+                    Sign in to close this work.
+                  </div>
+                )}
+
                 <label>
                   Proof note
-                  <textarea value={resolveState.proofNote} onChange={(event) => setResolveState((current) => ({ ...current, proofNote: event.target.value }))} placeholder="What proves this was completed?" />
+                  <textarea
+                    value={resolveState.proofNote}
+                    onChange={(event) => setResolveState((current) => ({ ...current, proofNote: event.target.value }))}
+                    placeholder="What proves this was completed?"
+                    disabled={!selectedObligation.proofActionToken}
+                  />
                 </label>
                 <label>
                   Proof URL optional
-                  <input value={resolveState.proofUrl} onChange={(event) => setResolveState((current) => ({ ...current, proofUrl: event.target.value }))} placeholder="https://..." />
+                  <input
+                    value={resolveState.proofUrl}
+                    onChange={(event) => setResolveState((current) => ({ ...current, proofUrl: event.target.value }))}
+                    placeholder="https://..."
+                    disabled={!selectedObligation.proofActionToken}
+                  />
                 </label>
-                <button type="button" className="primaryButton" onClick={submitResolution} disabled={resolveState.status === "submitting"}>
+                <button
+                  type="button"
+                  className="primaryButton"
+                  onClick={submitResolution}
+                  disabled={resolveState.status === "submitting" || !selectedObligation.proofActionToken}
+                >
                   {resolveState.status === "submitting" ? "Checking proof..." : "Close with proof"}
                 </button>
                 {resolveState.message && <p className={`message ${resolveState.status}`}>{resolveState.message}</p>}
@@ -345,7 +403,7 @@ export function LiveBoardWindow({ board }: LiveBoardWindowProps) {
         </section>
       </section>
       <style jsx>{`
-        .liveBoardShell{min-height:100vh;background:#030303;color:#f5f5f5;padding:10px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.liveBoardPanel{border:1px solid #242424;border-radius:22px;background:linear-gradient(180deg,#101010,#050505);padding:14px;min-height:calc(100vh - 20px);box-shadow:0 24px 80px rgba(0,0,0,.5)}.panelTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.eyebrow{margin:0 0 6px;color:#9a9a9a;text-transform:uppercase;letter-spacing:.1em;font-size:.68rem;font-weight:900}.boardTitle{margin:0;font-size:1.25rem;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}.subcopy{margin:4px 0 0;color:#a3a3a3;font-size:.8rem}.score{border:1px solid rgba(45,245,213,.32);border-radius:18px;background:rgba(45,245,213,.07);padding:8px 10px;text-align:center;min-width:68px}.score strong{display:block;color:#2df5d5;font-size:1.35rem}.score span{display:block;color:#bfbfbf;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.stats article{border:1px solid #242424;border-radius:16px;background:#080808;padding:10px}.stats strong{display:block;font-size:1.25rem}.stats span{display:block;color:#a3a3a3;font-size:.72rem}.boardGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.block{border:1px solid #242424;border-radius:18px;background:#080808;padding:12px}.blockHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}.blockHead h2{margin:0;font-size:1rem;letter-spacing:-.03em}.tinyButton,.primaryButton{border:0;border-radius:999px;font-weight:900;cursor:pointer}.tinyButton{background:#111;color:#f5f5f5;border:1px solid #2c2c2c;padding:8px 10px;font-size:.75rem}.primaryButton{background:#2df5d5;color:#020202;padding:11px 14px}.obligationList,.receiptList{display:grid;gap:8px}.obligationRow{width:100%;text-align:left;border:1px solid #242424;border-radius:16px;background:#050505;color:#f5f5f5;padding:10px;display:flex;justify-content:space-between;gap:10px;cursor:pointer}.obligationRow.selected{border-color:#2df5d5;box-shadow:0 0 0 1px rgba(45,245,213,.18)}.obligationRow strong,.receiptRow strong,.instantReceipt strong{display:block}.obligationRow small,.receiptRow small,.instantReceipt small{display:block;color:#777;margin-top:3px}.obligationRow p{margin:6px 0 0;color:#a3a3a3;font-size:.8rem;line-height:1.35}.obligationRow em{font-style:normal;color:#2df5d5;font-size:.72rem;white-space:nowrap}.resolveBox{display:grid;gap:9px}.resolveBox label{display:grid;gap:6px;color:#d4d4d4;font-size:.78rem;font-weight:900}.resolveBox textarea,.resolveBox input{width:100%;border:1px solid #2c2c2c;border-radius:14px;background:#030303;color:#f5f5f5;padding:10px;font:inherit}.resolveBox textarea{min-height:88px;resize:vertical}.detailText{margin:0;color:#a3a3a3;font-size:.84rem;line-height:1.45}.message{margin:0;border-radius:12px;padding:8px;font-size:.8rem}.message.done{background:rgba(45,245,213,.1);color:#2df5d5}.message.error{background:#160909;color:#ffb7b7}.message.submitting,.message.idle{background:#111;color:#d7d7d7}.receiptsBlock{margin-top:10px}.receiptRow,.instantReceipt{border:1px solid #242424;border-radius:16px;background:#050505;padding:10px}.instantReceipt{border-color:rgba(45,245,213,.28);background:rgba(45,245,213,.06)}.receiptRow span,.instantReceipt span{display:block;color:#a3a3a3;font-size:.78rem;margin-top:2px}.emptyState{border:1px dashed #333;border-radius:16px;padding:14px;background:#050505;color:#a3a3a3}.emptyState strong{display:block;color:#f5f5f5}.emptyState p{margin:5px 0 0;font-size:.84rem;line-height:1.4}@media(max-width:760px){.boardGrid{grid-template-columns:1fr}.boardTitle{max-width:180px}}
+        .liveBoardShell{min-height:100vh;background:#030303;color:#f5f5f5;padding:10px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}.liveBoardPanel{border:1px solid #242424;border-radius:22px;background:linear-gradient(180deg,#101010,#050505);padding:14px;min-height:calc(100vh - 20px);box-shadow:0 24px 80px rgba(0,0,0,.5)}.panelTop{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.eyebrow{margin:0 0 6px;color:#9a9a9a;text-transform:uppercase;letter-spacing:.1em;font-size:.68rem;font-weight:900}.boardTitle{margin:0;font-size:1.25rem;letter-spacing:-.04em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:230px}.subcopy{margin:4px 0 0;color:#a3a3a3;font-size:.8rem}.score{border:1px solid rgba(45,245,213,.32);border-radius:18px;background:rgba(45,245,213,.07);padding:8px 10px;text-align:center;min-width:68px}.score strong{display:block;color:#2df5d5;font-size:1.35rem}.score span{display:block;color:#bfbfbf;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:12px 0}.stats article{border:1px solid #242424;border-radius:16px;background:#080808;padding:10px}.stats strong{display:block;font-size:1.25rem}.stats span{display:block;color:#a3a3a3;font-size:.72rem}.boardGrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.block{border:1px solid #242424;border-radius:18px;background:#080808;padding:12px}.blockHead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px}.blockHead h2{margin:0;font-size:1rem;letter-spacing:-.03em}.tinyButton,.primaryButton{border:0;border-radius:999px;font-weight:900;cursor:pointer}.tinyButton{background:#111;color:#f5f5f5;border:1px solid #2c2c2c;padding:8px 10px;font-size:.75rem}.primaryButton{background:#2df5d5;color:#020202;padding:11px 14px}.primaryButton:disabled{opacity:.5;cursor:not-allowed}.obligationList,.receiptList{display:grid;gap:8px}.obligationRow{width:100%;text-align:left;border:1px solid #242424;border-radius:16px;background:#050505;color:#f5f5f5;padding:12px;display:flex;justify-content:space-between;gap:10px;cursor:pointer}.obligationRow.selected{border-color:#2df5d5;box-shadow:0 0 0 1px rgba(45,245,213,.18)}.cardCopy{display:grid;gap:6px}.obligationRow strong,.receiptRow strong,.instantReceipt strong{display:block}.obligationRow small,.receiptRow small,.instantReceipt small{display:block;color:#777;margin-top:3px}.obligationRow p{margin:0;color:#a3a3a3;font-size:.8rem;line-height:1.35}.proofRequirement{color:#d8d8d8;font-size:.76rem;line-height:1.4}.openedAt{color:#7f7f7f;font-size:.72rem}.obligationRow em{font-style:normal;color:#2df5d5;font-size:.72rem;white-space:nowrap;align-self:flex-start}.resolveBox{display:grid;gap:9px}.resolveBox label{display:grid;gap:6px;color:#d4d4d4;font-size:.78rem;font-weight:900}.resolveBox textarea,.resolveBox input{width:100%;border:1px solid #2c2c2c;border-radius:14px;background:#030303;color:#f5f5f5;padding:10px;font:inherit}.resolveBox textarea{min-height:88px;resize:vertical}.detailText{margin:0;color:#a3a3a3;font-size:.84rem;line-height:1.45}.authNotice{border:1px solid #2c2c2c;border-radius:12px;background:#101010;color:#f5f5f5;padding:10px;font-size:.82rem}.message{margin:0;border-radius:12px;padding:8px;font-size:.8rem}.message.done{background:rgba(45,245,213,.1);color:#2df5d5}.message.error{background:#160909;color:#ffb7b7}.message.submitting,.message.idle{background:#111;color:#d7d7d7}.receiptsBlock{margin-top:10px}.receiptRow,.instantReceipt{border:1px solid #242424;border-radius:16px;background:#050505;padding:10px}.instantReceipt{border-color:rgba(45,245,213,.28);background:rgba(45,245,213,.06)}.receiptRow span,.instantReceipt span{display:block;color:#a3a3a3;font-size:.78rem;margin-top:2px}.emptyState{border:1px dashed #333;border-radius:16px;padding:14px;background:#050505;color:#a3a3a3}.emptyState strong{display:block;color:#f5f5f5}.emptyState p{margin:5px 0 0;font-size:.84rem;line-height:1.4}@media(max-width:760px){.boardGrid{grid-template-columns:1fr}.boardTitle{max-width:180px}}
       `}</style>
     </main>
   );

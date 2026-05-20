@@ -7,7 +7,11 @@
 #   No proof -> no deploy.
 #   No ambiguous release receipt.
 #   No production release receipt without live Supabase and Vercel verification.
-#   Failed proofs still emit evidence artifacts.
+#
+# Repository policy note:
+#   This workflow intentionally uses shell-only steps. External GitHub Actions are
+#   not used because this repository requires actions to be owner-owned and pinned
+#   to full-length commit SHAs.
 #
 # Required repo secrets for push/main production release checks:
 #   SUPABASE_ACCESS_TOKEN
@@ -46,22 +50,40 @@ jobs:
     timeout-minutes: 40
 
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - name: Checkout repo without external action
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git init .
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git fetch --no-tags --depth=1 origin "${GITHUB_SHA}"
+          git checkout --force FETCH_HEAD
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
+      - name: Verify Node.js runtime
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --version
+          npm --version
+          node <<'NODE'
+          const major = Number(process.versions.node.split('.')[0]);
+          if (!Number.isFinite(major) || major < 20) {
+            console.error(`Node.js 20+ is required; found ${process.version}`);
+            process.exit(1);
+          }
+          NODE
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Setup Supabase CLI
-        uses: supabase/setup-cli@v1
-        with:
-          version: latest
+      - name: Install Supabase CLI without external action
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install -g supabase@latest
+          supabase --version
 
       - name: Start local Supabase stack
         id: supabase_start
@@ -248,6 +270,8 @@ jobs:
             artifacts: {
               proof_output: fs.existsSync('prove-output.txt') ? 'prove-output.txt' : null,
               summary: 'autokirk-proof-gate-summary.txt',
+              receipt: 'autokirk-release-receipt.json',
+              bundle: 'autokirk-proof-gate-bundle.tgz',
               supabase_security: fs.existsSync('supabase-security.json') ? 'supabase-security.json' : null,
               vercel_deployments: fs.existsSync('vercel-deployments.json') ? 'vercel-deployments.json' : null,
               vercel_ready: fs.existsSync('vercel-ready.txt') ? 'vercel-ready.txt' : null
@@ -286,20 +310,33 @@ jobs:
           fs.appendFileSync(env.GITHUB_STEP_SUMMARY, summaryLines.join('\n') + '\n');
           NODE
 
-      - name: Upload proof gate artifacts
+      - name: Bundle proof gate evidence without external action
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: autokirk-proof-gate-${{ github.sha }}
-          path: |
-            prove-output.txt
-            autokirk-proof-gate-summary.txt
-            autokirk-release-receipt.json
-            autokirk-receipt-status.txt
-            supabase-security.json
-            vercel-deployments.json
-            vercel-ready.txt
-          if-no-files-found: ignore
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=()
+          for file in \
+            prove-output.txt \
+            autokirk-proof-gate-summary.txt \
+            autokirk-release-receipt.json \
+            autokirk-receipt-status.txt \
+            supabase-security.json \
+            vercel-deployments.json \
+            vercel-ready.txt; do
+            if [ -f "$file" ]; then
+              files+=("$file")
+            fi
+          done
+
+          if [ "${#files[@]}" -gt 0 ]; then
+            tar -czf autokirk-proof-gate-bundle.tgz "${files[@]}"
+            sha256sum autokirk-proof-gate-bundle.tgz | tee autokirk-proof-gate-bundle.sha256
+            {
+              echo ""
+              echo "proof_gate_bundle_sha256: $(cut -d ' ' -f1 autokirk-proof-gate-bundle.sha256)"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Enforce strict AutoKirk proof result
         if: always()
