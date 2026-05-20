@@ -9,7 +9,7 @@ function Invoke-ExpectedFailure {
     Write-Host ""
     Write-Host "Running negative proof: $File"
 
-    $output = cmd /c "supabase db query --file ""$File"" 2>&1"
+    $output = & supabase db query --file $File 2>&1
     $exitCode = $LASTEXITCODE
     $joined = ($output | Out-String)
 
