@@ -1,0 +1,87 @@
+name: AutoKirk SDLC Proof Boundary
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 */6 * * *'
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: sdlc-proof-boundary-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  emit-sdlc-proof-events:
+    name: Emit Customer #0000 SDLC proof events
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Emit branch protection event
+        id: branch_protection
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/sdlc/emit-branch-protection-main.mjs
+
+      - name: Emit CI proof gate event
+        id: ci_proof_gate
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/sdlc/emit-ci-proof-gate-green.mjs
+
+      - name: Emit phase seal current event
+        id: phase_seal
+        continue-on-error: true
+        env:
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/sdlc/emit-phase-seal-current.mjs
+
+      - name: Optionally post events to AutoKirk ingest
+        continue-on-error: true
+        env:
+          AUTOKIRK_SDLC_INGEST_URL: ${{ secrets.AUTOKIRK_SDLC_INGEST_URL }}
+          AUTOKIRK_SDLC_INGEST_KEY: ${{ secrets.AUTOKIRK_SDLC_INGEST_KEY }}
+        run: node scripts/sdlc/post-sdlc-event.mjs sdlc-events/*.json
+
+      - name: Upload SDLC source event artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: autokirk-sdlc-source-events
+          path: sdlc-events/*.json
+          if-no-files-found: error
+
+      - name: Fail if any SDLC obligation proof failed
+        if: always()
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const files = fs.readdirSync('sdlc-events').filter((file) => file.endsWith('.json'));
+          const events = files.map((file) => JSON.parse(fs.readFileSync(`sdlc-events/${file}`, 'utf8')));
+          const failed = events.filter((event) => event.status !== 'proof_ready');
+          for (const event of events) {
+            console.log(`${event.obligation_code}: ${event.status}`);
+            if (event.rationale?.length) {
+              for (const line of event.rationale) console.log(`  - ${line}`);
+            }
+          }
+          if (failed.length) process.exit(1);
+          NODE

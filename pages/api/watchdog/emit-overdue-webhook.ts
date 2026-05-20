@@ -51,13 +51,13 @@ type EmitResult = {
 
 type ApiResponse =
   | {
-    ok: true
-    scanned_count: number
-    emitted_count: number
-    delivered_count: number
-    failed_count: number
-    results: EmitResult[]
-  }
+      ok: true
+      scanned_count: number
+      emitted_count: number
+      delivered_count: number
+      failed_count: number
+      results: EmitResult[]
+    }
   | { ok: false; error: string }
 
 function assertEnv(name: string, value: string | undefined): string {
@@ -94,12 +94,11 @@ function buildWebhookData(row: WatchdogDeliveryCandidate) {
   }
 }
 
+// Task 0C: routes through api.create_watchdog_emission() — no direct control.* writes
 async function getOrCreateEmission(
   supabase: any,
   row: WatchdogDeliveryCandidate
 ): Promise<{ emission: InsertedEmission | null; skipped?: string; error?: string }> {
-  const controlClient = supabase.schema('control') as any
-
   if (row.emission_id) {
     return {
       emission: {
@@ -113,43 +112,23 @@ async function getOrCreateEmission(
     }
   }
 
-  const { data: inserted, error: insertError } = await controlClient
-    .from('watchdog_emissions')
-    .insert({
-      obligation_id: row.obligation_id,
-      delivery_target: row.delivery_target,
-      delivery_status: 'pending',
-    })
-    .select('id, obligation_id, delivery_status, next_retry_at, attempt_count, max_attempts')
-    .single()
+  const { data, error } = await supabase.schema('api').rpc('create_watchdog_emission', {
+    p_obligation_id: row.obligation_id,
+    p_delivery_target: row.delivery_target,
+  })
 
-  if (!insertError) {
-    return { emission: inserted as InsertedEmission }
+  if (error) {
+    return { emission: null, error: error.message }
   }
 
-  if (insertError.code !== '23505') {
-    return { emission: null, error: insertError.message }
-  }
-
-  const { data: existing, error: existingError } = await controlClient
-    .from('watchdog_emissions')
-    .select('id, obligation_id, delivery_status, next_retry_at, attempt_count, max_attempts')
-    .eq('obligation_id', row.obligation_id)
-    .eq('delivery_target', row.delivery_target)
-    .single()
-
-  if (existingError) {
-    return { emission: null, error: existingError.message }
-  }
-
-  return { emission: existing as InsertedEmission }
+  return { emission: data as InsertedEmission }
 }
 
 async function claimEmission(
   supabase: any,
   emissionId: string
 ): Promise<{ emission: InsertedEmission | null; error?: string }> {
-  const { data, error } = await supabase.rpc('claim_watchdog_emission', {
+  const { data, error } = await supabase.schema('api').rpc('claim_watchdog_emission', {
     p_emission_id: emissionId,
   })
 
@@ -162,16 +141,24 @@ async function claimEmission(
   }
 }
 
+async function recordWatchdogAttempt(
+  supabase: any,
+  payload: {
+    p_emission_id: string
+    p_delivery_status: string
+    p_next_retry_at: string | null
+  }
+) {
+  return supabase.schema('api').rpc('record_watchdog_attempt', payload)
+}
+
 function computeRetryOutcome(emission: InsertedEmission) {
   const currentAttempts = emission.attempt_count ?? 0
   const maxAttempts = emission.max_attempts ?? 5
   const nextAttemptCount = currentAttempts + 1
 
   if (nextAttemptCount >= maxAttempts) {
-    return {
-      deliveryStatus: 'exhausted',
-      nextRetryAt: null,
-    }
+    return { deliveryStatus: 'exhausted', nextRetryAt: null }
   }
 
   return {
@@ -204,6 +191,7 @@ export default async function handler(
     const key = assertEnv('SUPABASE_SERVICE_ROLE_KEY', process.env.SUPABASE_SERVICE_ROLE_KEY)
     const webhookUrl = assertEnv('WATCHDOG_OUTBOUND_WEBHOOK_URL', process.env.WATCHDOG_OUTBOUND_WEBHOOK_URL)
     const watchdogSharedSecret = assertEnv('WATCHDOG_SHARED_SECRET', process.env.WATCHDOG_SHARED_SECRET)
+    const receiverSecret = assertEnv('WATCHDOG_RECEIVER_SECRET', process.env.WATCHDOG_RECEIVER_SECRET)
 
     const supabase = createClient(url, key, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -228,55 +216,23 @@ export default async function handler(
 
       const emissionResult = await getOrCreateEmission(supabase, row)
       if (emissionResult.error) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: emissionResult.error,
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: emissionResult.error })
         continue
       }
 
       if (!emissionResult.emission) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: emissionResult.skipped ?? 'EMISSION_NOT_ELIGIBLE',
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: emissionResult.skipped ?? 'EMISSION_NOT_ELIGIBLE' })
         continue
       }
 
       const claimResult = await claimEmission(supabase, emissionResult.emission.id)
       if (claimResult.error) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: claimResult.error,
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: claimResult.error })
         continue
       }
 
       if (!claimResult.emission) {
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          skipped: true,
-          error: 'EMISSION_ALREADY_CLAIMED',
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, skipped: true, error: 'EMISSION_ALREADY_CLAIMED' })
         continue
       }
 
@@ -288,6 +244,7 @@ export default async function handler(
             'x-autokirk-event-key': eventKey,
             'x-autokirk-event-type': 'watchdog.overdue_failure.detected',
             'x-autokirk-signature': watchdogSharedSecret,
+            'x-watchdog-secret': receiverSecret,
           },
           body: JSON.stringify({
             event_type: 'watchdog.overdue_failure.detected',
@@ -299,91 +256,42 @@ export default async function handler(
         })
 
         if (response.ok) {
-          const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+          const { error: rpcError } = await recordWatchdogAttempt(supabase, {
             p_emission_id: claimResult.emission.id,
             p_delivery_status: 'delivered',
             p_next_retry_at: null,
           })
-
-          if (rpcError) {
-            results.push({
-              obligation_id: row.obligation_id,
-              entity_id: row.entity_id,
-              delivered: false,
-              status: response.status,
-              event_key: eventKey,
-              error: rpcError.message,
-            })
-            continue
-          }
-
-          results.push({
-            obligation_id: row.obligation_id,
-            entity_id: row.entity_id,
-            delivered: true,
-            status: response.status,
-            event_key: eventKey,
-          })
-
+          results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: !rpcError, status: response.status, event_key: eventKey, error: rpcError?.message })
           continue
         }
 
         const retryOutcome = computeRetryOutcome(claimResult.emission)
-
-        const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+        const { error: rpcError } = await recordWatchdogAttempt(supabase, {
           p_emission_id: claimResult.emission.id,
           p_delivery_status: retryOutcome.deliveryStatus,
           p_next_retry_at: retryOutcome.nextRetryAt,
         })
-
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: response.status,
-          event_key: eventKey,
-          error: rpcError ? rpcError.message : `HTTP_${response.status}`,
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: response.status, event_key: eventKey, error: rpcError ? rpcError.message : `HTTP_${response.status}` })
       } catch (err) {
         const retryOutcome = computeRetryOutcome(claimResult.emission)
-
-        const { error: rpcError } = await supabase.rpc('record_watchdog_attempt', {
+        const { error: rpcError } = await recordWatchdogAttempt(supabase, {
           p_emission_id: claimResult.emission.id,
           p_delivery_status: retryOutcome.deliveryStatus,
           p_next_retry_at: retryOutcome.nextRetryAt,
         })
-
-        results.push({
-          obligation_id: row.obligation_id,
-          entity_id: row.entity_id,
-          delivered: false,
-          status: null,
-          event_key: eventKey,
-          error: rpcError
-            ? rpcError.message
-            : err instanceof Error
-              ? err.message
-              : 'UNKNOWN_ERROR',
-        })
+        results.push({ obligation_id: row.obligation_id, entity_id: row.entity_id, delivered: false, status: null, event_key: eventKey, error: rpcError ? rpcError.message : err instanceof Error ? err.message : 'UNKNOWN_ERROR' })
       }
     }
-
-    const emittedCount = results.filter((r) => !r.skipped).length
-    const deliveredCount = results.filter((r) => r.delivered).length
-    const failedCount = results.filter((r) => !r.delivered && !r.skipped).length
 
     return res.status(200).json({
       ok: true,
       scanned_count: rows.length,
-      emitted_count: emittedCount,
-      delivered_count: deliveredCount,
-      failed_count: failedCount,
+      emitted_count: results.filter((r) => !r.skipped).length,
+      delivered_count: results.filter((r) => r.delivered).length,
+      failed_count: results.filter((r) => !r.delivered && !r.skipped).length,
       results,
     })
   } catch (err) {
-    return res.status(500).json({
-      ok: false,
-      error: err instanceof Error ? err.message : 'UNKNOWN_ERROR',
-    })
+    return res.status(500).json({ ok: false, error: err instanceof Error ? err.message : 'UNKNOWN_ERROR' })
   }
 }

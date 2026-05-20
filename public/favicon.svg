@@ -1,14 +1,20 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#050403"/>
-  <path
-    d="M17 48V16h10.2l6.1 10.8L39.4 16H47v32h-8.3V30.7l-5.4 9.6h-4l-5.2-9.3V48H17Z"
-    fill="#d4af37"
-  />
+  <text
+    x="32"
+    y="40"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="25"
+    font-weight="900"
+    letter-spacing="-2"
+    fill="#e11d2e"
+  >AK</text>
   <path
     d="M11 53h42"
-    stroke="#d4af37"
+    stroke="#e11d2e"
     stroke-width="3"
     stroke-linecap="round"
-    opacity="0.7"
+    opacity="0.75"
   />
 </svg>

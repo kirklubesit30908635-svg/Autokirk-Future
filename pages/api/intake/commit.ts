@@ -2,7 +2,7 @@ import type { NextApiRequest, NextApiResponse } from 'next'
 import { createClient } from '@supabase/supabase-js'
 
 type CommitIntakeBody = {
-  workspace_id: string
+  workspace_id?: string | null
   candidate_ref: string
   obligation_code: string
   trigger_text: string
@@ -31,7 +31,8 @@ export default async function handler(
 
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
+      process.env.SUPABASE_SERVICE_ROLE_KEY!,
+      { auth: { persistSession: false, autoRefreshToken: false } }
     )
 
     if (!accessToken) {
@@ -47,17 +48,20 @@ export default async function handler(
       return res.status(401).json({ ok: false, error: 'UNAUTHENTICATED' })
     }
 
-    if (!body.workspace_id?.trim()) {
-      return res.status(400).json({ ok: false, error: 'WORKSPACE_ID_REQUIRED' })
-    }
+    const requestedWorkspaceId = body.workspace_id?.trim() || null
 
-    const { data: membership, error: membershipError } = await supabase
+    let membershipQuery = supabase
       .schema('core')
       .from('workspace_members')
       .select('workspace_id,user_id')
       .eq('user_id', user.id)
-      .eq('workspace_id', body.workspace_id)
-      .maybeSingle()
+      .limit(1)
+
+    if (requestedWorkspaceId) {
+      membershipQuery = membershipQuery.eq('workspace_id', requestedWorkspaceId)
+    }
+
+    const { data: memberships, error: membershipError } = await membershipQuery
 
     if (membershipError) {
       return res.status(500).json({
@@ -67,15 +71,19 @@ export default async function handler(
       })
     }
 
+    const membership = memberships?.[0]
+
     if (!membership) {
       return res.status(403).json({
         ok: false,
-        error: 'INVALID_WORKSPACE_ACCESS',
+        error: requestedWorkspaceId ? 'INVALID_WORKSPACE_ACCESS' : 'NO_WORKSPACE_MEMBERSHIP',
       })
     }
 
-    const { data, error } = await supabase.rpc('commit_intake_candidate', {
-      p_workspace_id: body.workspace_id,
+    const workspaceId = membership.workspace_id
+
+    const { data, error } = await supabase.schema('api').rpc('commit_intake_candidate', {
+      p_workspace_id: workspaceId,
       p_actor_user_id: user.id,
       p_candidate_ref: body.candidate_ref,
       p_obligation_code: body.obligation_code,

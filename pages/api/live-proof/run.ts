@@ -127,21 +127,31 @@ function parseProofScenarioRecord(
     const rawValue = payload[field.recordKey];
 
     if (field.recordKey === "proof_photo_url") {
+      const proofPhotoUrl = optionalTrimmedString(rawValue);
+
+      if (field.required && !proofPhotoUrl) {
+        throw new RequestValidationError(
+          field.requiredError ?? "Resolution blocked: proof required."
+        );
+      }
+
+      if (proofPhotoUrl && !isValidHttpUrl(proofPhotoUrl)) {
+        throw new RequestValidationError("PROOF_PHOTO_URL_INVALID");
+      }
+
+      serviceRecord.proof_photo_url = proofPhotoUrl;
       continue;
     }
 
     serviceRecord[field.recordKey] = requireTrimmedFieldValue(field, rawValue);
   }
 
-  const proofPhotoUrl = optionalTrimmedString(payload[proofPhotoField.recordKey]);
-
-  if (proofPhotoUrl) {
-    if (!isValidHttpUrl(proofPhotoUrl)) {
-      throw new RequestValidationError("PROOF_PHOTO_URL_INVALID");
+  for (const requiredRecordKey of scenario.run.requiredProofRecordKeys) {
+    const value = serviceRecord[requiredRecordKey];
+    if (typeof value !== "string" || !value.trim()) {
+      throw new RequestValidationError("Resolution blocked: proof required.");
     }
   }
-
-  serviceRecord.proof_photo_url = proofPhotoUrl;
 
   return serviceRecord;
 }

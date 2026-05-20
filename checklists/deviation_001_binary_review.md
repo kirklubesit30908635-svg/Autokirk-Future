@@ -1,4 +1,4 @@
-# Binary Review Checklist — Deviation Class #001
+# Binary Review Checklist ï¿½ Deviation Class #001
 
 ## Review object
 
@@ -21,7 +21,6 @@ A single **No** means the slice is not constitutionally ready.
 
 1. **Permanent fact only**
    - Yes / No
-   - Does the slice record only permanent kernel truth rather than temporary workflow state?
 
 2. **No semantic drift dependency**
    - Yes / No
@@ -102,4 +101,4 @@ A single **No** means the slice is not constitutionally ready.
 - **PASS:** all answers are Yes.
 - **FAIL:** any answer is No.
 
-A failed review blocks the slice. No “ship now, fix later” override is constitutional.
+A failed review blocks the slice. No ï¿½ship now, fix laterï¿½ override is constitutional.

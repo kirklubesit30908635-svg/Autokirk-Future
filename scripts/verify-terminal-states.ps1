@@ -31,7 +31,7 @@ function Invoke-SqlFile {
 
     Write-Host ""
     Write-Host "==> Running $Path" -ForegroundColor Cyan
-    supabase db query --file $Path --output table
+    supabase db query --file $Path --output json
 }
 
 function Invoke-SqlText {
