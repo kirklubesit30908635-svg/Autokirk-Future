@@ -9,7 +9,7 @@ function Invoke-ExpectedFailure {
     Write-Host ""
     Write-Host "Running negative proof: $File"
 
-    $output = cmd /c "supabase db query --file ""$File"" 2>&1"
+    $output = & supabase db query --file $File 2>&1
     $exitCode = $LASTEXITCODE
     $joined = ($output | Out-String)
 
@@ -24,10 +24,10 @@ function Invoke-ExpectedFailure {
     Write-Host "PASS -> $ExpectedText"
 }
 
-Invoke-ExpectedFailure ".\sql\verify\20_fail_invalid_resolution_type.sql" "UNSUPPORTED_RESOLUTION_TYPE"
-Invoke-ExpectedFailure ".\sql\verify\21_fail_missing_proof.sql" "PROOF_REQUIRED"
-Invoke-ExpectedFailure ".\sql\verify\24_fail_invalid_kernel_resolution_type.sql" "UNSUPPORTED_RESOLUTION_TYPE"
-Invoke-ExpectedFailure ".\sql\verify\25_fail_invalid_kernel_proof_status.sql" "INVALID_PROOF_STATUS"
+Invoke-ExpectedFailure "./sql/verify/20_fail_invalid_resolution_type.sql" "UNSUPPORTED_RESOLUTION_TYPE"
+Invoke-ExpectedFailure "./sql/verify/21_fail_missing_proof.sql" "PROOF_REQUIRED"
+Invoke-ExpectedFailure "./sql/verify/24_fail_invalid_kernel_resolution_type.sql" "UNSUPPORTED_RESOLUTION_TYPE"
+Invoke-ExpectedFailure "./sql/verify/25_fail_invalid_kernel_proof_status.sql" "INVALID_PROOF_STATUS"
 
 Write-Host ""
 Write-Host "GUARD_VERIFICATION_OK"
