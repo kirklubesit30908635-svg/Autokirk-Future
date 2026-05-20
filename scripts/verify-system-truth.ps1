@@ -276,5 +276,31 @@ if (-not $hasFailedIntegrityWatchdogCandidate) {
     throw "INTEGRITY_WATCHDOG_CANDIDATES_EXPECTED_FIXTURE_MISSING"
 }
 
+$guardsScript = Join-Path $PSScriptRoot "verify-guards.ps1"
+$signalsScript = Join-Path $PSScriptRoot "verify-signals.ps1"
+
+if (-not (Test-Path $guardsScript)) {
+    throw "SCRIPT_NOT_FOUND: $guardsScript"
+}
+
+if (-not (Test-Path $signalsScript)) {
+    throw "SCRIPT_NOT_FOUND: $signalsScript"
+}
+
+Write-Host ""
+Write-Host "==> Running guard verification" -ForegroundColor Cyan
+pwsh -ExecutionPolicy Bypass -File $guardsScript
+
+if ($LASTEXITCODE -ne 0) {
+    throw "GUARD_VERIFICATION_FAILED"
+}
+
+Write-Host ""
+Write-Host "==> Running signals verification" -ForegroundColor Cyan
+pwsh -ExecutionPolicy Bypass -File $signalsScript
+
+if ($LASTEXITCODE -ne 0) {
+    throw "SIGNALS_VERIFICATION_FAILED"
+}
 Write-Host ""
 Write-Host "SYSTEM_TRUTH_VERIFICATION_OK" -ForegroundColor Green
