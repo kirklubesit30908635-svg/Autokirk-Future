@@ -4,27 +4,27 @@ export default function AgentProofPage() {
   return (
     <>
       <Head>
-        <title>Agent Proof Boundary | AutoKirk</title>
+        <title>Proof-Required Completion | AutoKirk</title>
         <meta
           name="description"
-          content="Govern whether agentic work is allowed to count through authority boundaries, proof evaluation, and receipt-backed completion."
+          content="AutoKirk helps keep important work visible until the right proof exists."
         />
       </Head>
 
       <main className="shell">
         <section className="card hero">
-          <p className="eyebrow">Agentic proof boundary</p>
-          <h1>Govern whether autonomous work is allowed to count.</h1>
+          <p className="eyebrow">Proof-required completion</p>
+          <h1>Important work should not be marked complete without proof.</h1>
           <p className="lede">
-            AutoKirk does not replace your agents, automations, or systems.
-            It governs whether their claims are allowed to become business truth.
+            AutoKirk connects to the tools you already use and keeps important
+            work visible until the right proof exists.
           </p>
 
           <div className="stateStrip">
-            <span>Claim source</span>
-            <span>Authority boundary</span>
-            <span>Proof evaluation</span>
-            <span>Receipt rationale</span>
+            <span>Important work</span>
+            <span>Required proof</span>
+            <span>Proof standard</span>
+            <span>Trusted final state</span>
           </div>
 
           <div className="actions">
@@ -35,88 +35,84 @@ export default function AgentProofPage() {
 
         <section className="card gridCard">
           <article>
-            <p className="eyebrow">What AutoKirk can now govern</p>
-            <h2>Human, API, automation, and agent claims.</h2>
+            <p className="eyebrow">What AutoKirk can govern</p>
+            <h2>Human, system, automation, and AI-created work.</h2>
             <p>
-              AutoKirk now supports governed provenance for:
+              AutoKirk helps teams require proof before important work reaches a
+              trusted final state.
             </p>
             <ul>
               <li>human work claims</li>
-              <li>API-triggered actions</li>
+              <li>system-triggered actions</li>
               <li>automation workflows</li>
-              <li>AI agents</li>
-              <li>multi-agent systems</li>
-              <li>external system assertions</li>
+              <li>AI-created work</li>
+              <li>multi-step handoffs</li>
+              <li>external work assertions</li>
             </ul>
           </article>
 
           <article>
-            <p className="eyebrow">Authority-aware completion</p>
-            <h2>Approve. Deny. Conditional.</h2>
+            <p className="eyebrow">Proof-required closeout</p>
+            <h2>Resolve. Escalate. Fail.</h2>
             <p>
-              AutoKirk evaluates whether claimed work should count before closure.
+              When proof is sufficient, work can resolve automatically. When
+              proof is missing, it stays visible, escalates, or fails.
             </p>
             <ul>
-              <li>authority boundaries</li>
-              <li>machine-readable rationale</li>
-              <li>cited controls</li>
+              <li>customer proof rules</li>
+              <li>required proof</li>
+              <li>clear decision reason</li>
               <li>required follow-up</li>
-              <li>receipt-backed closure</li>
-              <li>append-only proof trails</li>
+              <li>proof-required completion</li>
+              <li>durable proof history</li>
             </ul>
           </article>
         </section>
 
         <section className="card flowCard">
-          <p className="eyebrow">Governed flow</p>
-          <h2>How the proof boundary works.</h2>
+          <p className="eyebrow">Completion trust</p>
+          <h2>How proof-required completion works.</h2>
 
           <div className="flow">
             <div>
               <strong>01</strong>
-              <h3>Register claim source</h3>
-              <p>Identify who or what is making the claim.</p>
+              <h3>Choose where important work starts</h3>
+              <p>Connect the work source your team already uses.</p>
             </div>
 
             <div>
               <strong>02</strong>
-              <h3>Define authority boundary</h3>
-              <p>Define what the source may claim or close.</p>
+              <h3>Define what proof means</h3>
+              <p>Set the proof standard for that work.</p>
             </div>
 
             <div>
               <strong>03</strong>
-              <h3>Attach obligation context</h3>
-              <p>Bind the claim to a governed obligation.</p>
+              <h3>Keep work visible</h3>
+              <p>Track the work until the right proof exists.</p>
             </div>
 
             <div>
               <strong>04</strong>
-              <h3>Evaluate proof</h3>
-              <p>Approve, deny, or conditionally gate completion.</p>
+              <h3>Review the proof</h3>
+              <p>Resolve, escalate, or fail the work based on the proof standard.</p>
             </div>
 
             <div>
               <strong>05</strong>
-              <h3>Emit receipt</h3>
-              <p>Preserve rationale, controls, and proof history.</p>
+              <h3>Preserve the final state</h3>
+              <p>Keep a durable history of the decision and supporting proof.</p>
             </div>
           </div>
         </section>
 
-        <section className="card apiCard">
-          <p className="eyebrow">Live governed APIs</p>
-          <h2>Operational proof-boundary surfaces are now live.</h2>
-
-          <div className="apiGrid">
-            <div><code>api.register_claim_source(...)</code></div>
-            <div><code>api.upsert_authority_boundary(...)</code></div>
-            <div><code>api.attach_obligation_claim_context(...)</code></div>
-            <div><code>api.evaluate_proof_boundary(...)</code></div>
-          </div>
-
+        <section className="card publicCard">
+          <p className="eyebrow">AI-created work</p>
+          <h2>AI can create, suggest, and act. Proof decides what counts.</h2>
           <p className="footnote">
-            These APIs operate beside the existing governed obligation kernel and canonical receipt path.
+            AutoKirk helps determine whether the result is acceptable to count as
+            complete based on your rules, required proof, and evidence of how it
+            got there.
           </p>
         </section>
       </main>
@@ -131,9 +127,9 @@ export default function AgentProofPage() {
         h3{font-size:1.05rem}
         .lede{max-width:760px;color:#d0d0d0;font-size:clamp(1.08rem,2vw,1.32rem);line-height:1.5}
         .eyebrow{font-size:.78rem;font-weight:900;letter-spacing:.11em;text-transform:uppercase;color:#9a9a9a}
-        .stateStrip,.flow,.apiGrid{display:grid;gap:12px}
+        .stateStrip,.flow{display:grid;gap:12px}
         .stateStrip{grid-template-columns:repeat(4,minmax(0,1fr))}
-        .stateStrip span,.apiGrid div,.flow div{border:1px solid #262626;border-radius:18px;background:#080808;padding:14px}
+        .stateStrip span,.flow div{border:1px solid #262626;border-radius:18px;background:#080808;padding:14px}
         .actions{display:flex;gap:12px;flex-wrap:wrap}
         .primary,.secondary{min-height:48px;border-radius:999px;padding:0 20px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;font-weight:950}
         .primary{background:#2df5d5;color:#020202}
@@ -143,13 +139,11 @@ export default function AgentProofPage() {
         ul{margin:14px 0 0;padding-left:18px}
         .flow{grid-template-columns:repeat(5,minmax(0,1fr));margin-top:22px}
         .flow strong{display:inline-flex;width:34px;height:34px;border-radius:999px;background:#2df5d5;color:#020202;align-items:center;justify-content:center;font-size:.85rem;margin-bottom:12px}
-        .apiGrid{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:18px}
-        code{font-size:.92rem;color:#dffefa}
-        .footnote{margin-top:18px;color:#8e8e8e}
+        .footnote{margin-top:18px;color:#b0b0b0;line-height:1.55;max-width:820px}
         @media(max-width:900px){
           .shell{padding:16px 8px 32px}
           .card{border-radius:22px}
-          .gridCard,.flow,.apiGrid,.stateStrip{grid-template-columns:1fr}
+          .gridCard,.flow,.stateStrip{grid-template-columns:1fr}
           .primary,.secondary{width:100%}
         }
       `}</style>
